@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest>=8
+pytest-asyncio>=0.23
+fakeredis[lua]>=2.23      # 限流 Lua 脚本测试必须带 lua extra
+ruff>=0.5

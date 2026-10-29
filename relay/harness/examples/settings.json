@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "bash", "hooks": [ { "type": "command", "command": "sh harness/examples/hooks/guard_bash.sh", "timeout": 5 } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": "write_file|edit_file", "hooks": [ { "type": "command", "command": "sh harness/examples/hooks/lint_after_write.sh" } ] }
+    ],
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "sh harness/examples/hooks/git_context.sh" } ] }
+    ]
+  }
+}

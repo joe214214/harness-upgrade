@@ -1,0 +1,33 @@
+# 告警规则。App 端的推送告警从这里的 Alertmanager webhook 触发（见 M6.2）。
+groups:
+  - name: relay
+    rules:
+      - alert: RelayQueueBacklog
+        expr: relay_queue_depth > 100
+        for: 30s
+        labels: {severity: warning}
+        annotations:
+          summary: "队列积压 {{ $value }}，超过阈值 100"
+
+      - alert: RelayHighP99Latency
+        expr: histogram_quantile(0.99, sum(rate(relay_request_duration_seconds_bucket[5m])) by (le)) > 10
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "P99 延迟 {{ $value | humanizeDuration }}"
+
+      - alert: RelayErrorRate
+        expr: |
+          sum(rate(relay_requests_total{status=~"5.."}[5m]))
+            / sum(rate(relay_requests_total[5m])) > 0.05
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "5xx 错误率超过 5%"
+
+      - alert: RelayGpuMemoryHigh
+        expr: relay_gpu_memory_used_bytes / (8 * 1024^3) > 0.95
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "GPU 显存使用超过 95%（RTX 5070 8GB）"
