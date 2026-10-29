@@ -1,0 +1,8 @@
+# 只在 RTX 5070 那台机器上装。Blackwell (sm_120) 必须用 cu128 轮子：
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+#   pip install -r requirements-gpu.txt
+-r requirements.txt
+vllm>=0.8.5
+transformers>=4.44
+faster-whisper>=1.0
+nvidia-ml-py>=12.0

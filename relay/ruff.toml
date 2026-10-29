@@ -1,0 +1,10 @@
+line-length = 100
+target-version = "py312"
+exclude = ["gateway/migrations"]
+[lint]
+select = ["E", "F", "I", "B", "UP"]
+# B008: FastAPI 的 Depends()/Header() 就是设计成放在默认参数里的
+# UP042: 保留 (str, Enum) 写法，pydantic-settings 解析环境变量更稳
+ignore = ["E501", "B008", "UP042"]
+[lint.per-file-ignores]
+"tests/*" = ["E702", "E402"]   # 测试里允许分号紧凑写法；conftest 必须先设 env 再 import

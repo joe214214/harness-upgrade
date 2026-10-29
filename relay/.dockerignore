@@ -1,0 +1,12 @@
+# 构建上下文越小越快。node_modules 和 .next 动辄几百 MB，容器里会重新装。
+**/node_modules
+**/.next
+**/.expo
+**/__pycache__
+**/*.pyc
+.venv/
+*.db
+.env
+.relay/
+.git/
+docs/screenshots/

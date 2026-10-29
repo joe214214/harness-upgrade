@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Relay",
+    "slug": "relay-mobile",
+    "version": "0.1.0",
+    "scheme": "relay",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "dev.relay.mobile"
+    },
+    "android": {
+      "package": "dev.relay.mobile"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "color": "#0e7c9e"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Relay attaches photos you pick to your chat message."
+        }
+      ]
+    ],
+    "extra": {
+      "apiUrl": "http://192.168.1.10:8000"
+    }
+  }
+}

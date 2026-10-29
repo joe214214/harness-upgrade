@@ -1,0 +1,14 @@
+# 运行时（gateway + worker 共用）
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3
+sqlalchemy[asyncio]>=2.0
+alembic>=1.13
+aiosqlite>=0.20
+asyncpg>=0.29
+redis>=5.0
+prometheus-client>=0.20
+structlog>=24.1
+python-multipart>=0.0.9
+httpx>=0.27           # vLLM backend 拉远程图片；harness 调模型端点
