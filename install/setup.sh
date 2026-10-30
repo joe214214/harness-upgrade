@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
-# Install DeepSeek Harness with the multimodal and memory packages, plus a `dsh-mm` command.
-#   install/setup.sh [--dir ~/.dsh-mm]
-# Re-running is safe: it resets the managed checkout to the base commit and re-applies the patches.
+# Install the upgraded DeepSeek Harness in deepseek-harness/ (dependencies + build) and a `dsh-mm` command.
+#   install/setup.sh [--dir ~/.dsh-mm]     (--dir holds memory, speech models and the launcher)
+# Re-running is safe.
 set -euo pipefail
 
-BASE_COMMIT=f3803c96974ad4a94195fb97e5c637e9c2a3afe3
-UPSTREAM=https://github.com/deepseek-ai/deepseek-harness.git
 PNPM_VERSION=11.28.5
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(dirname "$here")"
@@ -16,13 +14,12 @@ while [ $# -gt 0 ]; do
     *) echo "usage: $0 [--dir PATH]" >&2; exit 2 ;;
   esac
 done
-dsh="$install_dir/deepseek-harness"
+dsh="$repo/deepseek-harness"
 step() { printf '\033[36m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[31merror: %s\033[0m\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-step "Checking git, Node >= 24.9 and pnpm"
-have git || die "git is required"
+step "Checking Node >= 24.9 and pnpm"
 have node || die "Node.js 24.9 or newer is required (https://nodejs.org)"
 node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>24||(a===24&&b>=9)?0:1)' \
   || die "Node.js 24.9 or newer is required; found $(node --version)"
@@ -42,15 +39,7 @@ if [ ${#missing[@]} -gt 0 ]; then
 fi
 have soffice || echo "  optional: LibreOffice (soffice) lets read_document open .docx/.pptx/.xlsx"
 
-step "Preparing DeepSeek Harness at $dsh"
 mkdir -p "$install_dir"
-if [ ! -d "$dsh/.git" ]; then
-  git clone --filter=blob:none --no-checkout "$UPSTREAM" "$dsh"
-fi
-git -C "$dsh" fetch -q origin "$BASE_COMMIT" 2>/dev/null || true
-git -C "$dsh" checkout -q -f -B multimodal "$BASE_COMMIT"
-git -C "$dsh" -c user.name=dsh-mm -c user.email=dsh-mm@localhost am -q "$repo"/dsh-patches/*.patch
-
 step "Installing dependencies (a few minutes the first time)"
 (cd "$dsh" && pnpm install --frozen-lockfile)
 
