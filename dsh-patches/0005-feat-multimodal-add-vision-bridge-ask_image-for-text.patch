@@ -1,7 +1,7 @@
 From 141430313cbd2c1116cb7e2da5d5245ba9bbc558 Mon Sep 17 00:00:00 2001
 From: joe214214 <y852zhou@uwaterloo.ca>
 Date: Fri, 30 Oct 2026 01:56:23 +0000
-Subject: [PATCH 5/8] feat(multimodal): add vision-bridge ask_image for
+Subject: [PATCH 05/10] feat(multimodal): add vision-bridge ask_image for
  text-only routes
 
 A model whose route declares no image input asks a configured image-capable

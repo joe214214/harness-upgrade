@@ -1,7 +1,7 @@
 From 460884c847a8bbbabc805e525120732a92e05ae7 Mon Sep 17 00:00:00 2001
 From: joe214214 <y852zhou@uwaterloo.ca>
 Date: Fri, 30 Oct 2026 02:48:17 +0000
-Subject: [PATCH 8/8] feat(multimodal): steer models to the media tools with
+Subject: [PATCH 08/10] feat(multimodal): steer models to the media tools with
  prompt guidance
 
 With a working bash sandbox, the model extracted video frames with ffmpeg

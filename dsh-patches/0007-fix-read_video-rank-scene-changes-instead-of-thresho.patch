@@ -1,7 +1,7 @@
 From 58eebf4dd62a37e001e99dbe3f36b15f6c716af1 Mon Sep 17 00:00:00 2001
 From: joe214214 <y852zhou@uwaterloo.ca>
 Date: Fri, 30 Oct 2026 02:37:08 +0000
-Subject: [PATCH 7/8] fix(read_video): rank scene changes instead of
+Subject: [PATCH 07/10] fix(read_video): rank scene changes instead of
  thresholding them
 
 ffmpeg scene scores depend on content: film cuts score above 0.3, but an
