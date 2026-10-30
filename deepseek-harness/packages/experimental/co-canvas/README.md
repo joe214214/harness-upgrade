@@ -161,7 +161,9 @@ Append-only; the result follows the reusable request prefix.
 
 #### What the model sees
 
-A browser call chosen before the user's latest input fails without running, with this reason followed by the marks in the format below:
+A browser call chosen before the user's latest input fails without running, with this reason followed by the marks in the format below.
+
+##### Verbatim reason
 
 ```markdown
 This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.
