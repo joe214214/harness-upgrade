@@ -8,7 +8,9 @@
 
 import { chromium } from 'playwright-core'
 import type { BrowserContext, CDPSession, Page } from 'playwright-core'
-import type { CanvasFrame, CanvasInput, CanvasRect, MarkTarget } from './types.ts'
+import { OVERLAY_BINDING, OVERLAY_SOURCE, OVERLAY_TAG, OVERLAY_WORLD } from './overlay.ts'
+import type { OverlayMessage, OverlayState } from './overlay.ts'
+import type { CanvasFrame, CanvasInput, CanvasRect, MarkShape, MarkTarget } from './types.ts'
 
 /** Launch and streaming options, all from the plugin config. */
 export interface SharedBrowserOptions {
@@ -22,6 +24,22 @@ export interface SharedBrowserOptions {
   readonly viewport: { readonly width: number; readonly height: number }
   readonly startUrl: string
   readonly frameQuality: number
+  /** Inject the marking toolbar into every page. */
+  readonly pageToolbar: boolean
+}
+
+/** A grounded mark: the element under its focus point and a crop with the mark drawn on it. */
+export interface Capture {
+  readonly target?: MarkTarget
+  readonly crop?: Buffer
+}
+
+/** Toolbar wiring of one page: its CDP session and the toolbar world's current context. */
+interface ToolbarSession {
+  readonly cdp: CDPSession
+  mainFrame: string
+  /** Live toolbar-world contexts of the main frame; a rewritten document can leave more than one. */
+  readonly contexts: Set<number>
 }
 
 // Runs in the page with `this` bound to the hit element.
@@ -49,11 +67,64 @@ const DESCRIBE_ELEMENT = `function () {
     nth: peers.indexOf(el) + 1, sameCount: peers.length }
 }`
 
+/** Runs in the page: hide or show the toolbar host. */
+function showToolbar([tag, visible]: readonly [string, boolean]): void {
+  const host = document.querySelector<HTMLElement>(tag)
+  if (host !== null) host.style.visibility = visible ? 'visible' : 'hidden'
+}
+
+/** Runs in the page: draw the mark for the crop. */
+function drawPreview([shape, rect]: readonly [MarkShape, CanvasRect]): void {
+  const el = document.createElement('div')
+  el.id = '__dsh_co_canvas_preview'
+  const point = shape === 'point'
+  const x = point ? rect.x - 11 : Math.min(rect.x, rect.x + rect.width)
+  const y = point ? rect.y - 11 : Math.min(rect.y, rect.y + rect.height)
+  el.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;box-sizing:border-box;border:3px solid #e5383b;'
+    + `left:${x}px;top:${y}px;width:${point ? 22 : Math.abs(rect.width)}px;height:${point ? 22 : Math.abs(rect.height)}px;`
+    + `border-radius:${point ? '50%' : '4px'}`
+  document.documentElement.appendChild(el)
+}
+
+/** Runs in the page: remove the mark drawn for the crop. */
+function clearPreview(): void {
+  document.getElementById('__dsh_co_canvas_preview')?.remove()
+}
+
+/**
+ * Validate a toolbar message; the payload crosses a process boundary.
+ * @param payload - JSON text from the toolbar world.
+ * @returns the message, or undefined when malformed.
+ */
+export function parseToolbarMessage(payload: string): OverlayMessage | undefined {
+  let value: unknown
+  try { value = JSON.parse(payload) } catch { return undefined } // malformed JSON is ignored like any malformed message
+  if (typeof value !== 'object' || value === null) return undefined
+  const m = value as Record<string, unknown>
+  const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+  switch (m.type) {
+    case 'hello': return { type: 'hello' }
+    case 'control': return m.control === 'agent' || m.control === 'paused' ? { type: 'control', control: m.control } : undefined
+    case 'answer': return typeof m.questionId === 'string' ? { type: 'answer', questionId: m.questionId } : undefined
+    case 'mark': {
+      const r = m.rect as Record<string, unknown> | null | undefined
+      if ((m.shape !== 'box' && m.shape !== 'point') || typeof m.note !== 'string' || r == null) return undefined
+      if (!num(r.x) || !num(r.y) || !num(r.width) || !num(r.height)) return undefined
+      return { type: 'mark', shape: m.shape, rect: { x: r.x, y: r.y, width: r.width, height: r.height }, note: m.note.slice(0, 500) }
+    }
+    default: return undefined
+  }
+}
+
 /** Owner of the shared browser process and its live view. */
 export class SharedBrowser {
   private context: BrowserContext | undefined
   private pages: Page[] = []
   private readonly listeners = new Set<() => void>()
+  private readonly toolbars = new Map<Page, ToolbarSession>()
+  private readonly installing = new Map<Page, Promise<void>>()
+  /** Receives toolbar messages; set by the owning service. */
+  onToolbar: ((page: Page, message: OverlayMessage) => void) | undefined
 
   constructor(private readonly options: SharedBrowserOptions) {}
 
@@ -73,6 +144,7 @@ export class SharedBrowser {
     context.on('page', (page) => { this.track(page) })
     for (const page of context.pages()) this.track(page)
     const first = this.pages.at(-1) ?? await context.newPage()
+    await this.installing.get(first)
     await first.goto(this.options.startUrl)
   }
 
@@ -81,6 +153,8 @@ export class SharedBrowser {
     const context = this.context
     this.context = undefined
     this.pages = []
+    this.toolbars.clear()
+    this.installing.clear()
     await context?.close()
   }
 
@@ -98,11 +172,12 @@ export class SharedBrowser {
   get page(): Page | undefined { return this.pages.at(-1) }
 
   /**
-   * Read the active page's address and title.
+   * Read a page's address and title.
+   * @param target - the page; defaults to the active page.
    * @returns URL and title, empty without an active page.
    */
-  async describe(): Promise<{ url: string; title: string }> {
-    const page = this.page
+  async describe(target?: Page): Promise<{ url: string; title: string }> {
+    const page = target ?? this.page
     if (page === undefined) return { url: '', title: '' }
     return { url: page.url(), title: await page.title().catch(() => '') }
   }
@@ -151,14 +226,66 @@ export class SharedBrowser {
   }
 
   /**
-   * Find the element at a viewport point of the active page.
-   * @param x - CSS pixel x.
-   * @param y - CSS pixel y.
-   * @returns the element's description, or undefined when nothing is there.
+   * Ground a mark and crop it. The toolbar is hidden meanwhile; the crop shows the page around
+   * the mark, with the mark drawn on it, so a later navigation does not change what was marked.
+   * @param page - page the mark was drawn on; defaults to the active page.
+   * @param shape - mark kind.
+   * @param rect - marked area in viewport CSS pixels.
+   * @param focus - point whose element the mark refers to.
+   * @param margin - context pixels around the crop, or undefined for no crop.
+   * @returns the grounded element and the crop, each absent when unavailable.
    */
-  async hitTest(x: number, y: number): Promise<MarkTarget | undefined> {
-    const page = this.page
-    if (page === undefined) return undefined
+  async capture(
+    page: Page | undefined, shape: MarkShape, rect: CanvasRect, focus: { x: number; y: number }, margin: number | undefined,
+  ): Promise<Capture> {
+    const target = page ?? this.page
+    if (target === undefined) return {}
+    await target.evaluate(showToolbar, [OVERLAY_TAG, false] as const).catch(() => {}) // the page may be navigating
+    try {
+      const element = await this.hitTest(target, focus.x, focus.y)
+      if (margin === undefined) return element === undefined ? {} : { target: element }
+      await target.evaluate(drawPreview, [shape, rect] as const)
+      const { width, height } = await target.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }))
+      const x = Math.max(0, Math.min(rect.x, rect.x + rect.width) - margin)
+      const y = Math.max(0, Math.min(rect.y, rect.y + rect.height) - margin)
+      const right = Math.min(width, Math.max(rect.x, rect.x + rect.width) + margin)
+      const bottom = Math.min(height, Math.max(rect.y, rect.y + rect.height) + margin)
+      const crop = await target.screenshot({ clip: { x, y, width: Math.max(1, right - x), height: Math.max(1, bottom - y) } })
+      return { ...element === undefined ? {} : { target: element }, crop }
+    } finally {
+      await target.evaluate(clearPreview).catch(() => {}) // the page may be navigating
+      await target.evaluate(showToolbar, [OVERLAY_TAG, true] as const).catch(() => {}) // the page may be navigating
+    }
+  }
+
+  /**
+   * Push state to the toolbar of every page.
+   * @param stateOf - the state for one page, given its URL.
+   */
+  pushToolbarState(stateOf: (url: string) => OverlayState): void {
+    for (const [page, toolbar] of this.toolbars) this.pushTo(page, toolbar, stateOf(page.url()))
+  }
+
+  /**
+   * Push state to one page's toolbar.
+   * @param page - the page.
+   * @param state - toolbar state.
+   */
+  pushToolbarStateTo(page: Page, state: OverlayState): void {
+    const toolbar = this.toolbars.get(page)
+    if (toolbar !== undefined) this.pushTo(page, toolbar, state)
+  }
+
+  private pushTo(page: Page, toolbar: ToolbarSession, state: OverlayState): void {
+    if (page.isClosed()) return
+    for (const contextId of toolbar.contexts) {
+      toolbar.cdp.send('Runtime.evaluate', {
+        expression: `window.__dshCoCanvasState?.(${JSON.stringify(state)})`, contextId,
+      }).catch(() => {}) // the document is being replaced; its successor greets with 'hello'
+    }
+  }
+
+  private async hitTest(page: Page, x: number, y: number): Promise<MarkTarget | undefined> {
     const cdp = await page.context().newCDPSession(page)
     try {
       const { backendNodeId } = await cdp.send('DOM.getNodeForLocation', { x: Math.round(x), y: Math.round(y) })
@@ -176,20 +303,30 @@ export class SharedBrowser {
   }
 
   /**
-   * Capture a PNG of a viewport rectangle with a margin, clamped to the viewport.
-   * @param rect - marked area in CSS pixels.
-   * @param margin - context pixels added on every side.
-   * @returns PNG bytes, or undefined without an active page.
+   * Install the toolbar world and its binding on one page. The binding exists only in
+   * that isolated world, so the page's own scripts cannot send marks.
    */
-  async crop(rect: CanvasRect, margin: number): Promise<Buffer | undefined> {
-    const page = this.page
-    if (page === undefined) return undefined
-    const { width, height } = page.viewportSize() ?? this.options.viewport
-    const x = Math.max(0, Math.min(rect.x, rect.x + rect.width) - margin)
-    const y = Math.max(0, Math.min(rect.y, rect.y + rect.height) - margin)
-    const right = Math.min(width, Math.max(rect.x, rect.x + rect.width) + margin)
-    const bottom = Math.min(height, Math.max(rect.y, rect.y + rect.height) + margin)
-    return await page.screenshot({ clip: { x, y, width: Math.max(1, right - x), height: Math.max(1, bottom - y) } })
+  private async installToolbar(page: Page): Promise<void> {
+    const cdp = await page.context().newCDPSession(page)
+    const { frameTree } = await cdp.send('Page.getFrameTree')
+    const toolbar: ToolbarSession = { cdp, mainFrame: frameTree.frame.id, contexts: new Set() }
+    this.toolbars.set(page, toolbar)
+    cdp.on('Runtime.executionContextCreated', ({ context }) => {
+      const aux = context.auxData as { frameId?: string } | undefined
+      if (context.name === OVERLAY_WORLD && aux?.frameId === toolbar.mainFrame) toolbar.contexts.add(context.id)
+    })
+    cdp.on('Runtime.executionContextDestroyed', ({ executionContextId }) => { toolbar.contexts.delete(executionContextId) })
+    cdp.on('Runtime.executionContextsCleared', () => { toolbar.contexts.clear() })
+    cdp.on('Runtime.bindingCalled', ({ name, payload, executionContextId }) => {
+      if (name !== OVERLAY_BINDING || !toolbar.contexts.has(executionContextId)) return
+      const message = parseToolbarMessage(payload)
+      if (message !== undefined) this.onToolbar?.(page, message)
+    })
+    // Without the Page domain enabled, the script below runs only immediately, not on later navigations.
+    await cdp.send('Page.enable')
+    await cdp.send('Runtime.enable')
+    await cdp.send('Runtime.addBinding', { name: OVERLAY_BINDING, executionContextName: OVERLAY_WORLD })
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument', { source: OVERLAY_SOURCE, worldName: OVERLAY_WORLD, runImmediately: true })
   }
 
   /**
@@ -218,7 +355,9 @@ export class SharedBrowser {
   private track(page: Page): void {
     if (this.pages.includes(page)) return
     this.pages.push(page)
-    page.on('close', () => { this.pages = this.pages.filter(p => p !== page); this.changed() })
+    page.on('close', () => { this.pages = this.pages.filter(p => p !== page); this.toolbars.delete(page); this.installing.delete(page); this.changed() })
+    // A failed install leaves the page without a toolbar; the page closed during setup.
+    if (this.options.pageToolbar) this.installing.set(page, this.installToolbar(page).catch(() => {}))
     page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) this.changed() })
     this.changed()
   }
