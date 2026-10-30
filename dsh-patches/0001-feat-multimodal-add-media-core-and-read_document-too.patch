@@ -1,7 +1,7 @@
 From f7a507eb81922de357c9f1cfcb02b4c5510d20f0 Mon Sep 17 00:00:00 2001
 From: joe214214 <y852zhou@uwaterloo.ca>
 Date: Fri, 30 Oct 2026 01:36:58 +0000
-Subject: [PATCH 1/3] feat(multimodal): add media-core and read_document tool
+Subject: [PATCH 1/5] feat(multimodal): add media-core and read_document tool
 
 media-core: media commands over ctx.subprocess, content-addressed result
 cache, page/time-window arguments, durable PNG commits.

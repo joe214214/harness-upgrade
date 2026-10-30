@@ -1,0 +1,971 @@
+From 72b6182766259725764ee61a0ac319a8fa5b4ceb Mon Sep 17 00:00:00 2001
+From: joe214214 <y852zhou@uwaterloo.ca>
+Date: Fri, 30 Oct 2026 01:53:36 +0000
+Subject: [PATCH 4/5] feat(memory): add cross-Session long-term memory
+
+A size-capped MEMORY.md the agent curates, FTS5 episodic recall over past
+Sessions (node:sqlite), and a post-turn reflect pass on the agent's own
+route. Media transcripts from read_audio/read_video are stored unclipped so
+recall can answer questions about earlier recordings.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HKCB8j9Zf27m5tAmJdbkFm
+---
+ packages/memory/memory/package.json         |  48 +++++
+ packages/memory/memory/src/episodic.ts      | 112 ++++++++++
+ packages/memory/memory/src/index.ts         | 227 ++++++++++++++++++++
+ packages/memory/memory/src/longterm.ts      | 134 ++++++++++++
+ packages/memory/memory/src/reflect.ts       |  71 ++++++
+ packages/memory/memory/src/turns.ts         |  55 +++++
+ packages/memory/memory/tests/memory.spec.ts | 197 +++++++++++++++++
+ packages/memory/memory/tsconfig.json        |  19 ++
+ tsconfig.base.json                          |   1 +
+ tsconfig.host.json                          |   1 +
+ 10 files changed, 865 insertions(+)
+ create mode 100644 packages/memory/memory/package.json
+ create mode 100644 packages/memory/memory/src/episodic.ts
+ create mode 100644 packages/memory/memory/src/index.ts
+ create mode 100644 packages/memory/memory/src/longterm.ts
+ create mode 100644 packages/memory/memory/src/reflect.ts
+ create mode 100644 packages/memory/memory/src/turns.ts
+ create mode 100644 packages/memory/memory/tests/memory.spec.ts
+ create mode 100644 packages/memory/memory/tsconfig.json
+
+diff --git a/packages/memory/memory/package.json b/packages/memory/memory/package.json
+new file mode 100644
+index 00000000..e294e103
+--- /dev/null
++++ b/packages/memory/memory/package.json
+@@ -0,0 +1,48 @@
++{
++  "name": "@deepseek-ai/dsh-memory",
++  "description": "Cross-Session long-term memory: a size-capped MEMORY.md the agent curates, FTS5 episodic recall over past Sessions, and a post-turn reflect pass, built on system-prompt context, tools, and agent/turn-stopping",
++  "version": "0.2.2-alpha.2",
++  "publishConfig": {
++    "access": "public"
++  },
++  "repository": {
++    "type": "git",
++    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
++    "directory": "packages/memory/memory"
++  },
++  "type": "module",
++  "main": "lib/index.js",
++  "types": "lib/types/index.d.ts",
++  "exports": {
++    ".": {
++      "types": "./lib/types/index.d.ts",
++      "default": "./lib/index.js"
++    },
++    "./src/*": "./src/*",
++    "./package.json": "./package.json"
++  },
++  "files": [
++    "lib/index.js",
++    "lib/types/**/*.d.ts"
++  ],
++  "license": "MIT",
++  "dependencies": {
++    "@deepseek-ai/schemastery": "workspace:~"
++  },
++  "peerDependencies": {
++    "@deepseek-ai/cordis": "workspace:~",
++    "@deepseek-ai/dsh-agent": "workspace:*",
++    "@deepseek-ai/dsh-llm": "workspace:*",
++    "@deepseek-ai/dsh-system-prompt": "workspace:*",
++    "@deepseek-ai/dsh-tools": "workspace:*"
++  },
++  "devDependencies": {
++    "@deepseek-ai/cordis": "workspace:~",
++    "@deepseek-ai/dsh-agent": "workspace:*",
++    "@deepseek-ai/dsh-llm": "workspace:*",
++    "@deepseek-ai/dsh-system-prompt": "workspace:*",
++    "@deepseek-ai/dsh-tool-executor-native": "workspace:*",
++    "@deepseek-ai/dsh-tool-testkit": "workspace:*",
++    "@deepseek-ai/dsh-tools": "workspace:*"
++  }
++}
+diff --git a/packages/memory/memory/src/episodic.ts b/packages/memory/memory/src/episodic.ts
+new file mode 100644
+index 00000000..de9e288b
+--- /dev/null
++++ b/packages/memory/memory/src/episodic.ts
+@@ -0,0 +1,112 @@
++/**
++ * Episodic memory: every turn of every Session in SQLite with an FTS5 index,
++ * searchable across Sessions with `recall`. Semantic memory keeps
++ * conclusions; this keeps what happened, including transcripts the media
++ * tools produced.
++ * @module @deepseek-ai/dsh-memory/episodic
++ */
++
++import { mkdirSync } from 'node:fs'
++import { dirname } from 'node:path'
++import { DatabaseSync } from 'node:sqlite'
++
++const SCHEMA = `
++CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, cwd TEXT, started_at REAL);
++CREATE TABLE IF NOT EXISTS turns (
++  id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, idx INTEGER NOT NULL,
++  role TEXT NOT NULL, content TEXT NOT NULL, tool_name TEXT, ts REAL NOT NULL
++);
++CREATE INDEX IF NOT EXISTS ix_turns_session ON turns(session_id, idx);
++CREATE VIRTUAL TABLE IF NOT EXISTS turns_fts USING fts5(content, content='turns', content_rowid='id');
++CREATE TRIGGER IF NOT EXISTS turns_ai AFTER INSERT ON turns BEGIN
++  INSERT INTO turns_fts(rowid, content) VALUES (new.id, new.content);
++END;
++`
++
++/** One stored turn. */
++export interface Turn {
++  readonly role: string
++  readonly text: string
++  readonly toolName?: string
++}
++
++/** One search hit. */
++export interface RecallHit {
++  readonly sessionId: string
++  readonly role: string
++  readonly content: string
++  readonly toolName: string | null
++}
++
++/**
++ * Turn free text into an FTS5 query: words OR-ed and quoted, so punctuation
++ * in the input is never parsed as query syntax.
++ * @param query - model-supplied text.
++ * @returns an FTS5 MATCH expression, or empty when no word remains.
++ */
++export function ftsQuery(query: string): string {
++  const words = query.normalize('NFKC').split(/[^\p{L}\p{N}_-]+/u).filter(w => w.length > 1)
++  return words.slice(0, 12).map(w => `"${w}"`).join(' OR ')
++}
++
++/** The SQLite store. One instance per memory root. */
++export class EpisodicMemory {
++  private readonly db: DatabaseSync
++
++  /** @param path - absolute path of the database file. */
++  constructor(path: string) {
++    mkdirSync(dirname(path), { recursive: true })
++    this.db = new DatabaseSync(path)
++    this.db.exec(SCHEMA)
++  }
++
++  /**
++   * Append turns to a Session, continuing its index across restarts.
++   * @param sessionId - Session id.
++   * @param cwd - working directory recorded with a new Session.
++   * @param turns - turns in order.
++   */
++  append(sessionId: string, cwd: string, turns: readonly Turn[]): void {
++    this.db.prepare('INSERT OR IGNORE INTO sessions(id, cwd, started_at) VALUES (?, ?, ?)').run(sessionId, cwd, Date.now() / 1000)
++    const row = this.db.prepare('SELECT COALESCE(MAX(idx), -1) + 1 AS next FROM turns WHERE session_id = ?').get(sessionId) as { next: number }
++    let idx = row.next
++    const insert = this.db.prepare('INSERT INTO turns(session_id, idx, role, content, tool_name, ts) VALUES (?, ?, ?, ?, ?, ?)')
++    for (const turn of turns) {
++      insert.run(sessionId, idx, turn.role, turn.text, turn.toolName ?? null, Date.now() / 1000)
++      idx += 1
++    }
++  }
++
++  /**
++   * Full-text search, best matches first.
++   * @param query - free text.
++   * @param limit - most hits.
++   * @param excludeSession - Session to leave out (the caller's own).
++   * @returns hits.
++   */
++  search(query: string, limit: number, excludeSession?: string): RecallHit[] {
++    const match = ftsQuery(query)
++    if (!match) return []
++    const sql = `SELECT t.session_id AS sessionId, t.role AS role, t.content AS content, t.tool_name AS toolName
++      FROM turns_fts f JOIN turns t ON t.id = f.rowid
++      WHERE turns_fts MATCH ? ${excludeSession === undefined ? '' : 'AND t.session_id != ?'}
++      ORDER BY bm25(turns_fts) LIMIT ?`
++    const params = excludeSession === undefined ? [match, limit] : [match, excludeSession, limit]
++    return this.db.prepare(sql).all(...params).map(row => ({
++      sessionId: String(row.sessionId),
++      role: String(row.role),
++      content: String(row.content),
++      toolName: row.toolName === null ? null : String(row.toolName),
++    }))
++  }
++
++  /** @returns the number of stored Sessions. */
++  sessionCount(): number {
++    return (this.db.prepare('SELECT COUNT(*) AS n FROM sessions').get() as { n: number }).n
++  }
++
++  /** Close the database. */
++  close(): void {
++    this.db.close()
++  }
++}
+diff --git a/packages/memory/memory/src/index.ts b/packages/memory/memory/src/index.ts
+new file mode 100644
+index 00000000..816043f0
+--- /dev/null
++++ b/packages/memory/memory/src/index.ts
+@@ -0,0 +1,227 @@
++/**
++ * Cross-Session long-term memory for DeepSeek Harness, built on three
++ * documented extension points and no agent-loop change:
++ *
++ * - `ctx.systemPrompt.context` places MEMORY.md in every request;
++ * - `ctx.tools` registers memory_read / memory_write / memory_replace /
++ *   memory_rewrite and recall;
++ * - `agent/turn-stopping` stores the finished turn in episodic memory and
++ *   runs the reflect pass, which files durable facts without the model
++ *   having to remember to save them.
++ * @module @deepseek-ai/dsh-memory
++ */
++
++import { homedir } from 'node:os'
++import { join } from 'node:path'
++import type { Context } from '@deepseek-ai/cordis'
++import z from '@deepseek-ai/schemastery'
++import type {} from '@deepseek-ai/dsh-agent'
++import type { Agent } from '@deepseek-ai/dsh-agent'
++import { BlockAssembler, createUserMessage } from '@deepseek-ai/dsh-llm'
++import type { ContextFormed, GenerateOptions } from '@deepseek-ai/dsh-llm'
++import type {} from '@deepseek-ai/dsh-system-prompt'
++import { defineTool } from '@deepseek-ai/dsh-tools'
++import { EpisodicMemory } from './episodic.ts'
++import { LongTermMemory, MemoryFullError } from './longterm.ts'
++import { REFLECT_SYSTEM, SECTIONS, parseFacts, reflectInput } from './reflect.ts'
++import { toTurns } from './turns.ts'
++
++declare module '@deepseek-ai/dsh-llm' {
++  interface MessageSourceMap {
++    'dsh-memory-reflect': { kind: 'dsh-memory-reflect' } & ContextFormed
++  }
++}
++
++export { EpisodicMemory, ftsQuery } from './episodic.ts'
++export type { RecallHit, Turn } from './episodic.ts'
++export { LongTermMemory, MemoryFullError } from './longterm.ts'
++export { REFLECT_SYSTEM, parseFacts, reflectInput } from './reflect.ts'
++export type { Fact } from './reflect.ts'
++export { toTurns } from './turns.ts'
++
++/** Cordis plugin name used by loader diagnostics. */
++export const name = 'memory'
++
++/** Required services; the reflect pass also uses `llm` when it is mounted. */
++export const inject = ['tools', 'systemPrompt']
++
++/** Plugin config; every field has a validated default. */
++export interface Config {
++  /** Directory holding MEMORY.md and episodic.db. */
++  root?: string
++  /** MEMORY.md byte cap. */
++  capBytes?: number
++  /** Run the reflect pass after each turn. */
++  reflect?: boolean
++  /** Output token cap of one reflect request. */
++  reflectMaxTokens?: number
++  /** Deadline of one reflect request. */
++  reflectTimeoutMs?: number
++  /** Hits returned by one recall. */
++  recallLimit?: number
++  /** Clip length for ordinary tool results stored in episodic memory. */
++  maxToolChars?: number
++}
++
++export const Config: z<Config> = z.object({
++  root: z.string().default(join(homedir(), '.dsh-memory')),
++  capBytes: z.natural().min(512).default(8000),
++  reflect: z.boolean().default(true),
++  reflectMaxTokens: z.natural().min(64).default(1024),
++  reflectTimeoutMs: z.natural().min(1000).default(60_000),
++  recallLimit: z.natural().min(1).max(50).default(8),
++  maxToolChars: z.natural().min(100).default(1500),
++})
++
++type ResolvedConfig = Required<Config>
++
++const GUIDE = `You have a long-term memory that persists across sessions.
++- Facts in <memory> were saved in earlier sessions; rely on them.
++- When the user states a durable preference, convention or decision, save it with memory_write.
++- If memory_write reports memory is full, consolidate with memory_rewrite, then retry.
++- When the user refers to earlier work, recordings or documents that are not in <memory>, search past sessions with recall.`
++
++/**
++ * Run a synchronous tool body (file and SQLite work) as a promise, turning a
++ * throw into the rejection the tool executor reports.
++ * @param body - synchronous tool body.
++ * @returns the settled value.
++ */
++function settle<T>(body: () => T): Promise<T> {
++  try {
++    return Promise.resolve(body())
++  } catch (error: unknown) {
++    return Promise.reject(error instanceof Error ? error : new Error(String(error)))
++  }
++}
++
++/**
++ * Run one reflect request on the calling agent's route.
++ * @param ctx - context with `llm`.
++ * @param agent - agent whose turn ended.
++ * @param input - reflect user message.
++ * @param cfg - resolved config.
++ * @param signal - turn cancellation.
++ * @returns the model's text answer.
++ */
++async function askReflect(ctx: Context, agent: Agent, input: string, cfg: ResolvedConfig, signal: AbortSignal): Promise<string> {
++  const llm = ctx.get('llm')
++  const routed = agent.session.requestHeader()?.config
++  const provider = routed?.provider ?? agent.options.provider
++  const model = routed?.model ?? agent.options.model
++  if (llm === undefined || provider === undefined || model === undefined) return ''
++  const deadline = AbortSignal.any([signal, AbortSignal.timeout(cfg.reflectTimeoutMs)])
++  const call = await llm.prepareCall({ provider, model, maxTokens: cfg.reflectMaxTokens }, deadline)
++  const options: GenerateOptions = {
++    ...call.config,
++    messages: [createUserMessage({ content: [{ type: 'text', text: input }], source: { kind: 'dsh-memory-reflect' } })],
++    system: REFLECT_SYSTEM,
++    sessionId: agent.session.header.id,
++    signal: deadline,
++  }
++  const assembler = new BlockAssembler()
++  for await (const chunk of call.stream(options)) assembler.push(chunk)
++  return assembler.blocks().map(b => (b.type === 'text' ? b.text : '')).join('')
++}
++
++/**
++ * Mount memory.
++ * @param ctx - plugin context with `tools` and `systemPrompt`.
++ * @param config - validated plugin config.
++ */
++export function apply(ctx: Context, config: Config): void {
++  const cfg = config as ResolvedConfig
++  const longterm = new LongTermMemory(join(cfg.root, 'MEMORY.md'), cfg.capBytes)
++  const episodic = new EpisodicMemory(join(cfg.root, 'episodic.db'))
++  ctx.effect(() => () => { episodic.close() })
++
++  ctx.systemPrompt.context({
++    name: 'memory',
++    order: 900,
++    interpolate: false,
++    text: () => `${GUIDE}\n\n${longterm.renderForPrompt() || '<memory>(empty)</memory>'}`,
++  })
++
++  ctx.tools.register(defineTool({
++    name: 'memory_read',
++    description: 'Read the whole long-term memory file (MEMORY.md), including source tags.',
++    parameters: {},
++    output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
++    execute: () => Promise.resolve(longterm.read() || '(memory is empty)'),
++  }))
++
++  ctx.tools.register(defineTool({
++    name: 'memory_write',
++    description: 'Save one durable fact to long-term memory: a user preference, project convention or decision that should still hold in future sessions. '
++      + 'Fails when memory is full; then consolidate with memory_rewrite first.',
++    parameters: {
++      section: { type: 'string', required: true, enum: [...SECTIONS] },
++      fact: { type: 'string', required: true, description: 'One self-contained line.' },
++    },
++    output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
++    execute: (args, exec) => settle(() => {
++      const changed = longterm.append(args.section, args.fact, exec.agent?.session.header.id ?? '')
++      return changed ? `saved (${longterm.size()}/${cfg.capBytes} bytes)` : 'already in memory'
++    }),
++  }))
++
++  ctx.tools.register(defineTool({
++    name: 'memory_replace',
++    description: 'Replace one exact, unique substring of MEMORY.md to fix or update a fact; an empty replacement deletes it.',
++    parameters: {
++      old: { type: 'string', required: true },
++      new: { type: 'string', required: true },
++    },
++    output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
++    execute: args => settle(() => {
++      if (!longterm.replace(args.old, args.new)) throw new Error('"old" must occur exactly once in MEMORY.md; read it with memory_read')
++      return `replaced (${longterm.size()}/${cfg.capBytes} bytes)`
++    }),
++  }))
++
++  ctx.tools.register(defineTool({
++    name: 'memory_rewrite',
++    description: 'Replace the whole MEMORY.md to consolidate it: merge duplicates, drop stale facts, compress details. Keep the "## section" / "- fact" format.',
++    parameters: { text: { type: 'string', required: true } },
++    output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
++    execute: args => settle(() => {
++      longterm.rewrite(args.text)
++      return `rewritten (${longterm.size()}/${cfg.capBytes} bytes)`
++    }),
++  }))
++
++  ctx.tools.register(defineTool({
++    name: 'recall',
++    description: 'Search earlier sessions\' conversations, tool results and media transcripts by keywords. '
++      + 'Use when the user refers to previous work that is not in long-term memory.',
++    parameters: { query: { type: 'string', required: true } },
++    output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
++    isConcurrencySafe: () => true,
++    execute: (args, exec) => settle(() => {
++      const hits = episodic.search(args.query, cfg.recallLimit, exec.agent?.session.header.id)
++      if (hits.length === 0) return 'no matches in past sessions'
++      return hits.map(h => `[${h.sessionId.slice(0, 20)} · ${h.role}${h.toolName ? ` ${h.toolName}` : ''}] ${h.content.slice(0, 1200)}`).join('\n\n')
++    }),
++  }))
++
++  // Derived messages already stored, per Session.
++  const stored = new Map<string, number>()
++
++  ctx.on('agent/turn-stopping', async ({ agent, signal }) => {
++    const session = agent.session
++    const sessionId = session.header.id
++    try {
++      const messages = session.deriveMessages()
++      const fresh = toTurns(messages.slice(stored.get(sessionId) ?? 0), cfg.maxToolChars)
++      stored.set(sessionId, messages.length)
++      if (fresh.length === 0) return
++      episodic.append(sessionId, session.header.cwd ?? '', fresh)
++      if (!cfg.reflect) return
++      const facts = parseFacts(await askReflect(ctx, agent, reflectInput(longterm.read(), fresh), cfg, signal))
++      for (const fact of facts) longterm.append(fact.section, fact.fact, sessionId)
++    } catch (error: unknown) {
++      // Memory is best-effort: a full memory or a failed reflect request must not fail the user's turn.
++      if (!(error instanceof MemoryFullError)) ctx.logger('memory').warn(`memory: turn ingest failed for ${sessionId}: ${String(error)}`)
++    }
++  })
++}
+diff --git a/packages/memory/memory/src/longterm.ts b/packages/memory/memory/src/longterm.ts
+new file mode 100644
+index 00000000..a61b80c2
+--- /dev/null
++++ b/packages/memory/memory/src/longterm.ts
+@@ -0,0 +1,134 @@
++/**
++ * Semantic memory: a size-capped MEMORY.md the agent curates itself. Facts
++ * live under `## section` headings as `- fact` lines, each tagged with the
++ * Session that wrote it. The cap is the point: when a write would exceed it,
++ * the write fails and the agent must merge, prune, and compress first.
++ * @module @deepseek-ai/dsh-memory/longterm
++ */
++
++import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
++import { dirname } from 'node:path'
++
++/** A write would push MEMORY.md past its byte cap. */
++export class MemoryFullError extends Error {
++  /**
++   * @param size - bytes the file would have after the write.
++   * @param cap - configured byte cap.
++   */
++  constructor(readonly size: number, readonly cap: number) {
++    super(`MEMORY.md would be ${size} bytes; the cap is ${cap}. Consolidate first with memory_rewrite: `
++      + 'merge duplicates, drop stale facts, compress details into conclusions.')
++    this.name = 'MemoryFullError'
++  }
++}
++
++const SOURCE_TAG = /\s*<!--.*?-->\s*$/u
++
++function escapeRegExp(text: string): string {
++  return text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')
++}
++
++/** The MEMORY.md file and its cap. */
++export class LongTermMemory {
++  /**
++   * @param path - absolute path of MEMORY.md.
++   * @param capBytes - UTF-8 byte cap.
++   */
++  constructor(readonly path: string, readonly capBytes: number) {}
++
++  /** @returns the file text, or empty when it does not exist. */
++  read(): string {
++    try {
++      return readFileSync(this.path, 'utf8')
++    } catch (error: unknown) {
++      // A missing file is an empty memory; any other read failure is surfaced.
++      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return ''
++      throw error
++    }
++  }
++
++  /** @returns current UTF-8 size in bytes. */
++  size(): number {
++    return Buffer.byteLength(this.read(), 'utf8')
++  }
++
++  /** @returns facts per section, without source tags. */
++  sections(): Map<string, string[]> {
++    const out = new Map<string, string[]>()
++    let current = 'general'
++    for (const line of this.read().split('\n')) {
++      if (line.startsWith('## ')) {
++        current = line.slice(3).trim()
++        if (!out.has(current)) out.set(current, [])
++      } else if (line.trim().startsWith('- ')) {
++        const list = out.get(current) ?? []
++        list.push(line.trim().slice(2).replace(SOURCE_TAG, ''))
++        out.set(current, list)
++      }
++    }
++    return out
++  }
++
++  /**
++   * Append one fact under a section; an identical fact is not repeated.
++   * @param section - section heading.
++   * @param fact - one-line fact.
++   * @param source - Session id recorded with the fact.
++   * @returns true when the file changed.
++   * @throws MemoryFullError when the result would exceed the cap.
++   */
++  append(section: string, fact: string, source: string): boolean {
++    const clean = fact.trim().replace(/\s*\n\s*/gu, ' ')
++    if (!clean || this.sections().get(section)?.includes(clean)) return false
++    let text = this.read()
++    const entry = `- ${clean}${source ? `  <!-- ${source} -->` : ''}`
++    const heading = new RegExp(`(## ${escapeRegExp(section)}\\n(?:- .*\\n?)*)`, 'u')
++    if (heading.test(text)) {
++      text = text.replace(heading, match => `${match.replace(/\n+$/u, '')}\n${entry}\n`)
++    } else {
++      text = `${text.replace(/\n+$/u, '')}${text.trim() ? '\n\n' : ''}## ${section}\n${entry}\n`
++    }
++    this.write(text)
++    return true
++  }
++
++  /**
++   * Replace one exact, unique substring.
++   * @param old - text that must occur exactly once.
++   * @param replacement - new text; empty deletes.
++   * @returns false when `old` is absent or ambiguous.
++   * @throws MemoryFullError when the result would exceed the cap.
++   */
++  replace(old: string, replacement: string): boolean {
++    const text = this.read()
++    if (!old || text.split(old).length !== 2) return false
++    this.write(text.replace(old, () => replacement))
++    return true
++  }
++
++  /**
++   * Replace the whole file (consolidation).
++   * @param text - new MEMORY.md content.
++   * @throws MemoryFullError when the text exceeds the cap.
++   */
++  rewrite(text: string): void {
++    this.write(`${text.replace(/\n+$/u, '')}\n`)
++  }
++
++  /** @returns the memory as model context, without source tags; empty when there is none. */
++  renderForPrompt(): string {
++    const text = this.read().trim()
++    if (!text) return ''
++    const body = text.split('\n').map(line => line.replace(SOURCE_TAG, '')).join('\n')
++    return `<memory size="${this.size()}/${this.capBytes} bytes">\n${body}\n</memory>`
++  }
++
++  private write(text: string): void {
++    const size = Buffer.byteLength(text, 'utf8')
++    if (size > this.capBytes) throw new MemoryFullError(size, this.capBytes)
++    mkdirSync(dirname(this.path), { recursive: true })
++    const tmp = `${this.path}.${process.pid}.tmp`
++    writeFileSync(tmp, text)
++    renameSync(tmp, this.path)
++  }
++}
+diff --git a/packages/memory/memory/src/reflect.ts b/packages/memory/memory/src/reflect.ts
+new file mode 100644
+index 00000000..b2940370
+--- /dev/null
++++ b/packages/memory/memory/src/reflect.ts
+@@ -0,0 +1,71 @@
++/**
++ * Reflect pass: after a turn, an auxiliary model request extracts facts worth
++ * keeping across Sessions. The bar is high (durable preferences, conventions,
++ * decisions), and anything other than a clean JSON array is discarded, so a
++ * refusal or chatty reply never lands in MEMORY.md.
++ * @module @deepseek-ai/dsh-memory/reflect
++ */
++
++import type { Turn } from './episodic.ts'
++
++/** Sections a fact may be filed under. */
++export const SECTIONS = ['user', 'project', 'decisions', 'general'] as const
++
++/** One extracted fact. */
++export interface Fact {
++  readonly section: (typeof SECTIONS)[number]
++  readonly fact: string
++}
++
++/** System prompt of the reflect request. */
++export const REFLECT_SYSTEM = `Extract facts worth remembering across future sessions from the conversation the user sends.
++
++Include ONLY things that are durable (still true in a month) and stated by the user or established by a decision:
++- user preferences and working style ("prefers X", "always do Y")
++- project facts: architecture, conventions, key file locations, constraints
++- decisions and their reasons, including decisions taken from meeting recordings or documents
++Exclude: transient task state, the assistant's own suggestions the user did not adopt, anything already in <existing_memory>.
++
++Return a JSON array and nothing else. Each item: {"section": "user"|"project"|"decisions", "fact": "<one self-contained line>"}.
++Return [] if nothing qualifies.`
++
++/**
++ * Build the reflect request's user message.
++ * @param existing - current MEMORY.md.
++ * @param turns - the turn to reflect on.
++ * @returns the message text.
++ */
++export function reflectInput(existing: string, turns: readonly Turn[]): string {
++  const transcript = turns.map(t => `${t.role.toUpperCase()}${t.toolName ? ` (${t.toolName})` : ''}: ${t.text}`).join('\n\n')
++  return `<existing_memory>\n${existing || '(empty)'}\n</existing_memory>\n\n<conversation>\n${transcript}\n</conversation>`
++}
++
++/**
++ * Parse the model's answer strictly. The first JSON array in the text is
++ * used, which tolerates a markdown fence; malformed items are dropped.
++ * @param text - model output.
++ * @returns at most 20 facts.
++ */
++export function parseFacts(text: string): Fact[] {
++  const match = /\[[\s\S]*\]/u.exec(text)
++  if (match === null) return []
++  let data: unknown
++  try {
++    data = JSON.parse(match[0])
++  } catch (error: unknown) {
++    // Not JSON: the answer is discarded by design.
++    void error
++    return []
++  }
++  if (!Array.isArray(data)) return []
++  const facts: Fact[] = []
++  for (const item of data as unknown[]) {
++    if (typeof item !== 'object' || item === null) continue
++    const { section, fact } = item as { section?: unknown; fact?: unknown }
++    if (typeof fact !== 'string' || !fact.trim()) continue
++    const name = typeof section === 'string' ? section.trim().toLowerCase() : 'general'
++    const known = (SECTIONS as readonly string[]).includes(name) ? name as Fact['section'] : 'general'
++    facts.push({ section: known, fact: fact.trim().slice(0, 300) })
++  }
++  return facts.slice(0, 20)
++}
+diff --git a/packages/memory/memory/src/turns.ts b/packages/memory/memory/src/turns.ts
+new file mode 100644
+index 00000000..7cf3c036
+--- /dev/null
++++ b/packages/memory/memory/src/turns.ts
+@@ -0,0 +1,55 @@
++/**
++ * Projection of derived model history into the flat turns stored in episodic
++ * memory and shown to the reflect pass.
++ * @module @deepseek-ai/dsh-memory/turns
++ */
++
++import type { Message } from '@deepseek-ai/dsh-llm'
++import type { Turn } from './episodic.ts'
++
++function textOf(content: unknown): string {
++  if (typeof content === 'string') return content
++  if (!Array.isArray(content)) return ''
++  return (content as { type?: string; text?: string }[]).filter(b => b.type === 'text' && typeof b.text === 'string').map(b => b.text).join('\n')
++}
++
++function clip(text: string, limit: number): string {
++  return text.length > limit ? `${text.slice(0, limit)}… [${text.length - limit} more chars]` : text
++}
++
++/**
++ * Convert messages into turns. System prompts and runtime-context snapshots
++ * are dropped (they repeat every request); tool calls become `[tool name] args`
++ * lines; tool results are clipped, except media transcripts, which are the
++ * content most worth recalling later.
++ * @param messages - output of `session.deriveMessages()` for one turn.
++ * @param maxToolChars - clip length for ordinary tool results.
++ * @returns turns in order.
++ */
++export function toTurns(messages: readonly Message[], maxToolChars: number): Turn[] {
++  const toolNames = new Map<string, string>()
++  const turns: Turn[] = []
++  for (const message of messages) {
++    if (message.role === 'user') {
++      if (message.source.kind !== 'user') continue
++      const text = textOf(message.content)
++      if (text) turns.push({ role: 'user', text })
++    } else if (message.role === 'assistant') {
++      const parts: string[] = []
++      const text = textOf(message.content)
++      if (text) parts.push(text)
++      for (const block of message.content) {
++        if (block.type !== 'tool-call') continue
++        toolNames.set(block.id, block.name)
++        parts.push(`[tool ${block.name}] ${clip(block.arguments, 500)}`)
++      }
++      if (parts.length) turns.push({ role: 'assistant', text: parts.join('\n') })
++    } else if (message.role === 'tool') {
++      const name = toolNames.get(message.toolCallId)
++      const media = name === 'read_audio' || name === 'read_video'
++      const text = textOf(message.content)
++      turns.push({ role: 'tool', text: media ? text : clip(text, maxToolChars), ...name === undefined ? {} : { toolName: name } })
++    }
++  }
++  return turns
++}
+diff --git a/packages/memory/memory/tests/memory.spec.ts b/packages/memory/memory/tests/memory.spec.ts
+new file mode 100644
+index 00000000..adeeac64
+--- /dev/null
++++ b/packages/memory/memory/tests/memory.spec.ts
+@@ -0,0 +1,197 @@
++/**
++ * Memory over real files and node:sqlite: the capped MEMORY.md, FTS5 recall,
++ * strict reflect parsing, history projection, the tools, context injection,
++ * and the turn-stopping ingest + reflect path with a scripted model.
++ */
++import { mkdtemp, rm } from 'node:fs/promises'
++import { tmpdir } from 'node:os'
++import { join } from 'node:path'
++import { Context } from '@deepseek-ai/cordis'
++import { LlmAdapter, LlmRuntime, ToolCallId } from '@deepseek-ai/dsh-llm'
++import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, Message, StreamChunk } from '@deepseek-ai/dsh-llm'
++import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
++import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
++import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
++import ToolRuntime from '@deepseek-ai/dsh-tools'
++import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest'
++import * as Memory from '../src/index.ts'
++import { EpisodicMemory, LongTermMemory, MemoryFullError, ftsQuery, parseFacts, reflectInput, toTurns } from '../src/index.ts'
++
++let root: string
++beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'dsh-memory-')) })
++afterEach(async () => { await rm(root, { recursive: true, force: true }) })
++
++describe('LongTermMemory', () => {
++  it('files facts under sections, dedupes, and strips source tags from the prompt', () => {
++    const m = new LongTermMemory(join(root, 'MEMORY.md'), 8000)
++    expect(m.append('user', 'prefers tabs', 's1')).toBe(true)
++    expect(m.append('user', 'prefers tabs', 's2')).toBe(false)
++    m.append('project', 'uses ruff', 's1')
++    m.append('user', 'writes Python', 's1')
++    expect(m.read()).toBe('## user\n- prefers tabs  <!-- s1 -->\n- writes Python  <!-- s1 -->\n\n## project\n- uses ruff  <!-- s1 -->\n')
++    expect(m.renderForPrompt()).not.toContain('<!--')
++    expect(m.renderForPrompt()).toContain('- uses ruff')
++  })
++
++  it('enforces the cap and supports replace and rewrite', () => {
++    const m = new LongTermMemory(join(root, 'MEMORY.md'), 60)
++    m.append('user', 'x'.repeat(30), '')
++    expect(() => m.append('user', 'y'.repeat(30), '')).toThrow(MemoryFullError)
++    expect(m.replace('missing', 'z')).toBe(false)
++    expect(m.replace('x'.repeat(30), 'short')).toBe(true)
++    m.rewrite('## user\n- merged')
++    expect(m.read()).toBe('## user\n- merged\n')
++    expect(new LongTermMemory(join(root, 'none.md'), 10).renderForPrompt()).toBe('')
++  })
++})
++
++describe('EpisodicMemory', () => {
++  it('searches across Sessions, continues indexes, and excludes the caller', () => {
++    const e = new EpisodicMemory(join(root, 'episodic.db'))
++    onTestFinished(() => { e.close() })
++    e.append('old', '/w', [{ role: 'user', text: 'the CORS fix was RELAY_CORS_ORIGINS' }])
++    e.append('old', '/w', [{ role: 'tool', text: 'endpoint /v1/relay/jobs decided', toolName: 'read_audio' }])
++    e.append('now', '/w', [{ role: 'user', text: 'CORS again' }])
++    expect(e.search('CORS fix', 5, 'now').map(h => h.content)).toEqual(['the CORS fix was RELAY_CORS_ORIGINS'])
++    expect(e.search('endpoint', 5)[0]).toMatchObject({ toolName: 'read_audio', sessionId: 'old' })
++    expect(e.search('!!', 5)).toEqual([])
++    expect(e.sessionCount()).toBe(2)
++  })
++
++  it('builds FTS queries that never parse punctuation as syntax', () => {
++    expect(ftsQuery('what was "the" CORS-fix?')).toBe('"what" OR "was" OR "the" OR "CORS-fix"')
++    expect(ftsQuery('接口 名字')).toBe('"接口" OR "名字"')
++  })
++})
++
++describe('reflect parsing', () => {
++  it('accepts a fenced JSON array and drops everything else', () => {
++    expect(parseFacts('```json\n[{"section":"user","fact":"prefers tabs"}]\n```')).toEqual([{ section: 'user', fact: 'prefers tabs' }])
++    expect(parseFacts('I cannot help with that')).toEqual([])
++    expect(parseFacts('[not json')).toEqual([])
++    expect(parseFacts('{"fact":"x"}')).toEqual([])
++    expect(parseFacts('[{"section":"weird","fact":"x"},{"fact":" "},null,{"section":"user"}]')).toEqual([{ section: 'general', fact: 'x' }])
++  })
++
++  it('shows existing memory and the turn to the model', () => {
++    const input = reflectInput('', [{ role: 'tool', text: 'said: use /v1/jobs', toolName: 'read_audio' }])
++    expect(input).toContain('(empty)')
++    expect(input).toContain('TOOL (read_audio): said: use /v1/jobs')
++  })
++})
++
++describe('toTurns', () => {
++  it('keeps user text, assistant text and tool calls, and clips non-media tool results', () => {
++    const messages = [
++      { role: 'system', content: [{ type: 'text', text: 'You are…' }] },
++      { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'remember tabs' }] },
++      { role: 'user', source: { kind: 'runtime-context' }, content: [{ type: 'text', text: 'Current runtime context.' }] },
++      { role: 'assistant', content: [{ type: 'reasoning', text: 'hm' }, { type: 'tool-call', id: 'c1', name: 'read', arguments: '{"file_path":"a"}' }] },
++      { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'a'.repeat(300) }] },
++      { role: 'assistant', content: [{ type: 'tool-call', id: 'c2', name: 'read_audio', arguments: '{}' }] },
++      { role: 'tool', toolCallId: 'c2', content: [{ type: 'text', text: 'b'.repeat(300) }] },
++    ] as unknown as Message[]
++    const turns = toTurns(messages, 100)
++    expect(turns.map(t => t.role)).toEqual(['user', 'assistant', 'tool', 'assistant', 'tool'])
++    expect(turns[1]?.text).toBe('[tool read] {"file_path":"a"}')
++    expect(turns[2]?.text).toContain('[200 more chars]')
++    expect(turns[4]).toMatchObject({ toolName: 'read_audio', text: 'b'.repeat(300) })
++  })
++})
++
++/** A model that answers every request with one fixed text. */
++class ScriptedAdapter extends LlmAdapter {
++  requests: GenerateOptions[] = []
++  constructor(private readonly answer: string) { super() }
++  override listModels(): Promise<readonly LlmModelInfo[]> { return Promise.resolve([{ provider: 'test', id: 'm', name: 'm' }]) }
++  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
++    return Promise.resolve({ provider, id: model, name: model })
++  }
++  override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
++    this.requests.push(options)
++    yield { type: 'block-start', index: 0, blockType: 'text' }
++    yield { type: 'text-delta', index: 0, text: this.answer }
++    yield { type: 'block-end', index: 0, block: { type: 'text', text: this.answer } }
++    yield { type: 'finish', reason: { kind: 'stop' } }
++  }
++}
++
++describe('memory plugin', () => {
++  async function setup(answer: string, config: Partial<Memory.Config> = {}) {
++    const ctx = new Context()
++    onTestFinished(async () => { await ctx.fiber.dispose() })
++    await ctx.plugin(SystemPrompt)
++    await ctx.plugin(ToolRuntime)
++    await ctx.plugin(NativeToolExecutor)
++    await ctx.plugin(LlmRuntime)
++    const adapter = new ScriptedAdapter(answer)
++    ctx.llm.registerAdapter(['test'], adapter)
++    await ctx.plugin(Memory, Object.assign({ root }, config))
++    return { ctx, adapter }
++  }
++
++  function fakeAgent(id: string, messages: unknown[]) {
++    return {
++      options: { provider: 'test', model: 'm' },
++      session: { header: { id, cwd: '/work' }, requestHeader: () => undefined, deriveMessages: () => messages },
++    }
++  }
++
++  let n = 0
++  async function tool(ctx: Context, name: string, args: Record<string, unknown>, sessionId = 's-now') {
++    const result = await executeToolFixture(ctx, {
++      signal: new AbortController().signal, callId: ToolCallId(`m-${++n}`), name, arguments: args,
++      agent: fakeAgent(sessionId, []) as never,
++    })
++    return { isError: result.isError, text: result.content.map(b => (b.type === 'text' ? b.text : '')).join('') }
++  }
++
++  it('saves, dedupes, replaces and rewrites through the tools', async () => {
++    const { ctx } = await setup('[]', { capBytes: 512 })
++    expect((await tool(ctx, 'memory_write', { section: 'user', fact: 'prefers tabs' })).text).toContain('saved')
++    expect((await tool(ctx, 'memory_write', { section: 'user', fact: 'prefers tabs' })).text).toBe('already in memory')
++    expect((await tool(ctx, 'memory_replace', { old: 'nope', new: 'x' })).isError).toBe(true)
++    expect((await tool(ctx, 'memory_replace', { old: 'tabs', new: 'spaces' })).text).toContain('replaced')
++    expect((await tool(ctx, 'memory_read', {})).text).toContain('prefers spaces  <!-- s-now -->')
++    const full = await tool(ctx, 'memory_write', { section: 'user', fact: 'z'.repeat(600) })
++    expect(full).toMatchObject({ isError: true })
++    expect(full.text).toContain('Consolidate first')
++    expect((await tool(ctx, 'memory_rewrite', { text: '## user\n- merged' })).text).toContain('rewritten')
++  })
++
++  it('injects memory into the assembled context', async () => {
++    const { ctx } = await setup('[]')
++    await tool(ctx, 'memory_write', { section: 'project', fact: 'codename BLUEFINCH' })
++    const contexts = await ctx.systemPrompt.assemble({})
++    expect(JSON.stringify(contexts)).toContain('codename BLUEFINCH')
++  })
++
++  it('stores each finished turn once, reflects facts into MEMORY.md, and recalls it from another Session', async () => {
++    const { ctx, adapter } = await setup('```json\n[{"section":"decisions","fact":"The jobs endpoint is /v1/relay/jobs"}]\n```')
++    const messages = [
++      { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'Summarize the meeting' }] },
++      { role: 'assistant', content: [{ type: 'tool-call', id: 'c1', name: 'read_audio', arguments: '{"file_path":"m.mp3"}' }] },
++      { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: '[03:12–03:40] we agreed the endpoint is /v1/relay/jobs' }] },
++      { role: 'assistant', content: [{ type: 'text', text: 'The endpoint was decided.' }] },
++    ]
++    const agent = fakeAgent('s-meeting', messages)
++    await ctx.serial('agent/turn-stopping', { agent: agent as never, turn: 1, signal: new AbortController().signal })
++    await ctx.serial('agent/turn-stopping', { agent: agent as never, turn: 1, signal: new AbortController().signal })
++    expect(adapter.requests).toHaveLength(1)
++    expect(JSON.stringify(adapter.requests[0]?.messages)).toContain('TOOL (read_audio): [03:12–03:40]')
++    expect((await tool(ctx, 'memory_read', {})).text).toContain('The jobs endpoint is /v1/relay/jobs  <!-- s-meeting -->')
++    const recall = await tool(ctx, 'recall', { query: 'endpoint agreed' }, 's-next')
++    expect(recall.text).toContain('read_audio')
++    expect(recall.text).toContain('03:12')
++  })
++
++  it('skips reflection when disabled and survives a refusal', async () => {
++    const off = await setup('[{"section":"user","fact":"x"}]', { reflect: false })
++    const messages = [{ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'hi' }] }]
++    await off.ctx.serial('agent/turn-stopping', { agent: fakeAgent('a', messages) as never, turn: 1, signal: new AbortController().signal })
++    expect(off.adapter.requests).toHaveLength(0)
++    const refusing = await setup('I cannot help with that')
++    await refusing.ctx.serial('agent/turn-stopping', { agent: fakeAgent('b', messages) as never, turn: 1, signal: new AbortController().signal })
++    expect((await tool(refusing.ctx, 'memory_read', {})).text).toBe('(memory is empty)')
++  })
++})
+diff --git a/packages/memory/memory/tsconfig.json b/packages/memory/memory/tsconfig.json
+new file mode 100644
+index 00000000..5006f072
+--- /dev/null
++++ b/packages/memory/memory/tsconfig.json
+@@ -0,0 +1,19 @@
++{
++  "extends": "../../../tsconfig.base.json",
++  "compilerOptions": {
++    "rootDir": "src",
++    "outDir": "lib/types"
++  },
++  "include": [
++    "src"
++  ],
++  "references": [
++    { "path": "../../../vendor/cosmokit" },
++    { "path": "../../../vendor/cordis" },
++    { "path": "../../../vendor/schemastery" },
++    { "path": "../../llm/llm" },
++    { "path": "../../core/tools" },
++    { "path": "../../core/agent" },
++    { "path": "../../core/system-prompt" }
++  ]
++}
+diff --git a/tsconfig.base.json b/tsconfig.base.json
+index 59e4204d..aa0088ba 100644
+--- a/tsconfig.base.json
++++ b/tsconfig.base.json
+@@ -570,6 +570,7 @@
+       "@deepseek-ai/dsh-tool-cordis": ["./packages/extensions/tool-cordis/src"],
+       "@deepseek-ai/dsh-tool-executor-native": ["./packages/core/tool-executor-native/src"],
+       "@deepseek-ai/dsh-tool-executor-ptc": ["./packages/core/tool-executor-ptc/src"],
++      "@deepseek-ai/dsh-memory": ["./packages/memory/memory/src"],
+       "@deepseek-ai/dsh-media-core": ["./packages/multimodal/media-core/src"],
+       "@deepseek-ai/dsh-tool-read-document": ["./packages/multimodal/tool-read-document/src"],
+       "@deepseek-ai/dsh-tool-read-audio": ["./packages/multimodal/tool-read-audio/src"],
+diff --git a/tsconfig.host.json b/tsconfig.host.json
+index 30211d94..ae2d82a7 100644
+--- a/tsconfig.host.json
++++ b/tsconfig.host.json
+@@ -487,6 +487,7 @@
+     { "path": "./packages/fs/fs-observation-policy" },
+     { "path": "./packages/fs/fs-sandbox" },
+     { "path": "./packages/fs/tool-fs" },
++    { "path": "./packages/memory/memory" },
+     { "path": "./packages/multimodal/media-core" },
+     { "path": "./packages/multimodal/tool-read-document" },
+     { "path": "./packages/multimodal/tool-read-audio" },
+-- 
+2.43.0
+
