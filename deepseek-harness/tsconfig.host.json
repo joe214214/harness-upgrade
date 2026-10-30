@@ -492,6 +492,7 @@
     { "path": "./packages/multimodal/tool-read-document" },
     { "path": "./packages/multimodal/tool-read-audio" },
     { "path": "./packages/multimodal/tool-read-video" },
+    { "path": "./packages/multimodal/vision-bridge" },
     { "path": "./packages/fs/tool-fs-search" },
     { "path": "./packages/fs/tool-str-replace-editor" },
     { "path": "./packages/compaction/compaction" },
