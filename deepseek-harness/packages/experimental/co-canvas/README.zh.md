@@ -161,7 +161,9 @@ The user watches your browser live and can mark elements on it. Their marks arri
 
 #### 模型看到什么
 
-在用户最新输入之前选定的浏览器调用不会执行而直接失败，原因是下面这句话，后面跟着下文格式的标注：
+在用户最新输入之前选定的浏览器调用不会执行而直接失败，原因是下面这句话，后面跟着下文格式的标注。
+
+##### 原因原文
 
 ```markdown
 This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.
