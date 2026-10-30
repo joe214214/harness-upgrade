@@ -1478,6 +1478,10 @@ export interface Config {
   indexBlockSeconds?: number
   /** Deadline for each ffmpeg command. */
   commandTimeoutMs?: number
+  /** Start speech provider preparation (e.g. the first model download) when it is not ready. */
+  autoPrepare?: boolean
+  /** Deadline for that preparation. */
+  prepareTimeoutMs?: number
   /** Directory for cached transcripts. */
   cacheDir?: string
 }
