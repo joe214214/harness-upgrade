@@ -11,13 +11,13 @@
 | Remember facts and past sessions across sessions | `dsh-memory` | `memory_*`, `recall` |
 | (shared) command runner, cache, windows, image commits | `dsh-media-core` | — |
 
-The packages live on a branch of a dsh fork; until that repository is published they are in [`dsh-patches/`](dsh-patches/README.md) as `git am`-ready patches on top of dsh `0.2.2-alpha.2`.
+[`deepseek-harness/`](deepseek-harness) is the complete upgraded harness: the official `0.2.2-alpha.2` release imported unmodified in one commit, with every change of this project as separate commits on top (139 files, +9,039 / −197 lines). `git log -- deepseek-harness` shows exactly what was added.
 
 ## Try it
 
-One script clones DSH at the base release, applies the patches, installs and builds everything (about 5 minutes), and adds a `dsh-mm` command. Only a [DeepSeek API key](https://platform.deepseek.com/api_keys) is needed; the script asks for it.
+The full harness source is in this repository. One script installs its dependencies, builds it (about 5 minutes), and adds a `dsh-mm` command. Only a [DeepSeek API key](https://platform.deepseek.com/api_keys) is needed; the script asks for it.
 
-**Windows** (PowerShell; installs missing Git, Node.js, FFmpeg and Poppler with winget):
+**Windows** (PowerShell; installs missing Node.js, FFmpeg and Poppler with winget):
 
 ```powershell
 git clone https://github.com/joe214214/harness-upgrade; cd harness-upgrade
@@ -49,7 +49,7 @@ dsh-mm headless "what error is in bug.webm?"  # one task, answer printed
 
 **Memory across sessions.** Session 1: "our API base path is /v2/relay, never use print() for logging, Postgres 16 only." Session 2, fresh: "write a function that logs a startup message with our base path" → uses `structlog` and `/v2/relay` with no tool calls.
 
-Reproduce: `DSH_REPO=/path/to/dsh-with-patches DEEPSEEK_API_KEY=… demos/run.sh 1` (or `3`).
+Reproduce after setup: `DEEPSEEK_API_KEY=… demos/run.sh 1` (or `3`).
 
 ## Evaluation: how should an agent look at a video?
 
@@ -84,14 +84,15 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 | `read_document`, `read_video`, `ask_image`, `memory` | Done, verified end to end on DeepSeek |
 | `read_audio` | Done and unit-tested with a scripted recognizer; a first real SenseVoice run found and fixed a missing provider-preparation step; full run pending network access to the Hugging Face file CDN (`us.aws.cdn.hf.co`) |
 | Web UI cards, speech output | Not started |
-| Upstream PR | Prepared as patches; waiting for the fork repository |
+| Upstream PR | Changes are separate commits on the imported release, ready to move to a fork |
 
 ## Repository layout
 
 ```
-dsh-patches/   the seven dsh packages as git-am patches on dsh 0.2.2-alpha.2
-demos/         demo projects, recordings, fixtures, and run.sh
-eval/          video benchmark (Python orchestrator, Playwright recorder) and results
-memory/        first Python prototype of the memory design (MCP server + dsh plugin)
-relay/         Relay, the self-hosted inference gateway this work started from
+deepseek-harness/  the upgraded harness: official 0.2.2-alpha.2 plus this project's commits
+install/           setup.ps1 (Windows), setup.sh, the dsh-mm launcher and plugin overlay
+demos/             demo projects, recordings, fixtures, and run.sh
+eval/              video benchmark (Python orchestrator, Playwright recorder) and results
+memory/            first Python prototype of the memory design (MCP server + dsh plugin)
+relay/             Relay, the self-hosted inference gateway this work started from
 ```
