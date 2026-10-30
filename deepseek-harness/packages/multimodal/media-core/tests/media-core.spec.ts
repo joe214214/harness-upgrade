@@ -91,7 +91,7 @@ describe('runMediaCommand', () => {
     await ctx.plugin(LocalSubprocessRuntime)
     return ctx
   }
-  const base = { cwd: tmpdir(), timeoutMs: 10_000, maxStdoutBytes: 1 << 20 }
+  const base = { cwd: tmpdir(), timeoutMs: 10_000, maxStdoutBytes: 1 << 20, maxStderrBytes: 4096 }
 
   it('returns collected stdout of a zero-exit run', async () => {
     const ctx = await subprocessContext()

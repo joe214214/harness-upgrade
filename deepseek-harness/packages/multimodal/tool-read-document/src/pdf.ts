@@ -86,10 +86,10 @@ export async function extractText(
   const cached = await cache.get<PdfText>(key)
   if (cached !== undefined) return cached
   const common = { cwd: tmpdir(), timeoutMs: limits.timeoutMs, signal }
-  const info = await runMediaCommand(ctx, { ...common, argv: ['pdfinfo', pdfPath], maxStdoutBytes: 64 * 1024 }, POPPLER_HINT)
+  const info = await runMediaCommand(ctx, { ...common, argv: ['pdfinfo', pdfPath], maxStdoutBytes: 64 * 1024, maxStderrBytes: 4096 }, POPPLER_HINT)
   const pageCount = parsePageCount(info.stdout)
   const text = await runMediaCommand(
-    ctx, { ...common, argv: ['pdftotext', '-layout', '-enc', 'UTF-8', pdfPath, '-'], maxStdoutBytes: limits.maxTextBytes }, POPPLER_HINT,
+    ctx, { ...common, argv: ['pdftotext', '-layout', '-enc', 'UTF-8', pdfPath, '-'], maxStdoutBytes: limits.maxTextBytes, maxStderrBytes: 4096 }, POPPLER_HINT,
   )
   const result: PdfText = { pageCount, pages: splitPages(text.stdout, pageCount) }
   // A truncated extraction would cache a document with missing pages.
@@ -120,6 +120,7 @@ export async function renderPages(
         cwd: dir,
         timeoutMs: limits.timeoutMs,
         maxStdoutBytes: 4096,
+        maxStderrBytes: 4096,
         signal,
       }, POPPLER_HINT)
       files.set(page, `${prefix}.png`)
@@ -152,6 +153,7 @@ export async function convertOfficeToPdf(
     cwd: outDir,
     timeoutMs: limits.timeoutMs,
     maxStdoutBytes: 64 * 1024,
+    maxStderrBytes: 4096,
     signal,
   }, LIBREOFFICE_HINT)
   const expected = `${basename(sourcePath, extname(sourcePath))}.pdf`
