@@ -5,14 +5,18 @@
 .DESCRIPTION
   Installs missing prerequisites with winget (Node.js LTS, FFmpeg, Poppler; LibreOffice with -WithOffice),
   installs dependencies and builds the harness in place, and adds dsh-mm to your user PATH.
-  -InstallDir holds memory, speech models and the launcher. Re-running is safe.
+  Everything else lives in one folder, -Root (default: the folder that contains this repository):
+    <Root>\data      memory, speech models, the co-canvas browser profile, and the dsh-mm launcher
+    <Root>\dsh-home  DSH sessions, settings and logs (DSH_HOME, set by dsh-mm only)
+  The pnpm package store stays in its usual shared location. Re-running is safe.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File install\setup.ps1
   powershell -ExecutionPolicy Bypass -File install\setup.ps1 -WithOffice
+  powershell -ExecutionPolicy Bypass -File install\setup.ps1 -Root D:\dsh
 #>
 param(
-  [string]$InstallDir = (Join-Path $env:USERPROFILE '.dsh-mm'),
+  [string]$Root = '',
   [switch]$WithOffice,
   [switch]$SkipSystemTools
 )
@@ -21,6 +25,10 @@ $PnpmVersion = '11.28.5'
 $Here = $PSScriptRoot
 $Repo = Split-Path -Parent $Here
 $Dsh = Join-Path $Repo 'deepseek-harness'
+if (-not $Root) { $Root = Split-Path -Parent $Repo }
+$Root = [IO.Path]::GetFullPath($Root)
+$InstallDir = Join-Path $Root 'data'
+$DshHome = Join-Path $Root 'dsh-home'
 $Bin = Join-Path $InstallDir 'bin'
 
 function Step($Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
@@ -85,7 +93,7 @@ if (-not $SkipSystemTools) {
   if (-not (Have 'soffice')) { Write-Host '  optional: re-run with -WithOffice so read_document can open .docx/.pptx/.xlsx' }
 }
 
-New-Item -ItemType Directory -Force -Path $InstallDir, $Bin | Out-Null
+New-Item -ItemType Directory -Force -Path $InstallDir, $Bin, $DshHome | Out-Null
 
 Step 'Installing dependencies (a few minutes the first time)'
 Push-Location $Dsh
@@ -108,7 +116,7 @@ $overlay = Join-Path $InstallDir 'overlay.yml'
 $text = (Get-Content -Raw (Join-Path $Here 'overlay.yml.in')).Replace('@DSH@', $dshFwd).Replace('@DATA@', $dataFwd).Replace('@BROWSER@', "        channel: msedge`n        headless: false")
 [IO.File]::WriteAllText($overlay, $text)
 Copy-Item (Join-Path $Here 'dsh-mm.mjs') (Join-Path $Bin 'dsh-mm.mjs') -Force
-[IO.File]::WriteAllText((Join-Path $Bin 'dsh-mm.json'), (@{ dsh = $Dsh; overlay = $overlay } | ConvertTo-Json))
+[IO.File]::WriteAllText((Join-Path $Bin 'dsh-mm.json'), (@{ dsh = $Dsh; overlay = $overlay; home = $DshHome } | ConvertTo-Json))
 [IO.File]::WriteAllText((Join-Path $Bin 'dsh-mm.cmd'), "@node `"%~dp0dsh-mm.mjs`" %*`r`n")
 Add-UserPath $Bin
 
@@ -119,6 +127,9 @@ if (-not $env:DEEPSEEK_API_KEY -and -not [Environment]::GetEnvironmentVariable('
 }
 
 Step 'Done'
+Write-Host "  Harness: $Repo"
+Write-Host "  Data:    $InstallDir"
+Write-Host "  DSH:     $DshHome"
 Write-Host '  Open a NEW terminal, then in any project folder:'
 Write-Host '    dsh-mm                                  (Web UI in your browser)'
 Write-Host '    dsh-mm headless "summarize report.pdf"'

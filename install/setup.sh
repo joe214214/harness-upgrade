@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
 # Install the upgraded DeepSeek Harness in deepseek-harness/ (dependencies + build) and a `dsh-mm` command.
-#   install/setup.sh [--dir ~/.dsh-mm]     (--dir holds memory, speech models and the launcher)
+#   install/setup.sh [--root DIR]     (default DIR: the folder that contains this repository)
+#   DIR/data holds memory, speech models, the browser profile and the dsh-mm launcher;
+#   DIR/dsh-home holds DSH sessions, settings and logs (DSH_HOME, set by dsh-mm only).
+#   The pnpm package store stays in its usual shared location.
 # Re-running is safe.
 set -euo pipefail
 
 PNPM_VERSION=11.28.5
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(dirname "$here")"
-install_dir="$HOME/.dsh-mm"
+root=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --dir) install_dir="$2"; shift 2 ;;
-    *) echo "usage: $0 [--dir PATH]" >&2; exit 2 ;;
+    --root) root="$2"; shift 2 ;;
+    *) echo "usage: $0 [--root DIR]" >&2; exit 2 ;;
   esac
 done
 dsh="$repo/deepseek-harness"
+[ -n "$root" ] || root="$(dirname "$repo")"
+mkdir -p "$root" && root="$(cd "$root" && pwd)"
+install_dir="$root/data"
+dsh_home="$root/dsh-home"
 step() { printf '\033[36m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[31merror: %s\033[0m\n' "$*" >&2; exit 1; }
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -39,7 +46,7 @@ if [ ${#missing[@]} -gt 0 ]; then
 fi
 have soffice || echo "  optional: LibreOffice (soffice) lets read_document open .docx/.pptx/.xlsx"
 
-mkdir -p "$install_dir"
+mkdir -p "$install_dir" "$dsh_home"
 step "Installing dependencies (a few minutes the first time)"
 # CI=true stops lefthook from installing git hooks into this (outer) repository.
 (cd "$dsh" && CI=true pnpm install --frozen-lockfile)
@@ -48,13 +55,17 @@ step "Building (about 3 minutes)"
 (cd "$dsh" && NODE_OPTIONS=--max-old-space-size=8192 pnpm run build:artifacts)
 
 step "Choosing the co-canvas browser"
-# An installed Chrome is used directly; otherwise Playwright downloads its own Chromium once.
+# CO_CANVAS_CHROMIUM or an installed Chrome is used directly; otherwise Playwright downloads its own Chromium once.
 # The window is visible so the user can mark the page in it; a machine without a display keeps it headless.
 if [ "$(uname)" = Darwin ] || [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then window="headless: false"; else window="headless: true"; fi
-if have google-chrome || [ -d "/Applications/Google Chrome.app" ]; then
+if [ -n "${CO_CANVAS_CHROMIUM:-}" ]; then
+  browser="        executablePath: $CO_CANVAS_CHROMIUM\n        $window"
+elif have google-chrome || [ -d "/Applications/Google Chrome.app" ]; then
   browser="        channel: chrome\n        $window"
 else
-  (cd "$dsh/packages/experimental/co-canvas" && pnpm exec playwright-core install chromium)
+  # Without a browser only co-canvas is unavailable, so a failed download does not stop the install.
+  (cd "$dsh/packages/experimental/co-canvas" && pnpm exec playwright-core install chromium) \
+    || echo "  warning: no browser for co-canvas; install Chrome or set CO_CANVAS_CHROMIUM, then re-run"
   browser="        $window"
 fi
 
@@ -62,8 +73,8 @@ step "Writing the plugin overlay and the dsh-mm launcher"
 sed -e "s#@DSH@#$dsh#g" -e "s#@DATA@#$install_dir#g" -e "s#^@BROWSER@\$#$browser#" "$here/overlay.yml.in" > "$install_dir/overlay.yml"
 mkdir -p "$install_dir/bin"
 cp "$here/dsh-mm.mjs" "$install_dir/bin/dsh-mm.mjs"
-node -e 'console.log(JSON.stringify({ dsh: process.argv[1], overlay: process.argv[2] }))' \
-  "$dsh" "$install_dir/overlay.yml" > "$install_dir/bin/dsh-mm.json"
+node -e 'console.log(JSON.stringify({ dsh: process.argv[1], overlay: process.argv[2], home: process.argv[3] }))' \
+  "$dsh" "$install_dir/overlay.yml" "$dsh_home" > "$install_dir/bin/dsh-mm.json"
 cat > "$install_dir/bin/dsh-mm" <<EOF
 #!/usr/bin/env bash
 [ -f "$install_dir/env" ] && . "$install_dir/env"
@@ -79,6 +90,9 @@ if [ -z "${DEEPSEEK_API_KEY:-}" ] && [ ! -f "$install_dir/env" ] && [ -t 0 ]; th
 fi
 
 step "Done"
+echo "  Harness: $repo"
+echo "  Data:    $install_dir"
+echo "  DSH:     $dsh_home"
 echo "  Add to PATH:  export PATH=\"$install_dir/bin:\$PATH\""
 echo "  Then, in any project folder:  dsh-mm            (Web UI in your browser)"
 echo "                                dsh-mm headless \"summarize report.pdf\""
