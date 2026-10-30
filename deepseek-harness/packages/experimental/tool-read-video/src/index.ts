@@ -35,8 +35,8 @@ import type {} from '@deepseek-ai/dsh-working-directory'
 import { extractFrames } from './frames.ts'
 import type { Sampling } from './frames.ts'
 
-export { extractFrames, frameFilter, parseShowinfoTimes, spreadPick } from './frames.ts'
-export type { ExtractedFrame, FrameRequest, Sampling } from './frames.ts'
+export { extractFrames, parseSceneScores, selectChangeTimes, uniformTimes } from './frames.ts'
+export type { ExtractedFrame, FrameRequest, Sampling, ScoredFrame } from './frames.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'tool-read-video'
@@ -48,14 +48,14 @@ export const inject = ['tools', 'fs', 'subprocess']
 export interface Config {
   /** Frames returned by one call. */
   maxFramesPerCall?: number
-  /** Frame selection: scene changes, or evenly spaced as a baseline. */
+  /** Frame selection: largest visual changes, or evenly spaced as a baseline. */
   sampling?: Sampling
-  /** Minimum scene-change score (0–1). */
-  sceneThreshold?: number
+  /** Scene scores below this are encoder noise (0–1). */
+  minSceneScore?: number
+  /** Minimum spacing between selected frames, in seconds. */
+  minFrameGapSeconds?: number
   /** Frames wider than this are scaled down. */
   frameMaxWidth?: number
-  /** Frames written before selection, bounding disk use on noisy video. */
-  maxCandidateFrames?: number
   /** Longest file accepted, in seconds. */
   maxDurationSeconds?: number
   /** Transcript characters included in one timeline before speech is summarized. */
@@ -69,9 +69,9 @@ export interface Config {
 export const Config: z<Config> = z.object({
   maxFramesPerCall: z.natural().min(1).max(32).default(8),
   sampling: z.union(['scene', 'uniform']).default('scene'),
-  sceneThreshold: z.number().min(0.01).max(1).default(0.3),
+  minSceneScore: z.number().min(0).max(1).default(0.001),
+  minFrameGapSeconds: z.number().min(0.1).default(1),
   frameMaxWidth: z.natural().min(160).default(1024),
-  maxCandidateFrames: z.natural().min(1).default(300),
   maxDurationSeconds: z.natural().min(1).default(4 * 3600),
   maxTranscriptChars: z.natural().min(50).default(8000),
   commandTimeoutMs: z.natural().min(1000).default(300_000),
@@ -159,7 +159,7 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.tools.register(defineTool({
     name: 'read_video',
-    description: 'Watch a video file (.mp4, .mov, .webm, screen recordings, …): returns keyframes at visual changes and the spoken audio, merged into one timestamped timeline. '
+    description: 'Watch a video file (.mp4, .mov, .webm, screen recordings, …): returns keyframes at the largest visual changes and the spoken audio, merged into one timestamped timeline. '
       + 'Start with the whole video, then call again with start/end around a moment to see it in more detail.',
     parameters: {
       file_path: { type: 'string', required: true, description: 'Path to the video file.' },
@@ -234,9 +234,9 @@ export function apply(ctx: Context, config: Config): void {
             end: window.end,
             maxFrames: cfg.maxFramesPerCall,
             sampling: cfg.sampling,
-            sceneThreshold: cfg.sceneThreshold,
+            minSceneScore: cfg.minSceneScore,
+            minGapSeconds: cfg.minFrameGapSeconds,
             maxWidth: cfg.frameMaxWidth,
-            maxCandidates: cfg.maxCandidateFrames,
             timeoutMs: cfg.commandTimeoutMs,
             outDir,
           }, exec.signal)

@@ -1497,14 +1497,14 @@ export interface Config {
 export interface Config {
   /** Frames returned by one call. */
   maxFramesPerCall?: number
-  /** Frame selection: scene changes, or evenly spaced as a baseline. */
+  /** Frame selection: largest visual changes, or evenly spaced as a baseline. */
   sampling?: Sampling
-  /** Minimum scene-change score (0–1). */
-  sceneThreshold?: number
+  /** Scene scores below this are encoder noise (0–1). */
+  minSceneScore?: number
+  /** Minimum spacing between selected frames, in seconds. */
+  minFrameGapSeconds?: number
   /** Frames wider than this are scaled down. */
   frameMaxWidth?: number
-  /** Frames written before selection, bounding disk use on noisy video. */
-  maxCandidateFrames?: number
   /** Longest file accepted, in seconds. */
   maxDurationSeconds?: number
   /** Transcript characters included in one timeline before speech is summarized. */

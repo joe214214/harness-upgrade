@@ -38,7 +38,7 @@
 | `@deepseek-ai/dsh-tool-fs-search` | `glob`、`grep` | `ctx.workingDirectory`、`ctx.tools`、`ctx.subprocess`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn 随包提供的 ripgrep 二进制文件（`@vscode/ripgrep`），并作为普通前台调用运行，绝不作为后台任务；无需在宿主机安装 `rg`，也不经过 shell 层。本目录使用 `sampleOverCapGlobResults: true`；部署必须显式选择该行为。结果超过上限时，会通过可选的 ctx.spillStore 后端保存完整的格式化列表；在共置部署中，如果后端公开本地路径，返回的定位信息可供后续读取／搜索。 |
 | `@deepseek-ai/dsh-tool-read-document` | `read_document` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (page images)`、`poppler and LibreOffice on the host` | `tool/call`、`durable attachment (page images)`、`tool/result` | - | 不带 `pages` 时，短文档整篇返回，长文档返回逐页大纲。只有没有文字层的页面（`image` 模式下为每一页）才返回页面图片，并且仅在挂载了附件存储且路由模型声明了图片输入时返回；否则每个此类页面附带说明。 |
 | `@deepseek-ai/dsh-experimental-tool-read-audio` | `read_audio` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.speechToText (at call time)`、`ffmpeg on the host` | `tool/call`、`tool/result` | - | 时间戳来自按静音切段：每个片段通过语音 seam 单独转写。转写超过 `maxTranscriptChars` 时改为返回时间索引，`start`/`end` 从缓存的整文件转写中选取窗口。 |
-| `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (frames)`、`ctx.speechToText (speech, at call time)`、`ffmpeg on the host` | `tool/call`、`durable attachment (frames)`、`tool/result` | - | 在所请求的窗口内按场景切换（配置为均匀时则均匀）采样帧，并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。 |
+| `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (frames)`、`ctx.speechToText (speech, at call time)`、`ffmpeg on the host` | `tool/call`、`durable attachment (frames)`、`tool/result` | - | 在所请求的窗口内按场景得分选取变化最大的帧（配置为均匀时则均匀），并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。 |
 | `@deepseek-ai/dsh-vision-bridge` | `ask_image` | `ctx.tools`、`ctx.fs`、`ctx.llm`、`ctx.attachments`、`a configured image-capable model` | `tool/call`、`durable attachment (the asked image)`、`tool/result` | - | 图片和问题在一次辅助请求中交给配置的识图模型；只返回文字答案，因此纯文本路由可以使用图片，而图片块不会进入其历史。 |
 | `@deepseek-ai/dsh-memory` | `memory_read`、`memory_replace`、`memory_rewrite`、`memory_write`、`recall` | `ctx.tools`、`ctx.systemPrompt`、`ctx.llm (reflect pass)` | `tool/call`、`tool/result`、`MEMORY.md and episodic.db under the configured root` | - | 每次请求中 MEMORY.md 也作为运行时上下文出现。每轮结束后，插件把这一轮存入情景记忆，并在开启 `reflect` 时，用一次基于 agent 路由的辅助请求提取并归档长期事实。 |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`、`terminal_list`、`terminal_open`、`terminal_read`、`terminal_send`、`terminal_signal` | `ctx.workingDirectory`、`ctx.tools`、`ctx.terminals`、`ctx.systemPrompt`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。 |
@@ -1308,7 +1308,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 
 ### `read_video`
 
-观看视频文件（.mp4、.mov、.webm、屏幕录像等）：返回画面变化处的关键帧和语音，合并为一条带时间戳的时间线。先看整段视频，再围绕某个时刻用 start/end 再次调用以查看更多细节。
+观看视频文件（.mp4、.mov、.webm、屏幕录像等）：返回画面变化最大处的关键帧和语音，合并为一条带时间戳的时间线。先看整段视频，再围绕某个时刻用 start/end 再次调用以查看更多细节。
 
 ```json
 {
@@ -1339,7 +1339,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 
 来源：[`packages/experimental/tool-read-video/src/index.ts`](../packages/experimental/tool-read-video/src/index.ts)
 
-在所请求的窗口内按场景切换（配置为均匀时则均匀）采样帧，并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。
+在所请求的窗口内按场景得分选取变化最大的帧（配置为均匀时则均匀），并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。
 
 <a id="deepseek-aidsh-vision-bridge"></a>
 
