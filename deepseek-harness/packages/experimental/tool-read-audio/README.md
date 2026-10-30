@@ -49,7 +49,7 @@ The first call on a file transcribes it once; later windows, and `read_video` ca
 | Field | Default | Meaning |
 |---|---|---|
 | `maxSegmentSeconds` | `30` | Longest segment sent to the recognizer |
-| `minSegmentSeconds` | `8` | Shortest segment worth a cut at a pause; shorter tails join the previous segment |
+| `minSegmentSeconds` | `8` | A segment ends at the first pause after this length; shorter tails join the previous segment |
 | `silenceNoise` | `-30dB` | Noise floor for pause detection |
 | `silenceSeconds` | `0.4` | Shortest pause counted as silence |
 | `maxDurationSeconds` | `14400` | Longest file accepted |
@@ -70,7 +70,7 @@ The first call on a file transcribes it once; later windows, and `read_video` ca
 
 ### Why segment-level timestamps
 
-The speech seam returns text without timestamps. The tool therefore runs `ffmpeg silencedetect`, plans segments of at most `maxSegmentSeconds` that end in the middle of a pause, and transcribes each segment separately; each segment's bounds become its timestamps. Cutting inside pauses keeps sentences whole, and spans that lie entirely in silence are never sent to the recognizer.
+The speech seam returns text without timestamps. The tool therefore runs `ffmpeg silencedetect`, plans segments that end in the middle of the first pause after `minSegmentSeconds` (cut hard at `maxSegmentSeconds` when speech has no pause), and transcribes each segment separately; each segment's bounds become its timestamps. Cutting inside pauses keeps sentences whole, and spans that lie entirely in silence are never sent to the recognizer.
 
 ### Audio format
 

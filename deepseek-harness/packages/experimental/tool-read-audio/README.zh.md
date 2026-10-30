@@ -49,7 +49,7 @@ kind: "package-reference"
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `maxSegmentSeconds` | `30` | 发给识别器的最长片段 |
-| `minSegmentSeconds` | `8` | 值得在停顿处切开的最短片段；更短的尾段并入前一段 |
+| `minSegmentSeconds` | `8` | 片段在超过此长度后的第一个停顿处结束；更短的尾段并入前一段 |
 | `silenceNoise` | `-30dB` | 停顿检测的噪声下限 |
 | `silenceSeconds` | `0.4` | 计为静音的最短停顿 |
 | `maxDurationSeconds` | `14400` | 接受的最长文件 |
@@ -70,7 +70,7 @@ kind: "package-reference"
 
 ### 为什么是片段级时间戳
 
-语音 seam 只返回文字，不带时间戳。因此工具先运行 `ffmpeg silencedetect`，规划最长 `maxSegmentSeconds`、在停顿中点结束的片段，再逐段转写；每段的起止就是它的时间戳。在停顿处切开能保持句子完整，完全处于静音中的片段不会发给识别器。
+语音 seam 只返回文字，不带时间戳。因此工具先运行 `ffmpeg silencedetect`，规划在超过 `minSegmentSeconds` 后第一个停顿的中点结束的片段（语音中没有停顿时在 `maxSegmentSeconds` 处硬切），再逐段转写；每段的起止就是它的时间戳。在停顿处切开能保持句子完整，完全处于静音中的片段不会发给识别器。
 
 ### 音频格式
 
