@@ -46,6 +46,7 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 - **Coarse to fine everywhere.** Outline → pages; time index → window; whole-video frames → narrowed window with the same frame budget.
 - **Timestamps the seam doesn't give.** dsh's speech seam returns plain text, so `read_audio` cuts audio at detected pauses and transcribes segment by segment; each segment's bounds are its timestamps.
 - **A canonical WAV header, written by hand.** ffmpeg's WAV muxer adds `LIST` chunks that the SenseVoice provider rejects; a unit test validates every segment with dsh's own validator.
+- **Fakes hide lifecycle.** The scripted recognizer was always ready; real SenseVoice refuses until its model is downloaded and loaded, a step only dsh's voice UI triggered. `read_audio` now starts or joins the provider's preparation through the seam and waits for it.
 - **Tool adoption is a design problem.** Once bash worked, the model extracted frames with ffmpeg instead of calling `read_video`; one scoped system-prompt sentence per tool (dsh's own pattern for `read`) fixed it.
 - **Benchmarks leak.** An early memory test "passed" because the agent globbed outside its workspace and read the harness's own logs. Answers now stay in memory until all runs finish.
 - **Upstream's bar, not ours.** 57 package tests; dsh's 43 documentation gates pass (bilingual READMEs with Model Experience sections, generated tool/config catalogs, an acknowledged persistence-type change, locale metadata in 8 languages).
@@ -55,7 +56,7 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 | Item | State |
 |---|---|
 | `read_document`, `read_video`, `ask_image`, `memory` | Done, verified end to end on DeepSeek |
-| `read_audio` | Done and unit-tested with a scripted recognizer; real SenseVoice run pending network access to `huggingface.co` for its model |
+| `read_audio` | Done and unit-tested with a scripted recognizer; a first real SenseVoice run found and fixed a missing provider-preparation step; full run pending network access to the Hugging Face file CDN (`us.aws.cdn.hf.co`) |
 | Web UI cards, speech output | Not started |
 | Upstream PR | Prepared as patches; waiting for the fork repository |
 

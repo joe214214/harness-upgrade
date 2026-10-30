@@ -1,0 +1,332 @@
+From 82594b9d80207c09a33abfca3ed56dae39237b77 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 30 Oct 2026 03:18:07 +0000
+Subject: [PATCH 10/10] read_audio: prepare the speech provider before the
+ first segment
+
+SenseVoice refuses to transcribe until its model is downloaded and loaded,
+which only the voice UI triggered. read_audio now starts or joins the
+provider's preparation through the seam and waits for a ready state
+(autoPrepare, prepareTimeoutMs).
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HKCB8j9Zf27m5tAmJdbkFm
+---
+ docs/config-catalog.md                        |  4 ++
+ docs/config-catalog.zh.md                     |  4 ++
+ .../tool-read-audio/README.i18n.yaml          |  7 ++-
+ .../experimental/tool-read-audio/README.md    |  6 ++
+ .../experimental/tool-read-audio/README.zh.md |  6 ++
+ .../experimental/tool-read-audio/src/index.ts | 10 +++-
+ .../tool-read-audio/src/transcribe.ts         | 52 ++++++++++++++++-
+ .../tool-read-audio/tests/read-audio.spec.ts  | 58 ++++++++++++++++++-
+ 8 files changed, 141 insertions(+), 6 deletions(-)
+
+diff --git a/docs/config-catalog.md b/docs/config-catalog.md
+index f7ae2720..a997c621 100644
+--- a/docs/config-catalog.md
++++ b/docs/config-catalog.md
+@@ -1478,6 +1478,10 @@ export interface Config {
+   indexBlockSeconds?: number
+   /** Deadline for each ffmpeg command. */
+   commandTimeoutMs?: number
++  /** Start speech provider preparation (e.g. the first model download) when it is not ready. */
++  autoPrepare?: boolean
++  /** Deadline for that preparation. */
++  prepareTimeoutMs?: number
+   /** Directory for cached transcripts. */
+   cacheDir?: string
+ }
+diff --git a/docs/config-catalog.zh.md b/docs/config-catalog.zh.md
+index f7f151af..8c059957 100644
+--- a/docs/config-catalog.zh.md
++++ b/docs/config-catalog.zh.md
+@@ -1480,6 +1480,10 @@ export interface Config {
+   indexBlockSeconds?: number
+   /** Deadline for each ffmpeg command. */
+   commandTimeoutMs?: number
++  /** Start speech provider preparation (e.g. the first model download) when it is not ready. */
++  autoPrepare?: boolean
++  /** Deadline for that preparation. */
++  prepareTimeoutMs?: number
+   /** Directory for cached transcripts. */
+   cacheDir?: string
+ }
+diff --git a/packages/experimental/tool-read-audio/README.i18n.yaml b/packages/experimental/tool-read-audio/README.i18n.yaml
+index 25a91177..63a4fe5d 100644
+--- a/packages/experimental/tool-read-audio/README.i18n.yaml
++++ b/packages/experimental/tool-read-audio/README.i18n.yaml
+@@ -24,8 +24,8 @@
+   en: 76b48ce6addfd953
+   zh: 15c9997bdb54048a
+ /deepseek-ai-dsh-experimental-tool-read-audio/use-this-package/configuration:
+-  en: 86e3b219fac3107c
+-  zh: 9865a01564cc6747
++  en: 47981797c6382e5d
++  zh: c8d0ac05935cba3e
+ /deepseek-ai-dsh-experimental-tool-read-audio/understand-the-implementation:
+   en: a8ea90f5f789672c
+   zh: 4ed0861911abaf5d
+@@ -35,6 +35,9 @@
+ /deepseek-ai-dsh-experimental-tool-read-audio/understand-the-implementation/audio-format:
+   en: 001b2988a9c3c01e
+   zh: db37725f9b1cd5b9
++/deepseek-ai-dsh-experimental-tool-read-audio/understand-the-implementation/provider-preparation:
++  en: e0654880a1cceae2
++  zh: 4a9b863b59c08e29
+ /deepseek-ai-dsh-experimental-tool-read-audio/understand-the-implementation/caching:
+   en: 28ef54bea5ba91f2
+   zh: ffe2c536734c8248
+diff --git a/packages/experimental/tool-read-audio/README.md b/packages/experimental/tool-read-audio/README.md
+index 131b79c4..50ee4d2d 100644
+--- a/packages/experimental/tool-read-audio/README.md
++++ b/packages/experimental/tool-read-audio/README.md
+@@ -56,6 +56,8 @@ The first call on a file transcribes it once; later windows, and `read_video` ca
+ | `maxTranscriptChars` | `12000` | Transcript size returned before switching to a time index |
+ | `indexBlockSeconds` | `300` | Length of one time-index entry |
+ | `commandTimeoutMs` | `300000` | Deadline for each ffmpeg command |
++| `autoPrepare` | `true` | Start the provider's preparation (for SenseVoice, the first model download and load) when it is not ready; `false` reports it instead |
++| `prepareTimeoutMs` | `1800000` | Deadline for that preparation |
+ | `cacheDir` | `<tmpdir>/dsh-media-cache` | Transcript cache, shared with `read_video` |
+ 
+ -----
+@@ -74,6 +76,10 @@ The speech seam returns text without timestamps. The tool therefore runs `ffmpeg
+ 
+ Each segment is decoded to raw 16 kHz mono PCM16 and wrapped in a canonical 44-byte WAV header written by the tool. ffmpeg's WAV muxer may add `LIST` chunks, which speech providers reject. Segments with less than 0.1 s of samples are skipped.
+ 
++### Provider preparation
++
++Providers such as SenseVoice must download and load a model before their first transcription. Before the first segment the tool starts or joins that preparation through the seam's `preparation` controls and waits for a ready state; a failure, cancellation or timeout fails the call with the provider's reason. The first call on a fresh machine therefore includes the model download.
++
+ ### Caching
+ 
+ The whole-file transcript is cached under a key built from the file's SHA-256, the provider id, the language, and the segmentation parameters, so a changed provider or setting transcribes again while a renamed file does not.
+diff --git a/packages/experimental/tool-read-audio/README.zh.md b/packages/experimental/tool-read-audio/README.zh.md
+index 410eab4b..a9692336 100644
+--- a/packages/experimental/tool-read-audio/README.zh.md
++++ b/packages/experimental/tool-read-audio/README.zh.md
+@@ -56,6 +56,8 @@ kind: "package-reference"
+ | `maxTranscriptChars` | `12000` | 改为时间索引前返回的转写大小 |
+ | `indexBlockSeconds` | `300` | 时间索引中每一项的时长 |
+ | `commandTimeoutMs` | `300000` | 每条 ffmpeg 命令的时限 |
++| `autoPrepare` | `true` | 提供方未就绪时启动其准备（SenseVoice 即首次下载与加载模型）；为 `false` 时改为报告 |
++| `prepareTimeoutMs` | `1800000` | 该准备过程的时限 |
+ | `cacheDir` | `<tmpdir>/dsh-media-cache` | 转写缓存，与 `read_video` 共享 |
+ 
+ -----
+@@ -74,6 +76,10 @@ kind: "package-reference"
+ 
+ 每个片段解码为 16 kHz 单声道 PCM16 原始数据，再由工具自己写入标准的 44 字节 WAV 头。ffmpeg 的 WAV 封装器可能添加 `LIST` 块，而语音提供方会拒绝它。样本不足 0.1 秒的片段会被跳过。
+ 
++### 提供方准备
++
++SenseVoice 等提供方在首次转写前必须下载并加载模型。工具在第一个片段之前经由 seam 的 `preparation` 控制启动或加入该准备过程，并等待就绪；失败、取消或超时都会让调用失败并带上提供方给出的原因。因此在新机器上的第一次调用包含模型下载。
++
+ ### 缓存
+ 
+ 整个文件的转写按文件 SHA-256、提供方 id、语言与切段参数组成的键缓存：更换提供方或设置会重新转写，重命名文件则不会。
+diff --git a/packages/experimental/tool-read-audio/src/index.ts b/packages/experimental/tool-read-audio/src/index.ts
+index 1154e169..8dc81774 100644
+--- a/packages/experimental/tool-read-audio/src/index.ts
++++ b/packages/experimental/tool-read-audio/src/index.ts
+@@ -23,7 +23,7 @@ import type { TranscribeOptions, TranscriptSegment } from './transcribe.ts'
+ 
+ export { isSilent, parseSilences, planSegments } from './segment.ts'
+ export type { Silence, Span } from './segment.ts'
+-export { canonicalWave, transcribeMedia } from './transcribe.ts'
++export { canonicalWave, ensurePrepared, transcribeMedia } from './transcribe.ts'
+ export type { TranscribeOptions, TranscriptSegment } from './transcribe.ts'
+ 
+ /** Cordis plugin name used by loader diagnostics. */
+@@ -50,6 +50,10 @@ export interface Config {
+   indexBlockSeconds?: number
+   /** Deadline for each ffmpeg command. */
+   commandTimeoutMs?: number
++  /** Start speech provider preparation (e.g. the first model download) when it is not ready. */
++  autoPrepare?: boolean
++  /** Deadline for that preparation. */
++  prepareTimeoutMs?: number
+   /** Directory for cached transcripts. */
+   cacheDir?: string
+ }
+@@ -63,6 +67,8 @@ export const Config: z<Config> = z.object({
+   maxTranscriptChars: z.natural().min(50).default(12_000),
+   indexBlockSeconds: z.natural().min(30).default(300),
+   commandTimeoutMs: z.natural().min(1000).default(300_000),
++  autoPrepare: z.boolean().default(true),
++  prepareTimeoutMs: z.natural().min(1000).default(1_800_000),
+   cacheDir: z.string().default(join(tmpdir(), 'dsh-media-cache')),
+ })
+ 
+@@ -165,6 +171,8 @@ export async function transcribeFile(
+     silenceNoise: cfg.silenceNoise,
+     silenceSeconds: cfg.silenceSeconds,
+     commandTimeoutMs: cfg.commandTimeoutMs,
++    autoPrepare: cfg.autoPrepare,
++    prepareTimeoutMs: cfg.prepareTimeoutMs,
+   }
+   return transcribeMedia(ctx, hostPath, await hashFile(hostPath, signal), new MediaCache(cfg.cacheDir), options, signal)
+ }
+diff --git a/packages/experimental/tool-read-audio/src/transcribe.ts b/packages/experimental/tool-read-audio/src/transcribe.ts
+index 3f63f042..e6b6cd9d 100644
+--- a/packages/experimental/tool-read-audio/src/transcribe.ts
++++ b/packages/experimental/tool-read-audio/src/transcribe.ts
+@@ -11,7 +11,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
+ import { tmpdir } from 'node:os'
+ import { join } from 'node:path'
+ import type { Context } from '@deepseek-ai/cordis'
+-import type {} from '@deepseek-ai/dsh-experimental-speech-to-text'
++import type { SpeechPreparation, SpeechPreparationState } from '@deepseek-ai/dsh-experimental-speech-to-text'
+ import { FFMPEG_HINT, runMediaCommand } from '@deepseek-ai/dsh-media-core'
+ import type { MediaCache } from '@deepseek-ai/dsh-media-core'
+ import { isSilent, parseSilences, planSegments } from './segment.ts'
+@@ -57,9 +57,58 @@ export interface TranscribeOptions {
+   readonly silenceNoise: string
+   /** Shortest pause counted as silence, in seconds. */
+   readonly silenceSeconds: number
++  /** Start provider preparation (model download, worker load) when it is not ready. */
++  readonly autoPrepare: boolean
++  /** Deadline for that preparation. */
++  readonly prepareTimeoutMs: number
+   readonly commandTimeoutMs: number
+ }
+ 
++const usable = (state: SpeechPreparationState): boolean => state.phase === 'ready' || state.phase === 'standby'
++
++/**
++ * Make a provider that owns preparation usable before the first segment: start or join its
++ * preparation and wait for a ready state. Providers without preparation are always usable.
++ * @param preparation - the resolved provider's preparation controls, if any.
++ * @param autoPrepare - whether this call may start preparation.
++ * @param timeoutMs - deadline for preparation to finish.
++ * @param signal - cancellation.
++ * @returns once the provider can transcribe.
++ * @throws Error when preparation is disallowed, fails, is cancelled, or times out.
++ */
++export async function ensurePrepared(
++  preparation: SpeechPreparation | undefined, autoPrepare: boolean, timeoutMs: number, signal: AbortSignal,
++): Promise<void> {
++  if (preparation === undefined || usable(preparation.snapshot())) return
++  if (!autoPrepare) {
++    throw new Error('the speech provider is not prepared; prepare it from the voice input panel, or enable autoPrepare')
++  }
++  signal.throwIfAborted()
++  const { promise, resolve, reject } = Promise.withResolvers<undefined>()
++  // A failed or cancelled state counts only after preparation reported progress:
++  // until then the snapshot may still describe an earlier attempt.
++  let moved = false
++  const check = (): void => {
++    const state = preparation.snapshot()
++    if (usable(state)) resolve(undefined)
++    else if (moved && state.phase === 'failed') reject(new Error(`speech provider preparation failed: ${state.message}`))
++    else if (moved && state.phase === 'cancelled') reject(new Error('speech provider preparation was cancelled'))
++  }
++  const unsubscribe = preparation.subscribe(() => { moved = true; check() })
++  const onAbort = (): void => { reject(signal.reason) }
++  signal.addEventListener('abort', onAbort, { once: true })
++  const timer = setTimeout(() => { reject(new Error(`speech provider preparation did not finish within ${timeoutMs} ms`)) }, timeoutMs)
++  try {
++    preparation.prepare()
++    check()
++    await promise
++  } finally {
++    clearTimeout(timer)
++    unsubscribe()
++    signal.removeEventListener('abort', onAbort)
++  }
++}
++
+ /**
+  * Transcribe a whole media file into timestamped segments.
+  * @param ctx - context with `subprocess` and `speechToText`.
+@@ -90,6 +139,7 @@ export async function transcribeMedia(
+   const cached = await cache.get<TranscriptSegment[]>(key)
+   if (cached !== undefined) return cached
+ 
++  await ensurePrepared(spec.provider.preparation, options.autoPrepare, options.prepareTimeoutMs, signal)
+   const common = { cwd: tmpdir(), timeoutMs: options.commandTimeoutMs, signal }
+   const detect = await runMediaCommand(ctx, {
+     ...common,
+diff --git a/packages/experimental/tool-read-audio/tests/read-audio.spec.ts b/packages/experimental/tool-read-audio/tests/read-audio.spec.ts
+index c9eb1c52..dbd3f37a 100644
+--- a/packages/experimental/tool-read-audio/tests/read-audio.spec.ts
++++ b/packages/experimental/tool-read-audio/tests/read-audio.spec.ts
+@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
+ import { join } from 'node:path'
+ import { Context } from '@deepseek-ai/cordis'
+ import SpeechToText from '@deepseek-ai/dsh-experimental-speech-to-text'
+-import type { SpeechProviderId } from '@deepseek-ai/dsh-experimental-speech-to-text'
++import type { SpeechPreparation, SpeechPreparationState, SpeechProviderId } from '@deepseek-ai/dsh-experimental-speech-to-text'
+ import { validateWave } from '@deepseek-ai/dsh-experimental-speech-to-text/src/wave.ts'
+ import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
+ import { ToolCallId } from '@deepseek-ai/dsh-llm'
+@@ -20,7 +20,7 @@ import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+ import ToolRuntime from '@deepseek-ai/dsh-tools'
+ import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest'
+ import * as ReadAudio from '../src/index.ts'
+-import { buildTimeIndex, canonicalWave, formatTranscript, isSilent, parseSilences, planSegments, renderAudio, selectWindow } from '../src/index.ts'
++import { buildTimeIndex, canonicalWave, ensurePrepared, formatTranscript, isSilent, parseSilences, planSegments, renderAudio, selectWindow } from '../src/index.ts'
+ 
+ const FIXTURES = new URL('./fixtures/', import.meta.url).pathname
+ 
+@@ -161,3 +161,57 @@ describe('read_audio', () => {
+     expect(text(await read(short, { file_path: 'tones.mp3' }))).toContain('accepts at most 00:05')
+   }, 60_000)
+ })
++
++describe('provider preparation', () => {
++  /** A provider-owned preparation that walks through the given states, one per tick, after prepare(). */
++  function preparation(initial: SpeechPreparationState, steps: SpeechPreparationState[]): SpeechPreparation & { calls: number } {
++    let state = initial
++    const listeners = new Set<() => void>()
++    return {
++      calls: 0,
++      snapshot: () => state,
++      subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener) } },
++      prepare() {
++        this.calls++
++        void (async () => {
++          for (const next of steps) {
++            await new Promise(resolve => setTimeout(resolve, 1))
++            state = next
++            for (const listener of listeners) listener()
++          }
++        })()
++      },
++      cancel: async () => {},
++    }
++  }
++  const signal = new AbortController().signal
++
++  it('starts preparation and waits through a download until ready', async () => {
++    const prep = preparation({ phase: 'unprepared' }, [
++      { phase: 'downloading', resource: 'model', completedBytes: 1 }, { phase: 'loading', startedAt: 0 }, { phase: 'ready' }])
++    await ensurePrepared(prep, true, 5000, signal)
++    expect(prep.calls).toBe(1)
++    expect(prep.snapshot().phase).toBe('ready')
++  })
++
++  it('does nothing for ready, standby or preparation-free providers', async () => {
++    for (const phase of ['ready', 'standby'] as const) {
++      const prep = preparation({ phase }, [])
++      await ensurePrepared(prep, true, 5000, signal)
++      expect(prep.calls).toBe(0)
++    }
++    await ensurePrepared(undefined, false, 5000, signal)
++  })
++
++  it('reports a failed preparation, but not a stale failure from an earlier attempt', async () => {
++    const retried = preparation({ phase: 'failed', message: 'old' }, [{ phase: 'checking', startedAt: 0 }, { phase: 'ready' }])
++    await ensurePrepared(retried, true, 5000, signal)
++    const failing = preparation({ phase: 'unprepared' }, [{ phase: 'checking', startedAt: 0 }, { phase: 'failed', message: 'HTTP 403' }])
++    await expect(ensurePrepared(failing, true, 5000, signal)).rejects.toThrow('preparation failed: HTTP 403')
++  })
++
++  it('refuses without autoPrepare and times out a stalled preparation', async () => {
++    await expect(ensurePrepared(preparation({ phase: 'unprepared' }, []), false, 5000, signal)).rejects.toThrow('enable autoPrepare')
++    await expect(ensurePrepared(preparation({ phase: 'unprepared' }, []), true, 1000, signal)).rejects.toThrow('within 1000 ms')
++  })
++})
+-- 
+2.43.0
+

@@ -1,0 +1,277 @@
+From 0d06b235d43c0d7da6b58359901a9952dc18a0b9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 30 Oct 2026 03:08:01 +0000
+Subject: [PATCH 09/10] Lockfile entries for the multimodal and memory packages
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HKCB8j9Zf27m5tAmJdbkFm
+---
+ pnpm-lock.yaml | 245 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 245 insertions(+)
+
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 3bb5b2fd..7debbde4 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -11021,6 +11021,107 @@ importers:
+         specifier: workspace:*
+         version: link:../../workflow/workflow-ptc
+ 
++  packages/experimental/tool-read-audio:
++    dependencies:
++      '@deepseek-ai/dsh-media-core':
++        specifier: workspace:*
++        version: link:../../multimodal/media-core
++      '@deepseek-ai/schemastery':
++        specifier: link:../../../vendor/schemastery
++        version: link:../../../vendor/schemastery
++    devDependencies:
++      '@deepseek-ai/cordis':
++        specifier: workspace:~
++        version: link:../../../vendor/cordis
++      '@deepseek-ai/dsh-experimental-speech-to-text':
++        specifier: workspace:*
++        version: link:../speech-to-text
++      '@deepseek-ai/dsh-fs':
++        specifier: workspace:*
++        version: link:../../fs/fs
++      '@deepseek-ai/dsh-fs-local':
++        specifier: workspace:*
++        version: link:../../fs/fs-local
++      '@deepseek-ai/dsh-llm':
++        specifier: workspace:*
++        version: link:../../llm/llm
++      '@deepseek-ai/dsh-subprocess':
++        specifier: workspace:*
++        version: link:../../subprocess/subprocess
++      '@deepseek-ai/dsh-subprocess-local':
++        specifier: workspace:*
++        version: link:../../subprocess/subprocess-local
++      '@deepseek-ai/dsh-system-prompt':
++        specifier: workspace:*
++        version: link:../../core/system-prompt
++      '@deepseek-ai/dsh-tool-executor-native':
++        specifier: workspace:*
++        version: link:../../core/tool-executor-native
++      '@deepseek-ai/dsh-tool-testkit':
++        specifier: workspace:*
++        version: link:../../test-support/tool-testkit
++      '@deepseek-ai/dsh-tools':
++        specifier: workspace:*
++        version: link:../../core/tools
++      '@deepseek-ai/dsh-working-directory':
++        specifier: workspace:*
++        version: link:../../session/working-directory
++
++  packages/experimental/tool-read-video:
++    dependencies:
++      '@deepseek-ai/dsh-experimental-tool-read-audio':
++        specifier: workspace:*
++        version: link:../tool-read-audio
++      '@deepseek-ai/dsh-media-core':
++        specifier: workspace:*
++        version: link:../../multimodal/media-core
++      '@deepseek-ai/schemastery':
++        specifier: link:../../../vendor/schemastery
++        version: link:../../../vendor/schemastery
++    devDependencies:
++      '@deepseek-ai/cordis':
++        specifier: workspace:~
++        version: link:../../../vendor/cordis
++      '@deepseek-ai/dsh-attachment':
++        specifier: workspace:*
++        version: link:../../attachment/attachment
++      '@deepseek-ai/dsh-attachment-local':
++        specifier: workspace:*
++        version: link:../../attachment/attachment-local
++      '@deepseek-ai/dsh-experimental-speech-to-text':
++        specifier: workspace:*
++        version: link:../speech-to-text
++      '@deepseek-ai/dsh-fs':
++        specifier: workspace:*
++        version: link:../../fs/fs
++      '@deepseek-ai/dsh-fs-local':
++        specifier: workspace:*
++        version: link:../../fs/fs-local
++      '@deepseek-ai/dsh-llm':
++        specifier: workspace:*
++        version: link:../../llm/llm
++      '@deepseek-ai/dsh-subprocess':
++        specifier: workspace:*
++        version: link:../../subprocess/subprocess
++      '@deepseek-ai/dsh-subprocess-local':
++        specifier: workspace:*
++        version: link:../../subprocess/subprocess-local
++      '@deepseek-ai/dsh-system-prompt':
++        specifier: workspace:*
++        version: link:../../core/system-prompt
++      '@deepseek-ai/dsh-tool-executor-native':
++        specifier: workspace:*
++        version: link:../../core/tool-executor-native
++      '@deepseek-ai/dsh-tool-testkit':
++        specifier: workspace:*
++        version: link:../../test-support/tool-testkit
++      '@deepseek-ai/dsh-tools':
++        specifier: workspace:*
++        version: link:../../core/tools
++      '@deepseek-ai/dsh-working-directory':
++        specifier: workspace:*
++        version: link:../../session/working-directory
++
+   packages/experimental/tool-session-query:
+     dependencies:
+       '@deepseek-ai/dsh-brand':
+@@ -13472,6 +13573,150 @@ importers:
+         specifier: workspace:*
+         version: link:../../core/tools
+ 
++  packages/memory/memory:
++    dependencies:
++      '@deepseek-ai/schemastery':
++        specifier: link:../../../vendor/schemastery
++        version: link:../../../vendor/schemastery
++    devDependencies:
++      '@deepseek-ai/cordis':
++        specifier: workspace:~
++        version: link:../../../vendor/cordis
++      '@deepseek-ai/dsh-agent':
++        specifier: workspace:*
++        version: link:../../core/agent
++      '@deepseek-ai/dsh-llm':
++        specifier: workspace:*
++        version: link:../../llm/llm
++      '@deepseek-ai/dsh-system-prompt':
++        specifier: workspace:*
++        version: link:../../core/system-prompt
++      '@deepseek-ai/dsh-tool-executor-native':
++        specifier: workspace:*
++        version: link:../../core/tool-executor-native
++      '@deepseek-ai/dsh-tool-testkit':
++        specifier: workspace:*
++        version: link:../../test-support/tool-testkit
++      '@deepseek-ai/dsh-tools':
++        specifier: workspace:*
++        version: link:../../core/tools
++
++  packages/multimodal/media-core:
++    devDependencies:
++      '@deepseek-ai/cordis':
++        specifier: workspace:~
++        version: link:../../../vendor/cordis
++      '@deepseek-ai/dsh-attachment':
++        specifier: workspace:*
++        version: link:../../attachment/attachment
++      '@deepseek-ai/dsh-llm':
++        specifier: workspace:*
++        version: link:../../llm/llm
++      '@deepseek-ai/dsh-subprocess':
++        specifier: workspace:*
++        version: link:../../subprocess/subprocess
++      '@deepseek-ai/dsh-subprocess-local':
++        specifier: workspace:*
++        version: link:../../subprocess/subprocess-local
++      '@deepseek-ai/dsh-tools':
++        specifier: workspace:*
++        version: link:../../core/tools
++
++  packages/multimodal/tool-read-document:
++    dependencies:
++      '@deepseek-ai/dsh-media-core':
++        specifier: workspace:*
++        version: link:../media-core
++      '@deepseek-ai/schemastery':
++        specifier: link:../../../vendor/schemastery
++        version: link:../../../vendor/schemastery
++    devDependencies:
++      '@deepseek-ai/cordis':
++        specifier: workspace:~
++        version: link:../../../vendor/cordis
++      '@deepseek-ai/dsh-agent-loop-testkit':
++        specifier: workspace:*
++        version: link:../../test-support/agent-loop-testkit
++      '@deepseek-ai/dsh-attachment':
++        specifier: workspace:*
++        version: link:../../attachment/attachment
++      '@deepseek-ai/dsh-attachment-local':
++        specifier: workspace:*
++        version: link:../../attachment/attachment-local
++      '@deepseek-ai/dsh-fs':
++        specifier: workspace:*
++        version: link:../../fs/fs
++      '@deepseek-ai/dsh-fs-local':
++        specifier: workspace:*
++        version: link:../../fs/fs-local
++      '@deepseek-ai/dsh-llm':
++        specifier: workspace:*
++        version: link:../../llm/llm
++      '@deepseek-ai/dsh-subprocess':
++        specifier: workspace:*
++        version: link:../../subprocess/subprocess
++      '@deepseek-ai/dsh-subprocess-local':
++        specifier: workspace:*
++        version: link:../../subprocess/subprocess-local
++      '@deepseek-ai/dsh-system-prompt':
++        specifier: workspace:*
++        version: link:../../core/system-prompt
++      '@deepseek-ai/dsh-tool-executor-native':
++        specifier: workspace:*
++        version: link:../../core/tool-executor-native
++      '@deepseek-ai/dsh-tool-testkit':
++        specifier: workspace:*
++        version: link:../../test-support/tool-testkit
++      '@deepseek-ai/dsh-tools':
++        specifier: workspace:*
++        version: link:../../core/tools
++      '@deepseek-ai/dsh-working-directory':
++        specifier: workspace:*
++        version: link:../../session/working-directory
++
++  packages/multimodal/vision-bridge:
++    dependencies:
++      '@deepseek-ai/schemastery':
++        specifier: link:../../../vendor/schemastery
++        version: link:../../../vendor/schemastery
++    devDependencies:
++      '@deepseek-ai/cordis':
++        specifier: workspace:~
++        version: link:../../../vendor/cordis
++      '@deepseek-ai/dsh-agent-loop-testkit':
++        specifier: workspace:*
++        version: link:../../test-support/agent-loop-testkit
++      '@deepseek-ai/dsh-attachment':
++        specifier: workspace:*
++        version: link:../../attachment/attachment
++      '@deepseek-ai/dsh-attachment-local':
++        specifier: workspace:*
++        version: link:../../attachment/attachment-local
++      '@deepseek-ai/dsh-fs':
++        specifier: workspace:*
++        version: link:../../fs/fs
++      '@deepseek-ai/dsh-fs-local':
++        specifier: workspace:*
++        version: link:../../fs/fs-local
++      '@deepseek-ai/dsh-llm':
++        specifier: workspace:*
++        version: link:../../llm/llm
++      '@deepseek-ai/dsh-system-prompt':
++        specifier: workspace:*
++        version: link:../../core/system-prompt
++      '@deepseek-ai/dsh-tool-executor-native':
++        specifier: workspace:*
++        version: link:../../core/tool-executor-native
++      '@deepseek-ai/dsh-tool-testkit':
++        specifier: workspace:*
++        version: link:../../test-support/tool-testkit
++      '@deepseek-ai/dsh-tools':
++        specifier: workspace:*
++        version: link:../../core/tools
++      '@deepseek-ai/dsh-working-directory':
++        specifier: workspace:*
++        version: link:../../session/working-directory
++
+   packages/plan/plan-mode:
+     dependencies:
+       '@deepseek-ai/dsh-brand':
+-- 
+2.43.0
+

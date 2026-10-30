@@ -1,7 +1,7 @@
 From 72b6182766259725764ee61a0ac319a8fa5b4ceb Mon Sep 17 00:00:00 2001
 From: joe214214 <y852zhou@uwaterloo.ca>
 Date: Fri, 30 Oct 2026 01:53:36 +0000
-Subject: [PATCH 4/8] feat(memory): add cross-Session long-term memory
+Subject: [PATCH 04/10] feat(memory): add cross-Session long-term memory
 
 A size-capped MEMORY.md the agent curates, FTS5 episodic recall over past
 Sessions (node:sqlite), and a post-turn reflect pass on the agent's own
