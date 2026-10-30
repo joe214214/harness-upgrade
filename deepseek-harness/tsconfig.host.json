@@ -487,6 +487,7 @@
     { "path": "./packages/fs/fs-observation-policy" },
     { "path": "./packages/fs/fs-sandbox" },
     { "path": "./packages/fs/tool-fs" },
+    { "path": "./packages/memory/memory" },
     { "path": "./packages/multimodal/media-core" },
     { "path": "./packages/multimodal/tool-read-document" },
     { "path": "./packages/multimodal/tool-read-audio" },
