@@ -1,0 +1,657 @@
+From 58eebf4dd62a37e001e99dbe3f36b15f6c716af1 Mon Sep 17 00:00:00 2001
+From: joe214214 <y852zhou@uwaterloo.ca>
+Date: Fri, 30 Oct 2026 02:37:08 +0000
+Subject: [PATCH 7/8] fix(read_video): rank scene changes instead of
+ thresholding them
+
+ffmpeg scene scores depend on content: film cuts score above 0.3, but an
+error banner in a screen recording scored 0.13 and a text edit ~0.005, so
+the 0.3 threshold returned only the first frame of UI recordings. Score
+every frame on a 320 px copy, keep the first frame plus the highest-scoring
+changes spaced at least minFrameGapSeconds apart, and extract each by seek.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HKCB8j9Zf27m5tAmJdbkFm
+---
+ docs/config-catalog.md                        |  10 +-
+ docs/config-catalog.zh.md                     |  10 +-
+ docs/tool-catalog.i18n.yaml                   |   8 +-
+ docs/tool-catalog.md                          |   6 +-
+ docs/tool-catalog.zh.md                       |   6 +-
+ .../tool-read-video/README.i18n.yaml          |  20 +--
+ .../experimental/tool-read-video/README.md    |  14 +-
+ .../experimental/tool-read-video/README.zh.md |  14 +-
+ .../tool-read-video/src/frames.ts             | 144 +++++++++++-------
+ .../experimental/tool-read-video/src/index.ts |  24 +--
+ .../tool-read-video/tests/read-video.spec.ts  |  29 ++--
+ scripts/gen-tool-catalog.ts                   |   2 +-
+ 12 files changed, 166 insertions(+), 121 deletions(-)
+
+diff --git a/docs/config-catalog.md b/docs/config-catalog.md
+index 07f37cb4..754963ff 100644
+--- a/docs/config-catalog.md
++++ b/docs/config-catalog.md
+@@ -1497,14 +1497,14 @@ export interface Config {
+ export interface Config {
+   /** Frames returned by one call. */
+   maxFramesPerCall?: number
+-  /** Frame selection: scene changes, or evenly spaced as a baseline. */
++  /** Frame selection: largest visual changes, or evenly spaced as a baseline. */
+   sampling?: Sampling
+-  /** Minimum scene-change score (0–1). */
+-  sceneThreshold?: number
++  /** Scene scores below this are encoder noise (0–1). */
++  minSceneScore?: number
++  /** Minimum spacing between selected frames, in seconds. */
++  minFrameGapSeconds?: number
+   /** Frames wider than this are scaled down. */
+   frameMaxWidth?: number
+-  /** Frames written before selection, bounding disk use on noisy video. */
+-  maxCandidateFrames?: number
+   /** Longest file accepted, in seconds. */
+   maxDurationSeconds?: number
+   /** Transcript characters included in one timeline before speech is summarized. */
+diff --git a/docs/config-catalog.zh.md b/docs/config-catalog.zh.md
+index 10cfb059..aaf8edb5 100644
+--- a/docs/config-catalog.zh.md
++++ b/docs/config-catalog.zh.md
+@@ -1499,14 +1499,14 @@ export interface Config {
+ export interface Config {
+   /** Frames returned by one call. */
+   maxFramesPerCall?: number
+-  /** Frame selection: scene changes, or evenly spaced as a baseline. */
++  /** Frame selection: largest visual changes, or evenly spaced as a baseline. */
+   sampling?: Sampling
+-  /** Minimum scene-change score (0–1). */
+-  sceneThreshold?: number
++  /** Scene scores below this are encoder noise (0–1). */
++  minSceneScore?: number
++  /** Minimum spacing between selected frames, in seconds. */
++  minFrameGapSeconds?: number
+   /** Frames wider than this are scaled down. */
+   frameMaxWidth?: number
+-  /** Frames written before selection, bounding disk use on noisy video. */
+-  maxCandidateFrames?: number
+   /** Longest file accepted, in seconds. */
+   maxDurationSeconds?: number
+   /** Transcript characters included in one timeline before speech is summarized. */
+diff --git a/docs/tool-catalog.i18n.yaml b/docs/tool-catalog.i18n.yaml
+index 480018ab..c01f94af 100644
+--- a/docs/tool-catalog.i18n.yaml
++++ b/docs/tool-catalog.i18n.yaml
+@@ -9,8 +9,8 @@
+   en: 6cc2cd9ced70bb09
+   zh: 1c0e6cb4ba2ed637
+ /tool-schema-catalog/tool-package-map:
+-  en: 15b3d0e3c2dc8d50
+-  zh: ff075a1444a8083c
++  en: 7dd082e2d547c0b3
++  zh: 3b8f41ceeb9b0001
+ /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
+   en: e0143916bb634762
+   zh: e0143916bb634762
+@@ -165,8 +165,8 @@
+   en: d4648d3f9961dcc3
+   zh: d4648d3f9961dcc3
+ /tool-schema-catalog/deepseek-ai-dsh-experimental-tool-read-video/read-video:
+-  en: 27261909c8b71c7b
+-  zh: 1ebee3d0ac60d4f9
++  en: 0794a2e89acb2573
++  zh: 95fedb2c76d37264
+ /tool-schema-catalog/deepseek-ai-dsh-vision-bridge:
+   en: 0b57ee2af956bb36
+   zh: 0b57ee2af956bb36
+diff --git a/docs/tool-catalog.md b/docs/tool-catalog.md
+index 991e3cf3..998776fc 100644
+--- a/docs/tool-catalog.md
++++ b/docs/tool-catalog.md
+@@ -34,7 +34,7 @@ This table connects model-visible tool names to the plugin package and service s
+ | `@deepseek-ai/dsh-tool-fs-search` | `glob`, `grep` | `ctx.workingDirectory`, `ctx.tools`, `ctx.subprocess`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | glob and grep are unconditional discovery tools that spawn the packaged ripgrep binary (`@vscode/ripgrep`) through ctx.subprocess as ordinary foreground calls (never background jobs) — no host `rg` install and no shell layer. The catalog uses `sampleOverCapGlobResults: true`; deployments must choose that behavior explicitly. Capped results save the complete formatted list through the optional ctx.spillStore backend; returned locators are follow-up-readable/searchable when the backend exposes local paths in co-located deployments. |
+ | `@deepseek-ai/dsh-tool-read-document` | `read_document` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.attachments + an image-capable route (page images)`, `poppler and LibreOffice on the host` | `tool/call`, `durable attachment (page images)`, `tool/result` | - | Without `pages` a short document returns whole and a long one returns a per-page outline. Page images are returned only for pages without a text layer (or every page in `image` mode) and only when an attachment store is mounted and the routed model declares image input; otherwise each such page carries a note. |
+ | `@deepseek-ai/dsh-experimental-tool-read-audio` | `read_audio` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.speechToText (at call time)`, `ffmpeg on the host` | `tool/call`, `tool/result` | - | Timestamps come from silence-aware segmentation: each segment is transcribed separately through the speech seam. A transcript over `maxTranscriptChars` returns a time index instead, and `start`/`end` select a window from the cached whole-file transcript. |
+-| `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.attachments + an image-capable route (frames)`, `ctx.speechToText (speech, at call time)`, `ffmpeg on the host` | `tool/call`, `durable attachment (frames)`, `tool/result` | - | Frames are sampled at scene changes (or uniformly when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span. |
++| `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.attachments + an image-capable route (frames)`, `ctx.speechToText (speech, at call time)`, `ffmpeg on the host` | `tool/call`, `durable attachment (frames)`, `tool/result` | - | Frames are the largest visual changes ranked by scene score (or uniformly spaced when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span. |
+ | `@deepseek-ai/dsh-vision-bridge` | `ask_image` | `ctx.tools`, `ctx.fs`, `ctx.llm`, `ctx.attachments`, `a configured image-capable model` | `tool/call`, `durable attachment (the asked image)`, `tool/result` | - | The image and question go to the configured image-capable model in an auxiliary request; only the text answer returns, so a text-only route can use images without image blocks entering its history. |
+ | `@deepseek-ai/dsh-memory` | `memory_read`, `memory_replace`, `memory_rewrite`, `memory_write`, `recall` | `ctx.tools`, `ctx.systemPrompt`, `ctx.llm (reflect pass)` | `tool/call`, `tool/result`, `MEMORY.md and episodic.db under the configured root` | - | MEMORY.md is also placed in every request as runtime context. After each turn the plugin stores the turn in episodic memory and, with `reflect` on, files durable facts it extracts with one auxiliary request on the agent's route. |
+ | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.workingDirectory`, `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
+@@ -1302,7 +1302,7 @@ Timestamps come from silence-aware segmentation: each segment is transcribed sep
+ 
+ ### `read_video`
+ 
+-Watch a video file (.mp4, .mov, .webm, screen recordings, …): returns keyframes at visual changes and the spoken audio, merged into one timestamped timeline. Start with the whole video, then call again with start/end around a moment to see it in more detail.
++Watch a video file (.mp4, .mov, .webm, screen recordings, …): returns keyframes at the largest visual changes and the spoken audio, merged into one timestamped timeline. Start with the whole video, then call again with start/end around a moment to see it in more detail.
+ 
+ ```json
+ {
+@@ -1333,7 +1333,7 @@ Watch a video file (.mp4, .mov, .webm, screen recordings, …): returns keyframe
+ 
+ Source: [`packages/experimental/tool-read-video/src/index.ts`](../packages/experimental/tool-read-video/src/index.ts)
+ 
+-Frames are sampled at scene changes (or uniformly when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span.
++Frames are the largest visual changes ranked by scene score (or uniformly spaced when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span.
+ 
+ <a id="deepseek-aidsh-vision-bridge"></a>
+ 
+diff --git a/docs/tool-catalog.zh.md b/docs/tool-catalog.zh.md
+index 8a11157a..16ec2698 100644
+--- a/docs/tool-catalog.zh.md
++++ b/docs/tool-catalog.zh.md
+@@ -38,7 +38,7 @@
+ | `@deepseek-ai/dsh-tool-fs-search` | `glob`、`grep` | `ctx.workingDirectory`、`ctx.tools`、`ctx.subprocess`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn 随包提供的 ripgrep 二进制文件（`@vscode/ripgrep`），并作为普通前台调用运行，绝不作为后台任务；无需在宿主机安装 `rg`，也不经过 shell 层。本目录使用 `sampleOverCapGlobResults: true`；部署必须显式选择该行为。结果超过上限时，会通过可选的 ctx.spillStore 后端保存完整的格式化列表；在共置部署中，如果后端公开本地路径，返回的定位信息可供后续读取／搜索。 |
+ | `@deepseek-ai/dsh-tool-read-document` | `read_document` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (page images)`、`poppler and LibreOffice on the host` | `tool/call`、`durable attachment (page images)`、`tool/result` | - | 不带 `pages` 时，短文档整篇返回，长文档返回逐页大纲。只有没有文字层的页面（`image` 模式下为每一页）才返回页面图片，并且仅在挂载了附件存储且路由模型声明了图片输入时返回；否则每个此类页面附带说明。 |
+ | `@deepseek-ai/dsh-experimental-tool-read-audio` | `read_audio` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.speechToText (at call time)`、`ffmpeg on the host` | `tool/call`、`tool/result` | - | 时间戳来自按静音切段：每个片段通过语音 seam 单独转写。转写超过 `maxTranscriptChars` 时改为返回时间索引，`start`/`end` 从缓存的整文件转写中选取窗口。 |
+-| `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (frames)`、`ctx.speechToText (speech, at call time)`、`ffmpeg on the host` | `tool/call`、`durable attachment (frames)`、`tool/result` | - | 在所请求的窗口内按场景切换（配置为均匀时则均匀）采样帧，并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。 |
++| `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (frames)`、`ctx.speechToText (speech, at call time)`、`ffmpeg on the host` | `tool/call`、`durable attachment (frames)`、`tool/result` | - | 在所请求的窗口内按场景得分选取变化最大的帧（配置为均匀时则均匀），并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。 |
+ | `@deepseek-ai/dsh-vision-bridge` | `ask_image` | `ctx.tools`、`ctx.fs`、`ctx.llm`、`ctx.attachments`、`a configured image-capable model` | `tool/call`、`durable attachment (the asked image)`、`tool/result` | - | 图片和问题在一次辅助请求中交给配置的识图模型；只返回文字答案，因此纯文本路由可以使用图片，而图片块不会进入其历史。 |
+ | `@deepseek-ai/dsh-memory` | `memory_read`、`memory_replace`、`memory_rewrite`、`memory_write`、`recall` | `ctx.tools`、`ctx.systemPrompt`、`ctx.llm (reflect pass)` | `tool/call`、`tool/result`、`MEMORY.md and episodic.db under the configured root` | - | 每次请求中 MEMORY.md 也作为运行时上下文出现。每轮结束后，插件把这一轮存入情景记忆，并在开启 `reflect` 时，用一次基于 agent 路由的辅助请求提取并归档长期事实。 |
+ | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`、`terminal_list`、`terminal_open`、`terminal_read`、`terminal_send`、`terminal_signal` | `ctx.workingDirectory`、`ctx.tools`、`ctx.terminals`、`ctx.systemPrompt`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。 |
+@@ -1308,7 +1308,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn 
+ 
+ ### `read_video`
+ 
+-观看视频文件（.mp4、.mov、.webm、屏幕录像等）：返回画面变化处的关键帧和语音，合并为一条带时间戳的时间线。先看整段视频，再围绕某个时刻用 start/end 再次调用以查看更多细节。
++观看视频文件（.mp4、.mov、.webm、屏幕录像等）：返回画面变化最大处的关键帧和语音，合并为一条带时间戳的时间线。先看整段视频，再围绕某个时刻用 start/end 再次调用以查看更多细节。
+ 
+ ```json
+ {
+@@ -1339,7 +1339,7 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn 
+ 
+ 来源：[`packages/experimental/tool-read-video/src/index.ts`](../packages/experimental/tool-read-video/src/index.ts)
+ 
+-在所请求的窗口内按场景切换（配置为均匀时则均匀）采样帧，并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。
++在所请求的窗口内按场景得分选取变化最大的帧（配置为均匀时则均匀），并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。
+ 
+ <a id="deepseek-aidsh-vision-bridge"></a>
+ 
+diff --git a/packages/experimental/tool-read-video/README.i18n.yaml b/packages/experimental/tool-read-video/README.i18n.yaml
+index 8582af11..9281437b 100644
+--- a/packages/experimental/tool-read-video/README.i18n.yaml
++++ b/packages/experimental/tool-read-video/README.i18n.yaml
+@@ -9,8 +9,8 @@
+   en: 7cc6cdf834a92ea2
+   zh: 50b4280f3e8d6f72
+ /deepseek-ai-dsh-experimental-tool-read-video/summary:
+-  en: 3f5b3d649a8be1be
+-  zh: d6c5eb90aa4fbfb8
++  en: a84bc06f24913ea9
++  zh: da2909be64a3106c
+ /deepseek-ai-dsh-experimental-tool-read-video/table-of-contents:
+   en: d152484eb41ac6b4
+   zh: 09388d293f9be9cb
+@@ -21,20 +21,20 @@
+   en: 7e32fdf2571d190c
+   zh: 0e14b8c3b29a8617
+ /deepseek-ai-dsh-experimental-tool-read-video/use-this-package/configuration:
+-  en: 89dcc0b88b5c473d
+-  zh: 3c5c9f455290bc1e
++  en: 4b792ff27ab6aa2c
++  zh: 6f30e4a80772ffd6
+ /deepseek-ai-dsh-experimental-tool-read-video/understand-the-implementation:
+   en: a8ea90f5f789672c
+   zh: 4ed0861911abaf5d
+ /deepseek-ai-dsh-experimental-tool-read-video/understand-the-implementation/frame-selection:
+-  en: 1d1ede4e02b3da19
+-  zh: a662a484daf64940
++  en: 77aef3673e5685c7
++  zh: 1cdfbdf5941a45ee
+ /deepseek-ai-dsh-experimental-tool-read-video/understand-the-implementation/timeline:
+   en: 151e83f4ff37e4e3
+   zh: 90f70da3f2cfd608
+ /deepseek-ai-dsh-experimental-tool-read-video/understand-the-implementation/source-map:
+-  en: 01094f507cfd6eab
+-  zh: ce1bd1e111a06fb5
++  en: efa37496231edaf0
++  zh: 5a9eb4115459168d
+ /deepseek-ai-dsh-experimental-tool-read-video/further-exploration:
+   en: 7008340503350568
+   zh: 8bd64de93360b607
+@@ -66,8 +66,8 @@
+   en: 95cd51cd8d905ef2
+   zh: eb3dac64f7d9804d
+ /deepseek-ai-dsh-experimental-tool-read-video/known-limitations-and-deferred-work:
+-  en: 9d265a1d0eef67b5
+-  zh: 02a4de4d6df8cd9a
++  en: fef63f8b863ab003
++  zh: db8c58d974588b9c
+ /deepseek-ai-dsh-experimental-tool-read-video/known-limitations-and-deferred-work/dev-note:
+   en: e67f633dc6fe7773
+   zh: 9c6918ce849f6c93
+diff --git a/packages/experimental/tool-read-video/README.md b/packages/experimental/tool-read-video/README.md
+index dcb824a1..6a647e25 100644
+--- a/packages/experimental/tool-read-video/README.md
++++ b/packages/experimental/tool-read-video/README.md
+@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
+ 
+ ## Summary
+ 
+-`dsh-experimental-tool-read-video` lets the agent watch a video, such as a screen recording of a bug, a demo, or a recorded talk. It returns keyframes taken where the picture changes, together with what was said, in one timestamped timeline. The first call covers the whole video with a few frames; the agent then narrows `start` and `end` around a moment, and the same frame budget spread over a shorter span shows it in more detail.
++`dsh-experimental-tool-read-video` lets the agent watch a video, such as a screen recording of a bug, a demo, or a recorded talk. It returns keyframes taken at the largest visual changes, together with what was said, in one timestamped timeline. The first call covers the whole video with a few frames; the agent then narrows `start` and `end` around a moment, and the same frame budget spread over a shorter span shows it in more detail.
+ 
+ ## Table of Contents
+ 
+@@ -40,10 +40,10 @@ Mount the plugin next to a filesystem backend, the subprocess service, an attach
+ | Field | Default | Meaning |
+ |---|---|---|
+ | `maxFramesPerCall` | `8` | Frames returned by one call |
+-| `sampling` | `scene` | `scene` keeps frames at visual changes; `uniform` spaces them evenly (the baseline) |
+-| `sceneThreshold` | `0.3` | Minimum scene-change score |
++| `sampling` | `scene` | `scene` keeps the first frame and the largest visual changes; `uniform` spaces frames evenly (the baseline) |
++| `minSceneScore` | `0.001` | Scene scores below this are treated as encoder noise |
++| `minFrameGapSeconds` | `1` | Minimum spacing between selected frames |
+ | `frameMaxWidth` | `1024` | Wider frames are scaled down |
+-| `maxCandidateFrames` | `300` | Frames written before selection, bounding disk use |
+ | `maxDurationSeconds` | `14400` | Longest file accepted |
+ | `maxTranscriptChars` | `8000` | Speech included in one timeline |
+ | `commandTimeoutMs` | `300000` | Deadline for each ffmpeg command |
+@@ -59,7 +59,7 @@ Mount the plugin next to a filesystem backend, the subprocess service, an attach
+ 
+ ### Frame selection
+ 
+-One ffmpeg run seeks to the window, applies `select='eq(n,0)+gt(scene,θ)'` (or `fps=N/span` in uniform mode) with `showinfo`, and writes the candidate frames. `showinfo` reports each frame's time; the candidates are then thinned evenly to `maxFramesPerCall`, always keeping the window's first frame, so a static video still yields one frame. Screen recordings change rarely, which is why scene sampling covers them with far fewer frames than uniform sampling.
++A first ffmpeg pass scores every frame of the window with the scene detector on a 320-pixel-wide copy. The window's first frame is kept, then the highest-scoring changes above `minSceneScore`, each at least `minFrameGapSeconds` from those already kept, until `maxFramesPerCall`; each frame is taken 0.3 s after its change point so a transition has settled. Each selected time is then extracted with an input seek. Ranking replaces a fixed threshold because scores depend on content: film cuts score above 0.3, while an error banner appearing in a screen recording scored 0.13 and a one-line text change about 0.005. Uniform mode places frames in the middle of equal slices of the window.
+ 
+ ### Timeline
+ 
+@@ -70,7 +70,7 @@ Frames are committed with `ctx.attachments.saveImage`. Speech comes from the `re
+ | File | Responsibility |
+ |---|---|
+ | [`src/index.ts`](src/index.ts) | Plugin entry, config, tool definition, timeline rendering |
+-| [`src/frames.ts`](src/frames.ts) | ffmpeg filter, `showinfo` parsing, frame thinning |
++| [`src/frames.ts`](src/frames.ts) | Scene scoring, change ranking, uniform times, frame extraction |
+ 
+ </details>
+ 
+@@ -121,7 +121,7 @@ Append-only; the result follows the reusable request prefix and does not invalid
+ <a id="known-limitations-and-deferred-work"></a>
+ 
+ - **No frames for text-only routes** — the timeline carries speech and a note; frames are not described on the model's behalf.
+-- **Scene detection misses slow changes** — a gradual fade or slow scroll may score below `sceneThreshold`; narrowing the window or `uniform` sampling covers it.
++- **Gradual changes rank low** — a slow scroll spreads its change over many small scores, so the frame budget may go to sharper changes; narrowing the window or `uniform` sampling covers it.
+ - **Host execution only** — ffmpeg runs on the provider's process path and writes frames to the host temporary directory.
+ 
+ <a id="dev-note"></a>
+diff --git a/packages/experimental/tool-read-video/README.zh.md b/packages/experimental/tool-read-video/README.zh.md
+index d5a6af71..1b1192fa 100644
+--- a/packages/experimental/tool-read-video/README.zh.md
++++ b/packages/experimental/tool-read-video/README.zh.md
+@@ -9,7 +9,7 @@ kind: "package-reference"
+ 
+ ## 概述
+ 
+-`dsh-experimental-tool-read-video` 让 agent 能看视频，例如 bug 的屏幕录像、产品演示或录制的讲座。它在画面变化处取关键帧，与说话内容一起合并为一条带时间戳的时间线。第一次调用用少量帧覆盖整段视频；agent 再围绕某个时刻缩小 `start` 与 `end`，同样的帧预算分布在更短的时间段上，就能看到更多细节。
++`dsh-experimental-tool-read-video` 让 agent 能看视频，例如 bug 的屏幕录像、产品演示或录制的讲座。它在画面变化最大的时刻取关键帧，与说话内容一起合并为一条带时间戳的时间线。第一次调用用少量帧覆盖整段视频；agent 再围绕某个时刻缩小 `start` 与 `end`，同样的帧预算分布在更短的时间段上，就能看到更多细节。
+ 
+ ## 目录
+ 
+@@ -40,10 +40,10 @@ kind: "package-reference"
+ | 字段 | 默认值 | 含义 |
+ |---|---|---|
+ | `maxFramesPerCall` | `8` | 一次调用返回的帧数 |
+-| `sampling` | `scene` | `scene` 在画面变化处取帧；`uniform` 均匀取帧（作为基线） |
+-| `sceneThreshold` | `0.3` | 场景切换的最低得分 |
++| `sampling` | `scene` | `scene` 保留第一帧与变化最大的时刻；`uniform` 均匀取帧（作为基线） |
++| `minSceneScore` | `0.001` | 低于该值的场景得分视为编码噪声 |
++| `minFrameGapSeconds` | `1` | 所选帧之间的最小间隔 |
+ | `frameMaxWidth` | `1024` | 更宽的帧会被缩小 |
+-| `maxCandidateFrames` | `300` | 筛选前写出的候选帧数上限，限制磁盘占用 |
+ | `maxDurationSeconds` | `14400` | 接受的最长文件 |
+ | `maxTranscriptChars` | `8000` | 一条时间线中包含的语音上限 |
+ | `commandTimeoutMs` | `300000` | 每条 ffmpeg 命令的时限 |
+@@ -59,7 +59,7 @@ kind: "package-reference"
+ 
+ ### 帧选择
+ 
+-一次 ffmpeg 运行先定位到窗口，再应用 `select='eq(n,0)+gt(scene,θ)'`（均匀模式下为 `fps=N/span`）与 `showinfo`，写出候选帧。`showinfo` 报告每帧的时间；候选帧随后被均匀精简到 `maxFramesPerCall`，并始终保留窗口的第一帧，因此静态视频也至少有一帧。屏幕录像很少变化，这正是场景采样能用比均匀采样少得多的帧覆盖它的原因。
++第一次 ffmpeg 扫描在 320 像素宽的副本上用场景检测器给窗口内每一帧打分。保留窗口第一帧，然后按得分从高到低选取高于 `minSceneScore` 的变化，每个与已选帧至少相隔 `minFrameGapSeconds`，直到 `maxFramesPerCall`；每帧取在变化点之后 0.3 秒，确保过渡已经稳定。随后对每个选定时间用输入定位提取一帧。之所以用排序代替固定阈值，是因为得分取决于内容：电影镜头切换得分高于 0.3，而屏幕录像中出现报错横幅只得 0.13，一行文字变化约 0.005。均匀模式把帧放在窗口等分片段的中点。
+ 
+ ### 时间线
+ 
+@@ -70,7 +70,7 @@ kind: "package-reference"
+ | 文件 | 职责 |
+ |---|---|
+ | [`src/index.ts`](src/index.ts) | 插件入口、配置、工具定义、时间线渲染 |
+-| [`src/frames.ts`](src/frames.ts) | ffmpeg 滤镜、`showinfo` 解析、帧精简 |
++| [`src/frames.ts`](src/frames.ts) | 场景打分、变化排序、均匀时间点、帧提取 |
+ 
+ </details>
+ 
+@@ -121,7 +121,7 @@ kind: "package-reference"
+ <a id="known-limitations-and-deferred-work"></a>
+ 
+ - **纯文本路由没有帧** — 时间线只包含语音与说明；不会替模型描述画面。
+-- **场景检测会漏掉缓慢变化** — 渐变或缓慢滚动的得分可能低于 `sceneThreshold`；缩小窗口或使用 `uniform` 采样可以覆盖。
++- **缓慢变化排名靠后** — 缓慢滚动把变化分散成许多小分数，帧预算可能被更明显的变化占用；缩小窗口或使用 `uniform` 采样可以覆盖。
+ - **只支持宿主机执行** — ffmpeg 在提供方的进程路径上运行，并把帧写到宿主机临时目录。
+ 
+ <a id="dev-note"></a>
+diff --git a/packages/experimental/tool-read-video/src/frames.ts b/packages/experimental/tool-read-video/src/frames.ts
+index 1d653360..44be02ba 100644
+--- a/packages/experimental/tool-read-video/src/frames.ts
++++ b/packages/experimental/tool-read-video/src/frames.ts
+@@ -1,11 +1,14 @@
+ /**
+- * Keyframe extraction. Scene-change sampling keeps one frame per visual
+- * change, which suits screen recordings where most frames repeat; uniform
+- * sampling is the baseline it is measured against.
++ * Keyframe selection. Change sampling scores every frame of the window with
++ * ffmpeg's scene detector on a downscaled copy, then keeps the window's first
++ * frame plus the largest changes. A fixed score threshold does not work
++ * across content: film cuts score above 0.3, while an error banner appearing
++ * in a screen recording scores about 0.1 and a text edit about 0.005. Ranking
++ * changes instead of thresholding them covers both. Uniform sampling is the
++ * baseline it is measured against.
+  * @module @deepseek-ai/dsh-experimental-tool-read-video/frames
+  */
+ 
+-import { readdir } from 'node:fs/promises'
+ import { join } from 'node:path'
+ import type { Context } from '@deepseek-ai/cordis'
+ import { FFMPEG_HINT, runMediaCommand } from '@deepseek-ai/dsh-media-core'
+@@ -13,6 +16,12 @@ import { FFMPEG_HINT, runMediaCommand } from '@deepseek-ai/dsh-media-core'
+ /** How frames are chosen inside a window. */
+ export type Sampling = 'scene' | 'uniform'
+ 
++/** Scene score of one frame, at seconds from the window start. */
++export interface ScoredFrame {
++  readonly time: number
++  readonly score: number
++}
++
+ /** Parameters for one extraction run. */
+ export interface FrameRequest {
+   readonly path: string
+@@ -20,11 +29,11 @@ export interface FrameRequest {
+   readonly end: number
+   readonly maxFrames: number
+   readonly sampling: Sampling
+-  /** Minimum scene score (0–1) for a scene-change frame. */
+-  readonly sceneThreshold: number
++  /** Changes scoring below this are encoder noise, not content. */
++  readonly minSceneScore: number
++  /** Selected frames are at least this far apart, so one transition yields one frame. */
++  readonly minGapSeconds: number
+   readonly maxWidth: number
+-  /** Upper bound on frames written before selection, protecting disk on noisy video. */
+-  readonly maxCandidates: number
+   readonly timeoutMs: number
+   readonly outDir: string
+ }
+@@ -36,67 +45,100 @@ export interface ExtractedFrame {
+   readonly file: string
+ }
+ 
++/** Width of the copy scored in the first pass; scene scores barely depend on resolution. */
++const SCORE_WIDTH = 320
++
+ /**
+- * Read `pts_time` values from ffmpeg `showinfo` output, in frame order.
++ * Read `pts_time` and `lavfi.scene_score` pairs from ffmpeg `metadata=print` output.
+  * @param stderr - ffmpeg diagnostic output.
+- * @returns presentation times relative to the input's start.
++ * @returns one score per frame in stream order.
+  */
+-export function parseShowinfoTimes(stderr: string): number[] {
+-  return [...stderr.matchAll(/Parsed_showinfo.*?pts_time:\s*(-?\d+(?:\.\d+)?)/gu)].map(m => Number(m[1]))
++export function parseSceneScores(stderr: string): ScoredFrame[] {
++  const out: ScoredFrame[] = []
++  let time: number | undefined
++  for (const line of stderr.split('\n')) {
++    const pts = /pts_time:\s*(-?\d+(?:\.\d+)?)/u.exec(line)
++    if (pts !== null) {
++      time = Number(pts[1])
++      continue
++    }
++    const score = /lavfi\.scene_score=(\d+(?:\.\d+)?)/u.exec(line)
++    if (score !== null && time !== undefined) {
++      out.push({ time, score: Number(score[1]) })
++      time = undefined
++    }
++  }
++  return out
+ }
+ 
+ /**
+- * Keep at most `max` items spread evenly across the list, always keeping the first.
+- * @param items - candidates in time order.
+- * @param max - how many to keep.
+- * @returns the selected items in time order.
++ * Choose frame times by change: the first frame, then the highest-scoring
++ * changes above `minScore`, each at least `minGap` from those already kept.
++ * A frame is taken shortly after its change point, so a transition that
++ * spans a few frames is captured once it has settled.
++ * @param scores - per-frame scores relative to the window start.
++ * @param span - window length in seconds.
++ * @param maxFrames - most frames to keep.
++ * @param minScore - noise floor.
++ * @param minGap - minimum spacing in seconds.
++ * @returns selected times relative to the window start, ascending.
+  */
+-export function spreadPick<T>(items: readonly T[], max: number): T[] {
+-  if (items.length <= max) return [...items]
+-  if (max <= 1) return items.slice(0, Math.max(0, max))
+-  const step = (items.length - 1) / (max - 1)
+-  const out: T[] = []
+-  for (let i = 0; i < max; i += 1) {
+-    const item = items.at(Math.round(i * step))
+-    if (item !== undefined) out.push(item)
++export function selectChangeTimes(
++  scores: readonly ScoredFrame[], span: number, maxFrames: number, minScore: number, minGap: number,
++): number[] {
++  const settle = Math.min(0.3, minGap / 2)
++  const chosen: number[] = [0]
++  const ranked = scores.filter(s => s.score >= minScore && s.time > 0).sort((a, b) => b.score - a.score)
++  for (const candidate of ranked) {
++    if (chosen.length >= maxFrames) break
++    const at = Math.min(candidate.time + settle, Math.max(0, span - 0.05))
++    if (chosen.every(t => Math.abs(t - at) >= minGap)) chosen.push(at)
+   }
+-  return out
++  return chosen.sort((a, b) => a - b)
+ }
+ 
+ /**
+- * Build the ffmpeg video filter for one sampling mode.
+- * @param request - extraction parameters.
+- * @returns the `-vf` filter graph.
++ * Evenly spaced times, each in the middle of its slice of the window.
++ * @param span - window length in seconds.
++ * @param count - how many frames.
++ * @returns times relative to the window start, ascending.
+  */
+-export function frameFilter(request: Pick<FrameRequest, 'sampling' | 'sceneThreshold' | 'maxFrames' | 'start' | 'end' | 'maxWidth'>): string {
+-  const scale = `scale='min(${request.maxWidth},iw)':-2`
+-  if (request.sampling === 'uniform') {
+-    const fps = request.maxFrames / (request.end - request.start)
+-    return `fps=${fps.toFixed(6)},showinfo,${scale}`
+-  }
+-  // The first frame of the window is always kept so a static video still yields one frame.
+-  return `select='eq(n\\,0)+gt(scene\\,${request.sceneThreshold})',showinfo,${scale}`
++export function uniformTimes(span: number, count: number): number[] {
++  return Array.from({ length: count }, (_, i) => ((i + 0.5) * span) / count)
+ }
+ 
+ /**
+- * Extract frames for one window and select at most `maxFrames`.
++ * Select and extract frames for one window.
+  * @param ctx - context providing `ctx.subprocess`.
+  * @param request - window, sampling and limits.
+  * @param signal - cancellation.
+- * @returns selected frames in time order.
++ * @returns extracted frames in time order.
+  */
+ export async function extractFrames(ctx: Context, request: FrameRequest, signal: AbortSignal): Promise<ExtractedFrame[]> {
+-  const result = await runMediaCommand(ctx, {
+-    argv: ['ffmpeg', '-hide_banner', '-nostats', '-y', '-ss', request.start.toFixed(3), '-to', request.end.toFixed(3), '-i', request.path,
+-      '-an', '-vf', frameFilter(request), '-fps_mode', 'vfr', '-frames:v', String(request.maxCandidates), join(request.outDir, 'f-%05d.png')],
+-    cwd: request.outDir,
+-    timeoutMs: request.timeoutMs,
+-    maxStdoutBytes: 4096,
+-    maxStderrBytes: 8 << 20,
+-    signal,
+-  }, FFMPEG_HINT)
+-  const times = parseShowinfoTimes(result.stderr)
+-  const files = (await readdir(request.outDir)).filter(name => /^f-\d{5}\.png$/u.test(name)).sort()
+-  const frames = files.map((name, index) => ({ time: request.start + (times[index] ?? 0), file: join(request.outDir, name) }))
+-  return spreadPick(frames, request.maxFrames)
++  const span = request.end - request.start
++  const common = { cwd: request.outDir, timeoutMs: request.timeoutMs, maxStdoutBytes: 4096, signal }
++  let times: number[]
++  if (request.sampling === 'uniform') {
++    times = uniformTimes(span, request.maxFrames)
++  } else {
++    const scored = await runMediaCommand(ctx, {
++      ...common,
++      argv: ['ffmpeg', '-hide_banner', '-nostats', '-ss', request.start.toFixed(3), '-to', request.end.toFixed(3), '-i', request.path, '-an',
++        '-vf', `scale=${SCORE_WIDTH}:-2,select='gte(scene,0)',metadata=print:key=lavfi.scene_score`, '-f', 'null', '-'],
++      maxStderrBytes: 32 << 20,
++    }, FFMPEG_HINT)
++    times = selectChangeTimes(parseSceneScores(scored.stderr), span, request.maxFrames, request.minSceneScore, request.minGapSeconds)
++  }
++  const frames: ExtractedFrame[] = []
++  for (const [index, offset] of times.entries()) {
++    const file = join(request.outDir, `f-${String(index).padStart(3, '0')}.png`)
++    await runMediaCommand(ctx, {
++      ...common,
++      argv: ['ffmpeg', '-hide_banner', '-nostats', '-y', '-ss', (request.start + offset).toFixed(3), '-i', request.path, '-an',
++        '-frames:v', '1', '-vf', `scale='min(${request.maxWidth},iw)':-2`, file],
++      maxStderrBytes: 16 * 1024,
++    }, FFMPEG_HINT)
++    frames.push({ time: request.start + offset, file })
++  }
++  return frames
+ }
+diff --git a/packages/experimental/tool-read-video/src/index.ts b/packages/experimental/tool-read-video/src/index.ts
+index af8005c2..5db746bd 100644
+--- a/packages/experimental/tool-read-video/src/index.ts
++++ b/packages/experimental/tool-read-video/src/index.ts
+@@ -35,8 +35,8 @@ import type {} from '@deepseek-ai/dsh-working-directory'
+ import { extractFrames } from './frames.ts'
+ import type { Sampling } from './frames.ts'
+ 
+-export { extractFrames, frameFilter, parseShowinfoTimes, spreadPick } from './frames.ts'
+-export type { ExtractedFrame, FrameRequest, Sampling } from './frames.ts'
++export { extractFrames, parseSceneScores, selectChangeTimes, uniformTimes } from './frames.ts'
++export type { ExtractedFrame, FrameRequest, Sampling, ScoredFrame } from './frames.ts'
+ 
+ /** Cordis plugin name used by loader diagnostics. */
+ export const name = 'tool-read-video'
+@@ -48,14 +48,14 @@ export const inject = ['tools', 'fs', 'subprocess']
+ export interface Config {
+   /** Frames returned by one call. */
+   maxFramesPerCall?: number
+-  /** Frame selection: scene changes, or evenly spaced as a baseline. */
++  /** Frame selection: largest visual changes, or evenly spaced as a baseline. */
+   sampling?: Sampling
+-  /** Minimum scene-change score (0–1). */
+-  sceneThreshold?: number
++  /** Scene scores below this are encoder noise (0–1). */
++  minSceneScore?: number
++  /** Minimum spacing between selected frames, in seconds. */
++  minFrameGapSeconds?: number
+   /** Frames wider than this are scaled down. */
+   frameMaxWidth?: number
+-  /** Frames written before selection, bounding disk use on noisy video. */
+-  maxCandidateFrames?: number
+   /** Longest file accepted, in seconds. */
+   maxDurationSeconds?: number
+   /** Transcript characters included in one timeline before speech is summarized. */
+@@ -69,9 +69,9 @@ export interface Config {
+ export const Config: z<Config> = z.object({
+   maxFramesPerCall: z.natural().min(1).max(32).default(8),
+   sampling: z.union(['scene', 'uniform']).default('scene'),
+-  sceneThreshold: z.number().min(0.01).max(1).default(0.3),
++  minSceneScore: z.number().min(0).max(1).default(0.001),
++  minFrameGapSeconds: z.number().min(0.1).default(1),
+   frameMaxWidth: z.natural().min(160).default(1024),
+-  maxCandidateFrames: z.natural().min(1).default(300),
+   maxDurationSeconds: z.natural().min(1).default(4 * 3600),
+   maxTranscriptChars: z.natural().min(50).default(8000),
+   commandTimeoutMs: z.natural().min(1000).default(300_000),
+@@ -159,7 +159,7 @@ export function apply(ctx: Context, config: Config): void {
+ 
+   ctx.tools.register(defineTool({
+     name: 'read_video',
+-    description: 'Watch a video file (.mp4, .mov, .webm, screen recordings, …): returns keyframes at visual changes and the spoken audio, merged into one timestamped timeline. '
++    description: 'Watch a video file (.mp4, .mov, .webm, screen recordings, …): returns keyframes at the largest visual changes and the spoken audio, merged into one timestamped timeline. '
+       + 'Start with the whole video, then call again with start/end around a moment to see it in more detail.',
+     parameters: {
+       file_path: { type: 'string', required: true, description: 'Path to the video file.' },
+@@ -234,9 +234,9 @@ export function apply(ctx: Context, config: Config): void {
+             end: window.end,
+             maxFrames: cfg.maxFramesPerCall,
+             sampling: cfg.sampling,
+-            sceneThreshold: cfg.sceneThreshold,
++            minSceneScore: cfg.minSceneScore,
++            minGapSeconds: cfg.minFrameGapSeconds,
+             maxWidth: cfg.frameMaxWidth,
+-            maxCandidates: cfg.maxCandidateFrames,
+             timeoutMs: cfg.commandTimeoutMs,
+             outDir,
+           }, exec.signal)
+diff --git a/packages/experimental/tool-read-video/tests/read-video.spec.ts b/packages/experimental/tool-read-video/tests/read-video.spec.ts
+index 0907c74b..848312cb 100644
+--- a/packages/experimental/tool-read-video/tests/read-video.spec.ts
++++ b/packages/experimental/tool-read-video/tests/read-video.spec.ts
+@@ -20,7 +20,7 @@ import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
+ import ToolRuntime from '@deepseek-ai/dsh-tools'
+ import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest'
+ import * as ReadVideo from '../src/index.ts'
+-import { buildTimeline, frameFilter, parseShowinfoTimes, spreadPick } from '../src/index.ts'
++import { buildTimeline, parseSceneScores, selectChangeTimes, uniformTimes } from '../src/index.ts'
+ 
+ const FIXTURES = new URL('./fixtures/', import.meta.url).pathname
+ const AUDIO_FIXTURE = new URL('../../tool-read-audio/tests/fixtures/tones.mp3', import.meta.url).pathname
+@@ -92,22 +92,25 @@ function images(result: { content: { type: string }[] }): number {
+ }
+ 
+ describe('helpers', () => {
+-  it('parses showinfo pts_time in frame order', () => {
+-    const stderr = '[Parsed_showinfo_1 @ 0x1] n:   0 pts:      0 pts_time:0 duration:1\n[Parsed_showinfo_1 @ 0x1] n:   1 pts:  38400 pts_time:3.0\n'
+-    expect(parseShowinfoTimes(stderr)).toEqual([0, 3])
++  it('parses scene scores in frame order', () => {
++    const stderr = '[Parsed_metadata_2 @ 0x1] frame:0 pts:0 pts_time:0\n[Parsed_metadata_2 @ 0x1] lavfi.scene_score=0.000000\n'
++      + '[Parsed_metadata_2 @ 0x1] frame:1 pts:40 pts_time:5.72\n[Parsed_metadata_2 @ 0x1] lavfi.scene_score=0.128515\n'
++    expect(parseSceneScores(stderr)).toEqual([{ time: 0, score: 0 }, { time: 5.72, score: 0.128515 }])
+   })
+ 
+-  it('spreads a selection evenly and keeps the first item', () => {
+-    expect(spreadPick([1, 2, 3, 4, 5, 6, 7, 8, 9], 3)).toEqual([1, 5, 9])
+-    expect(spreadPick([1, 2], 5)).toEqual([1, 2])
+-    expect(spreadPick([1, 2, 3], 1)).toEqual([1])
+-    expect(spreadPick([1, 2, 3], 0)).toEqual([])
++  it('keeps the first frame and the largest changes, spaced apart and above the noise floor', () => {
++    const scores = [
++      { time: 1, score: 0.004 }, { time: 1.04, score: 0.003 }, { time: 5.7, score: 0.13 },
++      { time: 5.74, score: 0.09 }, { time: 8, score: 0.0005 }, { time: 9, score: 0.02 },
++    ]
++    // 5.74 is within 1 s of 5.7; 8 is noise; the budget of 4 takes 0, 5.7, 9, 1.
++    expect(selectChangeTimes(scores, 10, 4, 0.001, 1)).toEqual([0, 1.3, 6, 9.3])
++    expect(selectChangeTimes([], 10, 4, 0.001, 1)).toEqual([0])
++    expect(selectChangeTimes(scores, 10, 1, 0.001, 1)).toEqual([0])
+   })
+ 
+-  it('builds scene and uniform filters', () => {
+-    const base = { sceneThreshold: 0.3, maxFrames: 4, start: 0, end: 8, maxWidth: 640 }
+-    expect(frameFilter({ ...base, sampling: 'scene' })).toContain('gt(scene\\,0.3)')
+-    expect(frameFilter({ ...base, sampling: 'uniform' })).toContain('fps=0.500000')
++  it('spaces uniform frames in the middle of equal slices', () => {
++    expect(uniformTimes(8, 4)).toEqual([1, 3, 5, 7])
+   })
+ 
+   it('orders frames before speech at the same time', () => {
+diff --git a/scripts/gen-tool-catalog.ts b/scripts/gen-tool-catalog.ts
+index 63161e7b..87308de7 100644
+--- a/scripts/gen-tool-catalog.ts
++++ b/scripts/gen-tool-catalog.ts
+@@ -470,7 +470,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
+       await ctx.plugin(LocalSubprocessRuntime)
+       await ctx.plugin(ToolReadVideo)
+     },
+-    note: 'Frames are sampled at scene changes (or uniformly when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span.',
++    note: 'Frames are the largest visual changes ranked by scene score (or uniformly spaced when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span.',
+   },
+   {
+     pkg: '@deepseek-ai/dsh-vision-bridge',
+-- 
+2.43.0
+

@@ -1,7 +1,7 @@
 From 7062cf9418f32928e8ee2907c2ea0bbc2543c8e2 Mon Sep 17 00:00:00 2001
 From: joe214214 <y852zhou@uwaterloo.ca>
 Date: Fri, 30 Oct 2026 02:28:50 +0000
-Subject: [PATCH 6/6] docs(multimodal,memory): READMEs, locale metadata,
+Subject: [PATCH 6/8] docs(multimodal,memory): READMEs, locale metadata,
  catalogs, and gate fixes
 
 - Move read_audio/read_video to the experimental group (they depend on the

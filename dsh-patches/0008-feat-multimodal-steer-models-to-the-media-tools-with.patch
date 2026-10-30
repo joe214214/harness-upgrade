@@ -1,0 +1,503 @@
+From 460884c847a8bbbabc805e525120732a92e05ae7 Mon Sep 17 00:00:00 2001
+From: joe214214 <y852zhou@uwaterloo.ca>
+Date: Fri, 30 Oct 2026 02:48:17 +0000
+Subject: [PATCH 8/8] feat(multimodal): steer models to the media tools with
+ prompt guidance
+
+With a working bash sandbox, the model extracted video frames with ffmpeg
+and read_image instead of calling read_video. Following tool-fs, each media
+tool now adds one scoped system-prompt sentence pointing at itself, at
+centrally allocated section orders; memory context takes a central context
+order as well.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01HKCB8j9Zf27m5tAmJdbkFm
+---
+ docs/config-catalog.md                        |  8 ++++----
+ docs/config-catalog.zh.md                     |  8 ++++----
+ packages/core/system-prompt/src/index.ts      |  5 +++++
+ .../tool-read-audio/README.i18n.yaml          | 15 ++++++++++++++
+ .../experimental/tool-read-audio/README.md    | 20 +++++++++++++++++++
+ .../experimental/tool-read-audio/README.zh.md | 20 +++++++++++++++++++
+ .../experimental/tool-read-audio/src/index.ts | 11 +++++++++-
+ packages/memory/memory/src/index.ts           |  2 +-
+ .../tool-read-document/README.i18n.yaml       | 15 ++++++++++++++
+ .../multimodal/tool-read-document/README.md   | 20 +++++++++++++++++++
+ .../tool-read-document/README.zh.md           | 20 +++++++++++++++++++
+ .../tool-read-document/src/index.ts           | 11 +++++++++-
+ .../multimodal/vision-bridge/README.i18n.yaml | 15 ++++++++++++++
+ packages/multimodal/vision-bridge/README.md   | 20 +++++++++++++++++++
+ .../multimodal/vision-bridge/README.zh.md     | 20 +++++++++++++++++++
+ .../multimodal/vision-bridge/src/index.ts     | 11 +++++++++-
+ 16 files changed, 209 insertions(+), 12 deletions(-)
+
+diff --git a/docs/config-catalog.md b/docs/config-catalog.md
+index 754963ff..f7ae2720 100644
+--- a/docs/config-catalog.md
++++ b/docs/config-catalog.md
+@@ -1456,7 +1456,7 @@ export interface Config {
+ 
+ ## `@deepseek-ai/dsh-experimental-tool-read-audio`
+ 
+-- `inject`: `tools` · `fs` · `subprocess`
++- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
+ - `source`: [`packages/experimental/tool-read-audio/src/index.ts:36`](../packages/experimental/tool-read-audio/src/index.ts)
+ 
+ ```ts config-catalog
+@@ -3866,7 +3866,7 @@ export interface Config {
+ 
+ ## `@deepseek-ai/dsh-system-prompt`
+ 
+-- `source`: [`packages/core/system-prompt/src/index.ts:263`](../packages/core/system-prompt/src/index.ts)
++- `source`: [`packages/core/system-prompt/src/index.ts:268`](../packages/core/system-prompt/src/index.ts)
+ 
+ ```ts config-catalog
+ /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
+@@ -4341,7 +4341,7 @@ export interface Config {
+ 
+ ## `@deepseek-ai/dsh-tool-read-document`
+ 
+-- `inject`: `tools` · `fs` · `subprocess`
++- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
+ - `source`: [`packages/multimodal/tool-read-document/src/index.ts:45`](../packages/multimodal/tool-read-document/src/index.ts)
+ 
+ ```ts config-catalog
+@@ -4659,7 +4659,7 @@ export type ApprovalPolicy = 'ask' | 'never'
+ 
+ ## `@deepseek-ai/dsh-vision-bridge`
+ 
+-- `inject`: `tools` · `fs` · `llm` · `attachments`
++- `inject`: `tools` · `fs` · `llm` · `attachments` · `systemPrompt`
+ - `source`: [`packages/multimodal/vision-bridge/src/index.ts:34`](../packages/multimodal/vision-bridge/src/index.ts)
+ 
+ ```ts config-catalog
+diff --git a/docs/config-catalog.zh.md b/docs/config-catalog.zh.md
+index aaf8edb5..f7f151af 100644
+--- a/docs/config-catalog.zh.md
++++ b/docs/config-catalog.zh.md
+@@ -1458,7 +1458,7 @@ export interface Config {
+ 
+ ## `@deepseek-ai/dsh-experimental-tool-read-audio`
+ 
+-- `inject`: `tools` · `fs` · `subprocess`
++- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
+ - `source`: [`packages/experimental/tool-read-audio/src/index.ts:36`](../packages/experimental/tool-read-audio/src/index.ts)
+ 
+ ```ts config-catalog
+@@ -3868,7 +3868,7 @@ export interface Config {
+ 
+ ## `@deepseek-ai/dsh-system-prompt`
+ 
+-- `source`: [`packages/core/system-prompt/src/index.ts:263`](../packages/core/system-prompt/src/index.ts)
++- `source`: [`packages/core/system-prompt/src/index.ts:268`](../packages/core/system-prompt/src/index.ts)
+ 
+ ```ts config-catalog
+ /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
+@@ -4343,7 +4343,7 @@ export interface Config {
+ 
+ ## `@deepseek-ai/dsh-tool-read-document`
+ 
+-- `inject`: `tools` · `fs` · `subprocess`
++- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
+ - `source`: [`packages/multimodal/tool-read-document/src/index.ts:45`](../packages/multimodal/tool-read-document/src/index.ts)
+ 
+ ```ts config-catalog
+@@ -4661,7 +4661,7 @@ export type ApprovalPolicy = 'ask' | 'never'
+ 
+ ## `@deepseek-ai/dsh-vision-bridge`
+ 
+-- `inject`: `tools` · `fs` · `llm` · `attachments`
++- `inject`: `tools` · `fs` · `llm` · `attachments` · `systemPrompt`
+ - `source`: [`packages/multimodal/vision-bridge/src/index.ts:34`](../packages/multimodal/vision-bridge/src/index.ts)
+ 
+ ```ts config-catalog
+diff --git a/packages/core/system-prompt/src/index.ts b/packages/core/system-prompt/src/index.ts
+index 45442e3a..7fbd2912 100644
+--- a/packages/core/system-prompt/src/index.ts
++++ b/packages/core/system-prompt/src/index.ts
+@@ -143,6 +143,10 @@ const SECTION_ORDERS = {
+   TOOL_BASH: 1000,
+   TOOL_PWSH: 1010,
+   TOOL_READ: 1100,
++  TOOL_READ_DOCUMENT: 1110,
++  TOOL_READ_AUDIO: 1120,
++  TOOL_READ_VIDEO: 1130,
++  TOOL_ASK_IMAGE: 1140,
+   TOOL_WRITE: 1200,
+   TOOL_EDIT: 1300,
+   TOOL_GLOB: 1400,
+@@ -178,6 +182,7 @@ const CONTEXT_ORDERS = {
+   APPROVAL_POLICY: 115,
+   SUBAGENT_DELEGATION: 120,
+   TEAM_IDENTITY: 125,
++  LONG_TERM_MEMORY: 130,
+   // Process-specific paths and endpoints stay out of the cached system prompt.
+   HARNESS_SOURCE: 200,
+   WEB_SURFACE: 210,
+diff --git a/packages/experimental/tool-read-audio/README.i18n.yaml b/packages/experimental/tool-read-audio/README.i18n.yaml
+index cfd99732..25a91177 100644
+--- a/packages/experimental/tool-read-audio/README.i18n.yaml
++++ b/packages/experimental/tool-read-audio/README.i18n.yaml
+@@ -47,6 +47,21 @@
+ /deepseek-ai-dsh-experimental-tool-read-audio/model-experience:
+   en: 215e7ba838619b7b
+   zh: a311da3843709f90
++/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance:
++  en: dbc7966c48c88456
++  zh: c6d8f0cdc82904a7
++/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance/what-the-model-sees:
++  en: f7ea2f113f2565ef
++  zh: 229dd74618916628
++/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance/what-the-model-sees/verbatim-guidance:
++  en: ee8865eda3bcc252
++  zh: 2c7fb4946d77aa1d
++/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance/token-effect:
++  en: 38ca268f5ba1700f
++  zh: ca6b3b079195f47c
++/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance/kv-cache-effect:
++  en: c7a9cdeb70fde0c0
++  zh: f420ab249d212d30
+ /deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-schema:
+   en: e4c7376d4f29dbd5
+   zh: 6b7a9eaf69c9ea53
+diff --git a/packages/experimental/tool-read-audio/README.md b/packages/experimental/tool-read-audio/README.md
+index 71e3cfc8..131b79c4 100644
+--- a/packages/experimental/tool-read-audio/README.md
++++ b/packages/experimental/tool-read-audio/README.md
+@@ -102,6 +102,26 @@ The whole-file transcript is cached under a key built from the file's SHA-256, t
+ <a id="model-experience"></a>
+ ## Model Experience
+ 
++### System-prompt guidance
++
++#### What the model sees
++
++One sentence in the system prompt, present only while the tool is visible in the calling scope, steering the model to this tool instead of shell commands.
++
++##### Verbatim guidance
++
++```markdown
++Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns.
++```
++
++#### Token effect
++
++Fixed and small, on every request where the tool is visible.
++
++#### KV Cache effect
++
++Prefix-stable while the tool's visibility is unchanged; it sits in the cached system prompt.
++
+ ### Tool schema
+ 
+ #### What the model sees
+diff --git a/packages/experimental/tool-read-audio/README.zh.md b/packages/experimental/tool-read-audio/README.zh.md
+index b1fa3e2a..410eab4b 100644
+--- a/packages/experimental/tool-read-audio/README.zh.md
++++ b/packages/experimental/tool-read-audio/README.zh.md
+@@ -102,6 +102,26 @@ kind: "package-reference"
+ <a id="model-experience"></a>
+ ## 模型体验
+ 
++### 系统提示指引
++
++#### 模型看到什么
++
++系统提示中的一句话，仅在工具对调用作用域可见时出现，引导模型使用本工具而不是 shell 命令。
++
++##### 指引原文
++
++```markdown
++Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns.
++```
++
++#### Token 影响
++
++固定且很小，出现在工具可见的每次请求中。
++
++#### KV Cache 影响
++
++工具可见性不变时前缀稳定；它位于被缓存的系统提示中。
++
+ ### 工具 schema
+ 
+ #### 模型看到什么
+diff --git a/packages/experimental/tool-read-audio/src/index.ts b/packages/experimental/tool-read-audio/src/index.ts
+index a824dd48..1154e169 100644
+--- a/packages/experimental/tool-read-audio/src/index.ts
++++ b/packages/experimental/tool-read-audio/src/index.ts
+@@ -30,7 +30,7 @@ export type { TranscribeOptions, TranscriptSegment } from './transcribe.ts'
+ export const name = 'tool-read-audio'
+ 
+ /** Required services; the transcript itself needs `speechToText` at call time. */
+-export const inject = ['tools', 'fs', 'subprocess']
++export const inject = ['tools', 'fs', 'subprocess', 'systemPrompt']
+ 
+ /** Plugin config; every field has a validated default. */
+ export interface Config {
+@@ -176,6 +176,15 @@ export async function transcribeFile(
+  */
+ export function apply(ctx: Context, config: Config): void {
+   const cfg = config as ResolvedConfig
++  ctx.systemPrompt.section({
++    name: 'tool:read_audio',
++    order: ctx.systemPrompt.getSectionOrder('TOOL_READ_AUDIO'),
++    interpolate: false,
++    text: ({ scope }) => ctx.tools.get('read_audio', scope) === undefined
++      ? ''
++      : 'Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns.',
++  })
++
+   ctx.tools.register(defineTool({
+     name: 'read_audio',
+     description: 'Transcribe an audio or video file (.mp3, .wav, .m4a, .mp4, …) into timestamped text. '
+diff --git a/packages/memory/memory/src/index.ts b/packages/memory/memory/src/index.ts
+index 816043f0..ab7d0f25 100644
+--- a/packages/memory/memory/src/index.ts
++++ b/packages/memory/memory/src/index.ts
+@@ -137,7 +137,7 @@ export function apply(ctx: Context, config: Config): void {
+ 
+   ctx.systemPrompt.context({
+     name: 'memory',
+-    order: 900,
++    order: ctx.systemPrompt.getContextOrder('LONG_TERM_MEMORY'),
+     interpolate: false,
+     text: () => `${GUIDE}\n\n${longterm.renderForPrompt() || '<memory>(empty)</memory>'}`,
+   })
+diff --git a/packages/multimodal/tool-read-document/README.i18n.yaml b/packages/multimodal/tool-read-document/README.i18n.yaml
+index 43651a01..6866ba3c 100644
+--- a/packages/multimodal/tool-read-document/README.i18n.yaml
++++ b/packages/multimodal/tool-read-document/README.i18n.yaml
+@@ -44,6 +44,21 @@
+ /deepseek-ai-dsh-tool-read-document/model-experience:
+   en: 215e7ba838619b7b
+   zh: a311da3843709f90
++/deepseek-ai-dsh-tool-read-document/model-experience/system-prompt-guidance:
++  en: dbc7966c48c88456
++  zh: c6d8f0cdc82904a7
++/deepseek-ai-dsh-tool-read-document/model-experience/system-prompt-guidance/what-the-model-sees:
++  en: f7ea2f113f2565ef
++  zh: 229dd74618916628
++/deepseek-ai-dsh-tool-read-document/model-experience/system-prompt-guidance/what-the-model-sees/verbatim-guidance:
++  en: ee8865eda3bcc252
++  zh: 2c7fb4946d77aa1d
++/deepseek-ai-dsh-tool-read-document/model-experience/system-prompt-guidance/token-effect:
++  en: 38ca268f5ba1700f
++  zh: ca6b3b079195f47c
++/deepseek-ai-dsh-tool-read-document/model-experience/system-prompt-guidance/kv-cache-effect:
++  en: c7a9cdeb70fde0c0
++  zh: f420ab249d212d30
+ /deepseek-ai-dsh-tool-read-document/model-experience/tool-schema:
+   en: e4c7376d4f29dbd5
+   zh: 6b7a9eaf69c9ea53
+diff --git a/packages/multimodal/tool-read-document/README.md b/packages/multimodal/tool-read-document/README.md
+index 18a21cfc..a524334f 100644
+--- a/packages/multimodal/tool-read-document/README.md
++++ b/packages/multimodal/tool-read-document/README.md
+@@ -104,6 +104,26 @@ Shared helpers (command execution, cache, page selection, image commits) live in
+ <a id="model-experience"></a>
+ ## Model Experience
+ 
++### System-prompt guidance
++
++#### What the model sees
++
++One sentence in the system prompt, present only while the tool is visible in the calling scope, steering the model to this tool instead of shell commands.
++
++##### Verbatim guidance
++
++```markdown
++Use the read_document tool — not shell tools like pdftotext or libreoffice — to read PDF and Office files. Call it without pages first for the outline, then request the pages you need.
++```
++
++#### Token effect
++
++Fixed and small, on every request where the tool is visible.
++
++#### KV Cache effect
++
++Prefix-stable while the tool's visibility is unchanged; it sits in the cached system prompt.
++
+ ### Tool schema
+ 
+ #### What the model sees
+diff --git a/packages/multimodal/tool-read-document/README.zh.md b/packages/multimodal/tool-read-document/README.zh.md
+index 583ec82c..5beaf3d8 100644
+--- a/packages/multimodal/tool-read-document/README.zh.md
++++ b/packages/multimodal/tool-read-document/README.zh.md
+@@ -104,6 +104,26 @@ kind: "package-reference"
+ <a id="model-experience"></a>
+ ## 模型体验
+ 
++### 系统提示指引
++
++#### 模型看到什么
++
++系统提示中的一句话，仅在工具对调用作用域可见时出现，引导模型使用本工具而不是 shell 命令。
++
++##### 指引原文
++
++```markdown
++Use the read_document tool — not shell tools like pdftotext or libreoffice — to read PDF and Office files. Call it without pages first for the outline, then request the pages you need.
++```
++
++#### Token 影响
++
++固定且很小，出现在工具可见的每次请求中。
++
++#### KV Cache 影响
++
++工具可见性不变时前缀稳定；它位于被缓存的系统提示中。
++
+ ### 工具 schema
+ 
+ #### 模型看到什么
+diff --git a/packages/multimodal/tool-read-document/src/index.ts b/packages/multimodal/tool-read-document/src/index.ts
+index 77c5d023..05546973 100644
+--- a/packages/multimodal/tool-read-document/src/index.ts
++++ b/packages/multimodal/tool-read-document/src/index.ts
+@@ -39,7 +39,7 @@ export { documentKind, parsePageCount, splitPages } from './pdf.ts'
+ export const name = 'tool-read-document'
+ 
+ /** Services required by `read_document`; `attachments` and `llm` are optional. */
+-export const inject = ['tools', 'fs', 'subprocess']
++export const inject = ['tools', 'fs', 'subprocess', 'systemPrompt']
+ 
+ /** Plugin config; every field has a validated default. */
+ export interface Config {
+@@ -170,6 +170,15 @@ export function apply(ctx: Context, config: Config): void {
+   const cache = new MediaCache(cfg.cacheDir)
+   const limits: PdfLimits = { timeoutMs: cfg.commandTimeoutMs, maxTextBytes: 64 * 1024 * 1024 }
+ 
++  ctx.systemPrompt.section({
++    name: 'tool:read_document',
++    order: ctx.systemPrompt.getSectionOrder('TOOL_READ_DOCUMENT'),
++    interpolate: false,
++    text: ({ scope }) => ctx.tools.get('read_document', scope) === undefined
++      ? ''
++      : 'Use the read_document tool — not shell tools like pdftotext or libreoffice — to read PDF and Office files. Call it without pages first for the outline, then request the pages you need.',
++  })
++
+   ctx.tools.register(defineTool({
+     name: 'read_document',
+     description: 'Read a PDF or Office document (.pdf, .docx, .pptx, .xlsx, .odt, …). '
+diff --git a/packages/multimodal/vision-bridge/README.i18n.yaml b/packages/multimodal/vision-bridge/README.i18n.yaml
+index d0c9b723..db3b6c52 100644
+--- a/packages/multimodal/vision-bridge/README.i18n.yaml
++++ b/packages/multimodal/vision-bridge/README.i18n.yaml
+@@ -29,6 +29,21 @@
+ /deepseek-ai-dsh-vision-bridge/model-experience:
+   en: 215e7ba838619b7b
+   zh: a311da3843709f90
++/deepseek-ai-dsh-vision-bridge/model-experience/system-prompt-guidance:
++  en: dbc7966c48c88456
++  zh: c6d8f0cdc82904a7
++/deepseek-ai-dsh-vision-bridge/model-experience/system-prompt-guidance/what-the-model-sees:
++  en: f7ea2f113f2565ef
++  zh: 229dd74618916628
++/deepseek-ai-dsh-vision-bridge/model-experience/system-prompt-guidance/what-the-model-sees/verbatim-guidance:
++  en: ee8865eda3bcc252
++  zh: 2c7fb4946d77aa1d
++/deepseek-ai-dsh-vision-bridge/model-experience/system-prompt-guidance/token-effect:
++  en: 38ca268f5ba1700f
++  zh: ca6b3b079195f47c
++/deepseek-ai-dsh-vision-bridge/model-experience/system-prompt-guidance/kv-cache-effect:
++  en: c7a9cdeb70fde0c0
++  zh: f420ab249d212d30
+ /deepseek-ai-dsh-vision-bridge/model-experience/tool-schema:
+   en: e4c7376d4f29dbd5
+   zh: 6b7a9eaf69c9ea53
+diff --git a/packages/multimodal/vision-bridge/README.md b/packages/multimodal/vision-bridge/README.md
+index 2c70d4e1..4b638e99 100644
+--- a/packages/multimodal/vision-bridge/README.md
++++ b/packages/multimodal/vision-bridge/README.md
+@@ -69,6 +69,26 @@ The tool reads the file through `ctx.fs`, commits it with `ctx.attachments.saveI
+ <a id="model-experience"></a>
+ ## Model Experience
+ 
++### System-prompt guidance
++
++#### What the model sees
++
++One sentence in the system prompt, present only while the tool is visible in the calling scope, steering the model to this tool instead of shell commands.
++
++##### Verbatim guidance
++
++```markdown
++When you cannot view an image yourself, ask about it with ask_image instead of guessing from its file name or surrounding text.
++```
++
++#### Token effect
++
++Fixed and small, on every request where the tool is visible.
++
++#### KV Cache effect
++
++Prefix-stable while the tool's visibility is unchanged; it sits in the cached system prompt.
++
+ ### Tool schema
+ 
+ #### What the model sees
+diff --git a/packages/multimodal/vision-bridge/README.zh.md b/packages/multimodal/vision-bridge/README.zh.md
+index 59282cce..e0413cca 100644
+--- a/packages/multimodal/vision-bridge/README.zh.md
++++ b/packages/multimodal/vision-bridge/README.zh.md
+@@ -69,6 +69,26 @@ kind: "package-reference"
+ <a id="model-experience"></a>
+ ## 模型体验
+ 
++### 系统提示指引
++
++#### 模型看到什么
++
++系统提示中的一句话，仅在工具对调用作用域可见时出现，引导模型使用本工具而不是 shell 命令。
++
++##### 指引原文
++
++```markdown
++When you cannot view an image yourself, ask about it with ask_image instead of guessing from its file name or surrounding text.
++```
++
++#### Token 影响
++
++固定且很小，出现在工具可见的每次请求中。
++
++#### KV Cache 影响
++
++工具可见性不变时前缀稳定；它位于被缓存的系统提示中。
++
+ ### 工具 schema
+ 
+ #### 模型看到什么
+diff --git a/packages/multimodal/vision-bridge/src/index.ts b/packages/multimodal/vision-bridge/src/index.ts
+index ee23380f..ba92c050 100644
+--- a/packages/multimodal/vision-bridge/src/index.ts
++++ b/packages/multimodal/vision-bridge/src/index.ts
+@@ -28,7 +28,7 @@ declare module '@deepseek-ai/dsh-llm' {
+ export const name = 'vision-bridge'
+ 
+ /** Required services. */
+-export const inject = ['tools', 'fs', 'llm', 'attachments']
++export const inject = ['tools', 'fs', 'llm', 'attachments', 'systemPrompt']
+ 
+ /** Plugin config; every field has a validated default. */
+ export interface Config {
+@@ -77,6 +77,15 @@ async function resolveTarget(ctx: Context, exec: ToolExecution, requested: strin
+  */
+ export function apply(ctx: Context, config: Config): void {
+   const cfg = config as ResolvedConfig
++  ctx.systemPrompt.section({
++    name: 'tool:ask_image',
++    order: ctx.systemPrompt.getSectionOrder('TOOL_ASK_IMAGE'),
++    interpolate: false,
++    text: ({ scope }) => ctx.tools.get('ask_image', scope) === undefined
++      ? ''
++      : 'When you cannot view an image yourself, ask about it with ask_image instead of guessing from its file name or surrounding text.',
++  })
++
+   ctx.tools.register(defineTool({
+     name: 'ask_image',
+     description: 'Ask a question about an image file (PNG/JPEG/WebP/GIF) and get a text answer from a vision model. '
+-- 
+2.43.0
+
