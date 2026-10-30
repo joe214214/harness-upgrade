@@ -90,7 +90,10 @@ New-Item -ItemType Directory -Force -Path $InstallDir, $Bin | Out-Null
 Step 'Installing dependencies (a few minutes the first time)'
 Push-Location $Dsh
 try {
+  # CI=true stops lefthook from installing git hooks into this (outer) repository.
+  $env:CI = 'true'
   pnpm install --frozen-lockfile; Assert-Ok 'pnpm install'
+  Remove-Item Env:CI
   Step 'Building (about 3 minutes)'
   $env:NODE_OPTIONS = '--max-old-space-size=8192'
   pnpm run build:artifacts; Assert-Ok 'build'

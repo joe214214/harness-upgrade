@@ -41,7 +41,8 @@ have soffice || echo "  optional: LibreOffice (soffice) lets read_document open 
 
 mkdir -p "$install_dir"
 step "Installing dependencies (a few minutes the first time)"
-(cd "$dsh" && pnpm install --frozen-lockfile)
+# CI=true stops lefthook from installing git hooks into this (outer) repository.
+(cd "$dsh" && CI=true pnpm install --frozen-lockfile)
 
 step "Building (about 3 minutes)"
 (cd "$dsh" && NODE_OPTIONS=--max-old-space-size=8192 pnpm run build:artifacts)
