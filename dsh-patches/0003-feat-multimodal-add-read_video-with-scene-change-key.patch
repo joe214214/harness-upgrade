@@ -1,7 +1,7 @@
 From e4fb60b20fbfdb5bcaba56e297e5101cc6532ab8 Mon Sep 17 00:00:00 2001
 From: joe214214 <y852zhou@uwaterloo.ca>
 Date: Fri, 30 Oct 2026 01:47:31 +0000
-Subject: [PATCH 3/3] feat(multimodal): add read_video with scene-change
+Subject: [PATCH 3/5] feat(multimodal): add read_video with scene-change
  keyframes and speech timeline
 
 Keyframes are sampled at scene changes (uniform sampling as a baseline),
