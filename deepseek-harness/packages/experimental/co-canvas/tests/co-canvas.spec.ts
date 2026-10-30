@@ -85,6 +85,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
       execute: () => { run(); return Promise.resolve({}) },
     })
     ctx.tools.register(plain('browser_click', () => { clicks.push(Date.now()) }))
+    ctx.tools.register(plain('mcp__playwright-mcp__browser_navigate', () => { clicks.push(Date.now()) }))
     ctx.tools.register(plain('read', () => {}))
     await ctx.plugin(CoCanvas, { executablePath, userDataDir: dir, debugPort: await freePort(), viewportWidth: 600, viewportHeight: 400 })
     const canvas = ctx.get('coCanvas')!
@@ -110,17 +111,32 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     expect(text(await call('read'))).toBe('')
   }, 60_000)
 
-  it('holds browser tools while paused and reports the handback', async () => {
+  it('holds browser tools while paused, then refuses the stale action with the handback', async () => {
     const { canvas, clicks, call } = await setup()
     canvas.setControl('paused')
-    const pending = call('browser_click')
+    const bare = call('browser_click')
+    const prefixed = call('mcp__playwright-mcp__browser_navigate')
     await new Promise(resolve => setTimeout(resolve, 300))
-    expect(clicks).toHaveLength(0)
     expect((await call('read')).isError).toBe(false)
+    expect(clicks).toHaveLength(0)
     canvas.setControl('agent')
-    const result = await pending
+    const [first, second] = await Promise.all([bare, prefixed])
+    expect([first.isError, second.isError].filter(Boolean)).toHaveLength(1)
+    const refused = first.isError ? first : second
+    const refusal = refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')
+    expect(refusal).toContain('was not run')
+    expect(refusal).toContain('paused you and resumed')
     expect(clicks).toHaveLength(1)
-    expect(text(result)).toContain('paused you and resumed')
+  }, 60_000)
+
+  it('refuses a browser action chosen before a new mark and runs the next one', async () => {
+    const { canvas, clicks, call } = await setup()
+    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'stop' })
+    const refused = await call('browser_click')
+    expect(refused.isError).toBe(true)
+    expect(refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain('note: "stop"')
+    expect((await call('browser_click')).isError).toBe(false)
+    expect(clicks).toHaveLength(1)
   }, 60_000)
 
   it('refuses user input unless the user holds control, then replays it', async () => {
@@ -131,7 +147,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     const box = (await page.locator('#a').boundingBox())!
     canvas.setControl('human')
     await canvas.input({ type: 'click', x: box.x + 5, y: box.y + 5 })
-    expect(await page.title()).toBe('pressed')
+    await expect.poll(() => page.title()).toBe('pressed')
   }, 60_000)
 
   it('answers ask_user_to_mark with the marks drawn while the question is open', async () => {
