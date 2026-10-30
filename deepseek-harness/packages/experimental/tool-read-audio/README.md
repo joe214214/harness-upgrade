@@ -56,6 +56,8 @@ The first call on a file transcribes it once; later windows, and `read_video` ca
 | `maxTranscriptChars` | `12000` | Transcript size returned before switching to a time index |
 | `indexBlockSeconds` | `300` | Length of one time-index entry |
 | `commandTimeoutMs` | `300000` | Deadline for each ffmpeg command |
+| `autoPrepare` | `true` | Start the provider's preparation (for SenseVoice, the first model download and load) when it is not ready; `false` reports it instead |
+| `prepareTimeoutMs` | `1800000` | Deadline for that preparation |
 | `cacheDir` | `<tmpdir>/dsh-media-cache` | Transcript cache, shared with `read_video` |
 
 -----
@@ -73,6 +75,10 @@ The speech seam returns text without timestamps. The tool therefore runs `ffmpeg
 ### Audio format
 
 Each segment is decoded to raw 16 kHz mono PCM16 and wrapped in a canonical 44-byte WAV header written by the tool. ffmpeg's WAV muxer may add `LIST` chunks, which speech providers reject. Segments with less than 0.1 s of samples are skipped.
+
+### Provider preparation
+
+Providers such as SenseVoice must download and load a model before their first transcription. Before the first segment the tool starts or joins that preparation through the seam's `preparation` controls and waits for a ready state; a failure, cancellation or timeout fails the call with the provider's reason. The first call on a fresh machine therefore includes the model download.
 
 ### Caching
 

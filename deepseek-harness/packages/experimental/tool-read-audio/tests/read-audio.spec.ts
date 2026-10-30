@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import SpeechToText from '@deepseek-ai/dsh-experimental-speech-to-text'
-import type { SpeechProviderId } from '@deepseek-ai/dsh-experimental-speech-to-text'
+import type { SpeechPreparation, SpeechPreparationState, SpeechProviderId } from '@deepseek-ai/dsh-experimental-speech-to-text'
 import { validateWave } from '@deepseek-ai/dsh-experimental-speech-to-text/src/wave.ts'
 import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
@@ -20,7 +20,7 @@ import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished } from 'vitest'
 import * as ReadAudio from '../src/index.ts'
-import { buildTimeIndex, canonicalWave, formatTranscript, isSilent, parseSilences, planSegments, renderAudio, selectWindow } from '../src/index.ts'
+import { buildTimeIndex, canonicalWave, ensurePrepared, formatTranscript, isSilent, parseSilences, planSegments, renderAudio, selectWindow } from '../src/index.ts'
 
 const FIXTURES = new URL('./fixtures/', import.meta.url).pathname
 
@@ -160,4 +160,58 @@ describe('read_audio', () => {
     const short = await setup({ maxDurationSeconds: 5 })
     expect(text(await read(short, { file_path: 'tones.mp3' }))).toContain('accepts at most 00:05')
   }, 60_000)
+})
+
+describe('provider preparation', () => {
+  /** A provider-owned preparation that walks through the given states, one per tick, after prepare(). */
+  function preparation(initial: SpeechPreparationState, steps: SpeechPreparationState[]): SpeechPreparation & { calls: number } {
+    let state = initial
+    const listeners = new Set<() => void>()
+    return {
+      calls: 0,
+      snapshot: () => state,
+      subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener) } },
+      prepare() {
+        this.calls++
+        void (async () => {
+          for (const next of steps) {
+            await new Promise(resolve => setTimeout(resolve, 1))
+            state = next
+            for (const listener of listeners) listener()
+          }
+        })()
+      },
+      cancel: async () => {},
+    }
+  }
+  const signal = new AbortController().signal
+
+  it('starts preparation and waits through a download until ready', async () => {
+    const prep = preparation({ phase: 'unprepared' }, [
+      { phase: 'downloading', resource: 'model', completedBytes: 1 }, { phase: 'loading', startedAt: 0 }, { phase: 'ready' }])
+    await ensurePrepared(prep, true, 5000, signal)
+    expect(prep.calls).toBe(1)
+    expect(prep.snapshot().phase).toBe('ready')
+  })
+
+  it('does nothing for ready, standby or preparation-free providers', async () => {
+    for (const phase of ['ready', 'standby'] as const) {
+      const prep = preparation({ phase }, [])
+      await ensurePrepared(prep, true, 5000, signal)
+      expect(prep.calls).toBe(0)
+    }
+    await ensurePrepared(undefined, false, 5000, signal)
+  })
+
+  it('reports a failed preparation, but not a stale failure from an earlier attempt', async () => {
+    const retried = preparation({ phase: 'failed', message: 'old' }, [{ phase: 'checking', startedAt: 0 }, { phase: 'ready' }])
+    await ensurePrepared(retried, true, 5000, signal)
+    const failing = preparation({ phase: 'unprepared' }, [{ phase: 'checking', startedAt: 0 }, { phase: 'failed', message: 'HTTP 403' }])
+    await expect(ensurePrepared(failing, true, 5000, signal)).rejects.toThrow('preparation failed: HTTP 403')
+  })
+
+  it('refuses without autoPrepare and times out a stalled preparation', async () => {
+    await expect(ensurePrepared(preparation({ phase: 'unprepared' }, []), false, 5000, signal)).rejects.toThrow('enable autoPrepare')
+    await expect(ensurePrepared(preparation({ phase: 'unprepared' }, []), true, 1000, signal)).rejects.toThrow('within 1000 ms')
+  })
 })

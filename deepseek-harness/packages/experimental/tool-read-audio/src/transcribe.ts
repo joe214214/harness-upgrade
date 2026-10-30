@@ -11,7 +11,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-experimental-speech-to-text'
+import type { SpeechPreparation, SpeechPreparationState } from '@deepseek-ai/dsh-experimental-speech-to-text'
 import { FFMPEG_HINT, runMediaCommand } from '@deepseek-ai/dsh-media-core'
 import type { MediaCache } from '@deepseek-ai/dsh-media-core'
 import { isSilent, parseSilences, planSegments } from './segment.ts'
@@ -57,7 +57,56 @@ export interface TranscribeOptions {
   readonly silenceNoise: string
   /** Shortest pause counted as silence, in seconds. */
   readonly silenceSeconds: number
+  /** Start provider preparation (model download, worker load) when it is not ready. */
+  readonly autoPrepare: boolean
+  /** Deadline for that preparation. */
+  readonly prepareTimeoutMs: number
   readonly commandTimeoutMs: number
+}
+
+const usable = (state: SpeechPreparationState): boolean => state.phase === 'ready' || state.phase === 'standby'
+
+/**
+ * Make a provider that owns preparation usable before the first segment: start or join its
+ * preparation and wait for a ready state. Providers without preparation are always usable.
+ * @param preparation - the resolved provider's preparation controls, if any.
+ * @param autoPrepare - whether this call may start preparation.
+ * @param timeoutMs - deadline for preparation to finish.
+ * @param signal - cancellation.
+ * @returns once the provider can transcribe.
+ * @throws Error when preparation is disallowed, fails, is cancelled, or times out.
+ */
+export async function ensurePrepared(
+  preparation: SpeechPreparation | undefined, autoPrepare: boolean, timeoutMs: number, signal: AbortSignal,
+): Promise<void> {
+  if (preparation === undefined || usable(preparation.snapshot())) return
+  if (!autoPrepare) {
+    throw new Error('the speech provider is not prepared; prepare it from the voice input panel, or enable autoPrepare')
+  }
+  signal.throwIfAborted()
+  const { promise, resolve, reject } = Promise.withResolvers<undefined>()
+  // A failed or cancelled state counts only after preparation reported progress:
+  // until then the snapshot may still describe an earlier attempt.
+  let moved = false
+  const check = (): void => {
+    const state = preparation.snapshot()
+    if (usable(state)) resolve(undefined)
+    else if (moved && state.phase === 'failed') reject(new Error(`speech provider preparation failed: ${state.message}`))
+    else if (moved && state.phase === 'cancelled') reject(new Error('speech provider preparation was cancelled'))
+  }
+  const unsubscribe = preparation.subscribe(() => { moved = true; check() })
+  const onAbort = (): void => { reject(signal.reason) }
+  signal.addEventListener('abort', onAbort, { once: true })
+  const timer = setTimeout(() => { reject(new Error(`speech provider preparation did not finish within ${timeoutMs} ms`)) }, timeoutMs)
+  try {
+    preparation.prepare()
+    check()
+    await promise
+  } finally {
+    clearTimeout(timer)
+    unsubscribe()
+    signal.removeEventListener('abort', onAbort)
+  }
 }
 
 /**
@@ -90,6 +139,7 @@ export async function transcribeMedia(
   const cached = await cache.get<TranscriptSegment[]>(key)
   if (cached !== undefined) return cached
 
+  await ensurePrepared(spec.provider.preparation, options.autoPrepare, options.prepareTimeoutMs, signal)
   const common = { cwd: tmpdir(), timeoutMs: options.commandTimeoutMs, signal }
   const detect = await runMediaCommand(ctx, {
     ...common,

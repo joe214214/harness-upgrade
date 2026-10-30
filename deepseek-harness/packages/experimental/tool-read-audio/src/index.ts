@@ -23,7 +23,7 @@ import type { TranscribeOptions, TranscriptSegment } from './transcribe.ts'
 
 export { isSilent, parseSilences, planSegments } from './segment.ts'
 export type { Silence, Span } from './segment.ts'
-export { canonicalWave, transcribeMedia } from './transcribe.ts'
+export { canonicalWave, ensurePrepared, transcribeMedia } from './transcribe.ts'
 export type { TranscribeOptions, TranscriptSegment } from './transcribe.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
@@ -50,6 +50,10 @@ export interface Config {
   indexBlockSeconds?: number
   /** Deadline for each ffmpeg command. */
   commandTimeoutMs?: number
+  /** Start speech provider preparation (e.g. the first model download) when it is not ready. */
+  autoPrepare?: boolean
+  /** Deadline for that preparation. */
+  prepareTimeoutMs?: number
   /** Directory for cached transcripts. */
   cacheDir?: string
 }
@@ -63,6 +67,8 @@ export const Config: z<Config> = z.object({
   maxTranscriptChars: z.natural().min(50).default(12_000),
   indexBlockSeconds: z.natural().min(30).default(300),
   commandTimeoutMs: z.natural().min(1000).default(300_000),
+  autoPrepare: z.boolean().default(true),
+  prepareTimeoutMs: z.natural().min(1000).default(1_800_000),
   cacheDir: z.string().default(join(tmpdir(), 'dsh-media-cache')),
 })
 
@@ -165,6 +171,8 @@ export async function transcribeFile(
     silenceNoise: cfg.silenceNoise,
     silenceSeconds: cfg.silenceSeconds,
     commandTimeoutMs: cfg.commandTimeoutMs,
+    autoPrepare: cfg.autoPrepare,
+    prepareTimeoutMs: cfg.prepareTimeoutMs,
   }
   return transcribeMedia(ctx, hostPath, await hashFile(hostPath, signal), new MediaCache(cfg.cacheDir), options, signal)
 }
