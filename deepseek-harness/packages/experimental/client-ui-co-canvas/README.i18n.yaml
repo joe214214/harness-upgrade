@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/client-ui-co-canvas/README.md
+/:
+  en: cb58f83b1cfa9f08
+  zh: 43dfcac6f3a0527b
+/deepseek-ai-dsh-experimental-client-ui-co-canvas:
+  en: 98eee443564f748d
+  zh: f4fb639bdc78d6ca
+/deepseek-ai-dsh-experimental-client-ui-co-canvas/summary:
+  en: f0127f525f9deef5
+  zh: 4bf833efac0db121
+/deepseek-ai-dsh-experimental-client-ui-co-canvas/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-experimental-client-ui-co-canvas/use-this-package:
+  en: 0cb269fbaad80b0c
+  zh: e3191356cb402944
+/deepseek-ai-dsh-experimental-client-ui-co-canvas/understand-the-implementation:
+  en: 6410b62d91392d75
+  zh: 7ff941c398566540
+/deepseek-ai-dsh-experimental-client-ui-co-canvas/further-exploration:
+  en: 20e8d183305fb06b
+  zh: 2592f648e81a6fed
+/deepseek-ai-dsh-experimental-client-ui-co-canvas/model-experience:
+  en: c8abd9d7bd3a40b1
+  zh: 5c029e66ec81f272
+/deepseek-ai-dsh-experimental-client-ui-co-canvas/model-experience/kv-cache-effect:
+  en: 60835eca1cee4e0e
+  zh: 31bf067488edb4d6
+/deepseek-ai-dsh-experimental-client-ui-co-canvas/known-limitations-and-deferred-work:
+  en: 022556340be69279
+  zh: a10d92770240694b
+/deepseek-ai-dsh-experimental-client-ui-co-canvas/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 9c6918ce849f6c93

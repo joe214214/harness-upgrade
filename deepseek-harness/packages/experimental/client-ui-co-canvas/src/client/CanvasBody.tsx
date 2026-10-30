@@ -2,7 +2,7 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { CanvasControl, CanvasFrame, CanvasMark, MarkShape } from '@deepseek-ai/dsh-experimental-co-canvas/types'
+import type { CanvasControl, CanvasFrame, CanvasMark, CanvasRect, MarkShape } from '@deepseek-ai/dsh-experimental-co-canvas/types'
 import type { CanvasInjected } from './face.ts'
 import type {} from './locales.ts'
 import css from './CanvasBody.module.css'
@@ -23,10 +23,20 @@ function MarkGlyph({ mark, index }: { readonly mark: Pick<CanvasMark, 'shape' | 
     return <g><line className={css.stroke} x1={x} y1={y} x2={x + width} y2={y + height} markerEnd="url(#co-canvas-head)" />{label}</g>
   }
   return <g>
-    <rect className={css.stroke} x={Math.min(x, x + width)} y={Math.min(y, y + height)} width={Math.abs(width)} height={Math.abs(height)} rx={4} />
+    <rect className={css.stroke} x={Math.min(x, x + width)} y={Math.min(y, y + height)}
+      width={Math.abs(width)} height={Math.abs(height)} rx={4} />
     {label}
   </g>
 }
+
+/** Rectangle of a mark drawn from `start` to `end`: normalized for boxes, directed for arrows, empty for points. */
+function rectOf(shape: MarkShape, start: Point, end: Point): CanvasRect {
+  if (shape === 'point') return { x: start.x, y: start.y, width: 0, height: 0 }
+  if (shape === 'arrow') return { x: start.x, y: start.y, width: end.x - start.x, height: end.y - start.y }
+  return { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width: Math.abs(end.x - start.x), height: Math.abs(end.y - start.y) }
+}
+
+const shapeOf = (shape: MarkShape, start: Point, end: Point): MarkShape => (Math.hypot(end.x - start.x, end.y - start.y) >= MIN_DRAG ? shape : 'point')
 
 /**
  * Render the co-canvas tab.
@@ -66,14 +76,8 @@ export function CanvasBody({
     if (draft === null) return
     const { start, end } = draft
     setDraft(null)
-    const dragged = Math.hypot(end.x - start.x, end.y - start.y) >= MIN_DRAG
-    const kind: MarkShape = dragged ? shape : 'point'
-    const rect = kind === 'point'
-      ? { x: start.x, y: start.y, width: 0, height: 0 }
-      : kind === 'box'
-        ? { x: Math.min(start.x, end.x), y: Math.min(start.y, end.y), width: Math.abs(end.x - start.x), height: Math.abs(end.y - start.y) }
-        : { x: start.x, y: start.y, width: end.x - start.x, height: end.y - start.y }
-    void mark({ shape: kind, rect, ...note === '' ? {} : { note } })
+    const kind = shapeOf(shape, start, end)
+    void mark({ shape: kind, rect: rectOf(kind, start, end), ...note === '' ? {} : { note } })
     setNote('')
   }
   const onWheel = (event: WheelEvent<HTMLDivElement>): void => {
@@ -89,13 +93,9 @@ export function CanvasBody({
   }
 
   const pending = state?.pending ?? []
-  const draftMark = draft === null ? null : {
-    shape: Math.hypot(draft.end.x - draft.start.x, draft.end.y - draft.start.y) >= MIN_DRAG ? shape : 'point' as const,
-    rect: shape === 'box'
-      ? { x: Math.min(draft.start.x, draft.end.x), y: Math.min(draft.start.y, draft.end.y),
-          width: Math.abs(draft.end.x - draft.start.x), height: Math.abs(draft.end.y - draft.start.y) }
-      : { x: draft.start.x, y: draft.start.y, width: draft.end.x - draft.start.x, height: draft.end.y - draft.start.y },
-  }
+  const draftShape = draft === null ? null : shapeOf(shape, draft.start, draft.end)
+  const draftMark = draft === null || draftShape === null ? null : { shape: draftShape, rect: rectOf(draftShape, draft.start, draft.end) }
+  const question = state?.question ?? null
 
   return <div className={css.body}>
     <div className={css.toolbar}>
@@ -104,17 +104,17 @@ export function CanvasBody({
           disabled={human} onClick={() => { setShape(s) }}>{t(`tool.${s}`)}</Button>)}
       </div>
       <div className={css.group}>
-        {control === 'agent' && <Button size="sm" variant="ghost" onClick={() => { setControl('paused') }}>{t('pause')}</Button>}
-        {control === 'paused' && <Button size="sm" variant="ghost" onClick={() => { setControl('agent') }}>{t('resume')}</Button>}
+        {control === 'agent' && <Button size="sm" variant="ghost" onClick={() => { void setControl('paused') }}>{t('pause')}</Button>}
+        {control === 'paused' && <Button size="sm" variant="ghost" onClick={() => { void setControl('agent') }}>{t('resume')}</Button>}
         {human
-          ? <Button size="sm" variant="primary" onClick={() => { setControl('agent') }}>{t('handBack')}</Button>
-          : <Button size="sm" variant="outline" onClick={() => { setControl('human') }}>{t('take')}</Button>}
+          ? <Button size="sm" variant="primary" onClick={() => { void setControl('agent') }}>{t('handBack')}</Button>
+          : <Button size="sm" variant="outline" onClick={() => { void setControl('human') }}>{t('take')}</Button>}
       </div>
     </div>
     <div className={css.status} data-control={control}>{t(`control.${control}`)}{state !== null && state.url !== '' ? ` · ${state.title || state.url}` : ''}</div>
-    {state?.question != null && <div className={css.question}>
-      <span>{t('ask')} <strong>{state.question.text}</strong></span>
-      <Button size="sm" variant="primary" onClick={() => { void answer(state.question!.id) }}>{t('answer')}</Button>
+    {question !== null && <div className={css.question}>
+      <span>{t('ask')} <strong>{question.text}</strong></span>
+      <Button size="sm" variant="primary" onClick={() => { void answer(question.id) }}>{t('answer')}</Button>
     </div>}
     <input className={css.note} value={note} placeholder={t('note')} aria-label={t('note')} disabled={human}
       onChange={(event) => { setNote(event.target.value) }} />

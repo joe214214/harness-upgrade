@@ -681,6 +681,57 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'coCanvas',
+    summary: 'Owner of the shared browser and of the user\'s marks and control.',
+    description: 'Owner of the shared browser and of the user\'s marks and control.',
+    methods: [
+      {
+        signature: 'readonly browser: SharedBrowser',
+        description: 'The shared Chromium the agent\'s browser tools attach to.',
+        parameters: [],
+      },
+      {
+        signature: '@Remote({ mode: \'stream\' }) async* follow(signal: AbortSignal): AsyncIterable<CanvasState>',
+        description: 'Follow the browser and collaboration state.',
+        parameters: [{ name: 'signal', description: 'Client observation lifetime.' }],
+        returns: 'the current state, then each change.',
+      },
+      {
+        signature: '@Remote({ mode: \'stream\' }) frames(signal: AbortSignal): AsyncIterable<CanvasFrame>',
+        description: 'Stream JPEG frames of the active page.',
+        parameters: [{ name: 'signal', description: 'Client observation lifetime.' }],
+        returns: 'frames; slow readers receive only the newest.',
+      },
+      {
+        signature: '@Remote async mark(input: MarkInput): Promise<CanvasMark>',
+        description: 'Record one mark, grounded to the element under its focus point.',
+        parameters: [{ name: 'input', description: 'shape, rectangle in page CSS pixels, optional note.' }],
+        returns: 'the recorded mark.',
+      },
+      {
+        signature: '@Remote removeMark(id: string): void',
+        description: 'Withdraw an undelivered mark.',
+        parameters: [{ name: 'id', description: 'mark id.' }],
+      },
+      {
+        signature: '@Remote setControl(control: CanvasControl): void',
+        description: 'Give the browser to the agent, pause it, or take it.',
+        parameters: [{ name: 'control', description: 'new holder.' }],
+      },
+      {
+        signature: '@Remote async input(input: CanvasInput): Promise<void>',
+        description: 'Replay the user\'s input on the shared browser.',
+        parameters: [{ name: 'input', description: 'click, scroll, text, or key press.' }],
+        throws: ['RemoteError unless the user holds control.'],
+      },
+      {
+        signature: '@Remote answer(questionId: string): void',
+        description: 'Answer the open question with the marks drawn so far.',
+        parameters: [{ name: 'questionId', description: 'the question being answered.' }],
+      },
+    ],
+  },
+  {
     key: 'commands',
     summary: 'Human-command registry.',
     description: 'Human-command registry. Plain-context definitions are global; definitions registered through a command-injected child of an agent context shadow globals for that agent.',
@@ -5668,6 +5719,34 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ButtonProps {\n    readonly label: string;\n    readonly hotkey?: string | undefined;\n    readonly disabled?: boolean | undefined;\n    readonly onPress?: (() => unknown) | undefined;\n}',
   },
   {
+    name: 'CanvasControl',
+    declaration: 'export type CanvasControl = \'agent\' | \'paused\' | \'human\';',
+  },
+  {
+    name: 'CanvasFrame',
+    declaration: 'export interface CanvasFrame {\n    readonly data: string;\n    readonly width: number;\n    readonly height: number;\n}',
+  },
+  {
+    name: 'CanvasInput',
+    declaration: 'export type CanvasInput = {\n    readonly type: \'click\';\n    readonly x: number;\n    readonly y: number;\n} | {\n    readonly type: \'scroll\';\n    readonly x: number;\n    readonly y: number;\n    readonly deltaY: number;\n} | {\n    readonly type: \'text\';\n    readonly text: string;\n} | {\n    readonly type: \'key\';\n    readonly key: string;\n};',
+  },
+  {
+    name: 'CanvasMark',
+    declaration: 'export interface CanvasMark extends MarkInput {\n    readonly id: string;\n    readonly url: string;\n    readonly title: string;\n    readonly at: number;\n    readonly target?: MarkTarget;\n}',
+  },
+  {
+    name: 'CanvasQuestion',
+    declaration: 'export interface CanvasQuestion {\n    readonly id: string;\n    readonly text: string;\n}',
+  },
+  {
+    name: 'CanvasRect',
+    declaration: 'export interface CanvasRect {\n    readonly x: number;\n    readonly y: number;\n    readonly width: number;\n    readonly height: number;\n}',
+  },
+  {
+    name: 'CanvasState',
+    declaration: 'export interface CanvasState {\n    readonly connected: boolean;\n    readonly url: string;\n    readonly title: string;\n    readonly control: CanvasControl;\n    readonly question: CanvasQuestion | null;\n    readonly pending: readonly CanvasMark[];\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n}',
+  },
+  {
     name: 'ChangeRequestCheck',
     declaration: 'export interface ChangeRequestCheck {\n    readonly name: string;\n    readonly state: CheckState;\n    readonly url: string | null;\n    readonly workflow: string | null;\n    readonly startedAt: string | null;\n    readonly completedAt: string | null;\n}',
   },
@@ -6994,6 +7073,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'MarketVersion',
     declaration: 'export interface MarketVersion {\n    readonly version: string;\n    readonly publishTimestamp: number;\n    readonly source: MarketSource;\n    readonly engines: MarketEngines;\n}',
+  },
+  {
+    name: 'MarkInput',
+    declaration: 'export interface MarkInput {\n    readonly shape: MarkShape;\n    readonly rect: CanvasRect;\n    readonly note?: string;\n}',
+  },
+  {
+    name: 'MarkShape',
+    declaration: 'export type MarkShape = \'box\' | \'arrow\' | \'point\';',
+  },
+  {
+    name: 'MarkTarget',
+    declaration: 'export interface MarkTarget {\n    readonly tag: string;\n    readonly text: string;\n    readonly role?: string;\n    readonly label?: string;\n    readonly selector: string;\n    readonly nth: number;\n    readonly sameCount: number;\n}',
   },
   {
     name: 'MatcherValue',
@@ -8714,6 +8805,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ShareCapabilityOffers',
     declaration: 'export interface ShareCapabilityOffers {\n    readonly capabilities: readonly ShareCapabilityGroup[];\n}',
+  },
+  {
+    name: 'SharedBrowser',
+    declaration: 'export class SharedBrowser {\n    constructor(private readonly options: SharedBrowserOptions);\n    get endpoint(): string;\n    async start(): Promise<void>;\n    async close(): Promise<void>;\n    subscribe(listener: () => void): () => void;\n    get page(): Page | undefined;\n    async describe(): Promise<{\n        url: string;\n        title: string;\n    }>;\n    async *frames(signal: AbortSignal): AsyncIterable<CanvasFrame>;\n    async hitTest(x: number, y: number): Promise<MarkTarget | undefined>;\n    async crop(rect: CanvasRect, margin: number): Promise<Buffer | undefined>;\n    async input(input: CanvasInput): Promise<void>;\n    viewport(): {\n        width: number;\n        height: number;\n    };\n}',
+  },
+  {
+    name: 'SharedBrowserOptions',
+    declaration: 'export interface SharedBrowserOptions {\n    readonly userDataDir: string;\n    readonly debugPort: number;\n    readonly headless: boolean;\n    readonly executablePath?: string;\n    readonly channel?: string;\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n    readonly startUrl: string;\n    readonly frameQuality: number;\n}',
   },
   {
     name: 'ShellExecRequest',

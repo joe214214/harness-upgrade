@@ -97,7 +97,10 @@ export class SharedBrowser {
   /** The page the agent opened most recently that is still open. */
   get page(): Page | undefined { return this.pages.at(-1) }
 
-  /** @returns URL and title of the active page. */
+  /**
+   * Read the active page's address and title.
+   * @returns URL and title, empty without an active page.
+   */
   async describe(): Promise<{ url: string; title: string }> {
     const page = this.page
     if (page === undefined) return { url: '', title: '' }
@@ -204,7 +207,10 @@ export class SharedBrowser {
     }
   }
 
-  /** @returns the active page's viewport size. */
+  /**
+   * Read the active page's viewport size.
+   * @returns CSS pixel width and height.
+   */
   viewport(): { width: number; height: number } {
     return this.page?.viewportSize() ?? { ...this.options.viewport }
   }

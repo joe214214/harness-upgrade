@@ -15,6 +15,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
+import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { chromium } from 'playwright-core'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
@@ -81,7 +82,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     const plain = (name: string, run: () => void) => defineTool({
       name, description: `test ${name}`, parameters: {},
       output: { schema: { type: 'object', additionalProperties: false, properties: {} }, render: () => [{ type: 'text', text: name }] },
-      execute: () => { run(); return {} },
+      execute: () => { run(); return Promise.resolve({}) },
     })
     ctx.tools.register(plain('browser_click', () => { clicks.push(Date.now()) }))
     ctx.tools.register(plain('read', () => {}))
@@ -95,8 +96,8 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     })
     return { ctx, canvas, clicks, call }
   }
-  const text = (result: { additionalContexts?: { content: { type: string; text?: string }[] }[] }): string =>
-    (result.additionalContexts ?? []).flatMap(m => m.content).map(b => b.text ?? '').join('\n')
+  const text = (result: ToolExecutionResult): string =>
+    (result.additionalContexts ?? []).flatMap(m => m.content).map(b => (b.type === 'text' ? b.text : '')).join('\n')
 
   it('grounds a box to the second look-alike button and delivers it once with the next tool result', async () => {
     const { canvas, call } = await setup()
