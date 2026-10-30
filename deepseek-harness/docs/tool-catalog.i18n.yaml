@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: 4d42222acd39d083
-  zh: 8153a5065bf2ebd6
+  en: 15b3d0e3c2dc8d50
+  zh: ff075a1444a8083c
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -147,8 +147,50 @@
   en: 3ba734ba7852cdd5
   zh: c6ce31ff2c195520
 /tool-schema-catalog/deepseek-ai-dsh-tool-fs-search/grep:
-  en: 6e1f7da62cc9a35b
-  zh: 594817b0befeea86
+  en: 23b3cc3d51b09f17
+  zh: 239392a4f73c01df
+/tool-schema-catalog/deepseek-ai-dsh-tool-read-document:
+  en: 1125f1f254c8db7d
+  zh: 1125f1f254c8db7d
+/tool-schema-catalog/deepseek-ai-dsh-tool-read-document/read-document:
+  en: 6140bd24047cd638
+  zh: 6971052c0cac1ec0
+/tool-schema-catalog/deepseek-ai-dsh-experimental-tool-read-audio:
+  en: 1dcdbd703096636d
+  zh: 1dcdbd703096636d
+/tool-schema-catalog/deepseek-ai-dsh-experimental-tool-read-audio/read-audio:
+  en: 0d87e829dbf53aa3
+  zh: 073b90abdb6f0e74
+/tool-schema-catalog/deepseek-ai-dsh-experimental-tool-read-video:
+  en: d4648d3f9961dcc3
+  zh: d4648d3f9961dcc3
+/tool-schema-catalog/deepseek-ai-dsh-experimental-tool-read-video/read-video:
+  en: 27261909c8b71c7b
+  zh: 1ebee3d0ac60d4f9
+/tool-schema-catalog/deepseek-ai-dsh-vision-bridge:
+  en: 0b57ee2af956bb36
+  zh: 0b57ee2af956bb36
+/tool-schema-catalog/deepseek-ai-dsh-vision-bridge/ask-image:
+  en: e04d1eedfd92963f
+  zh: 0c10ac1a0a264d43
+/tool-schema-catalog/deepseek-ai-dsh-memory:
+  en: f82fad0555801413
+  zh: f82fad0555801413
+/tool-schema-catalog/deepseek-ai-dsh-memory/memory-read:
+  en: 343974bd1e6883e7
+  zh: a9a715d10ffb33a5
+/tool-schema-catalog/deepseek-ai-dsh-memory/memory-replace:
+  en: 893cd38d6006b251
+  zh: d70900c1839fddba
+/tool-schema-catalog/deepseek-ai-dsh-memory/memory-rewrite:
+  en: e08f0e889c5e7c73
+  zh: 364f4ecaefffccbb
+/tool-schema-catalog/deepseek-ai-dsh-memory/memory-write:
+  en: 7bcc95064c7f7794
+  zh: c4b059ff51ba13ee
+/tool-schema-catalog/deepseek-ai-dsh-memory/recall:
+  en: ace6094dbdef0733
+  zh: 0f5313736a938ddd
 /tool-schema-catalog/deepseek-ai-dsh-tool-terminal:
   en: 77501c1b592b6a88
   zh: 77501c1b592b6a88

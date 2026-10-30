@@ -1,0 +1,73 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/tool-read-video/README.md
+/:
+  en: 1f1e64b96c88d1b7
+  zh: 69da9de1deee26aa
+/deepseek-ai-dsh-experimental-tool-read-video:
+  en: 7cc6cdf834a92ea2
+  zh: 50b4280f3e8d6f72
+/deepseek-ai-dsh-experimental-tool-read-video/summary:
+  en: 3f5b3d649a8be1be
+  zh: d6c5eb90aa4fbfb8
+/deepseek-ai-dsh-experimental-tool-read-video/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-experimental-tool-read-video/use-this-package:
+  en: 4f74b98eaa1428d0
+  zh: 8eb95ea78e67a4b7
+/deepseek-ai-dsh-experimental-tool-read-video/use-this-package/minimal-configuration:
+  en: 7e32fdf2571d190c
+  zh: 0e14b8c3b29a8617
+/deepseek-ai-dsh-experimental-tool-read-video/use-this-package/configuration:
+  en: 89dcc0b88b5c473d
+  zh: 3c5c9f455290bc1e
+/deepseek-ai-dsh-experimental-tool-read-video/understand-the-implementation:
+  en: a8ea90f5f789672c
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-experimental-tool-read-video/understand-the-implementation/frame-selection:
+  en: 1d1ede4e02b3da19
+  zh: a662a484daf64940
+/deepseek-ai-dsh-experimental-tool-read-video/understand-the-implementation/timeline:
+  en: 151e83f4ff37e4e3
+  zh: 90f70da3f2cfd608
+/deepseek-ai-dsh-experimental-tool-read-video/understand-the-implementation/source-map:
+  en: 01094f507cfd6eab
+  zh: ce1bd1e111a06fb5
+/deepseek-ai-dsh-experimental-tool-read-video/further-exploration:
+  en: 7008340503350568
+  zh: 8bd64de93360b607
+/deepseek-ai-dsh-experimental-tool-read-video/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-tool-read-video/model-experience/tool-schema:
+  en: e4c7376d4f29dbd5
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-experimental-tool-read-video/model-experience/tool-schema/what-the-model-sees:
+  en: 687bbc3c774bd93a
+  zh: 01859818b0ae85ee
+/deepseek-ai-dsh-experimental-tool-read-video/model-experience/tool-schema/token-effect:
+  en: 97cce067584eadff
+  zh: a16550a49fe07f17
+/deepseek-ai-dsh-experimental-tool-read-video/model-experience/tool-schema/kv-cache-effect:
+  en: 79a20d1db0f4a32e
+  zh: 42d0feaa756f0b34
+/deepseek-ai-dsh-experimental-tool-read-video/model-experience/tool-result:
+  en: f8ffc2b983f05ffc
+  zh: 8573891441963be4
+/deepseek-ai-dsh-experimental-tool-read-video/model-experience/tool-result/what-the-model-sees:
+  en: 4047f434e7db1cef
+  zh: 36057354b5dbb615
+/deepseek-ai-dsh-experimental-tool-read-video/model-experience/tool-result/token-effect:
+  en: d8a9519bbdc83d33
+  zh: 7f96c0257b30a4d5
+/deepseek-ai-dsh-experimental-tool-read-video/model-experience/tool-result/kv-cache-effect:
+  en: 95cd51cd8d905ef2
+  zh: eb3dac64f7d9804d
+/deepseek-ai-dsh-experimental-tool-read-video/known-limitations-and-deferred-work:
+  en: 9d265a1d0eef67b5
+  zh: 02a4de4d6df8cd9a
+/deepseek-ai-dsh-experimental-tool-read-video/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 9c6918ce849f6c93

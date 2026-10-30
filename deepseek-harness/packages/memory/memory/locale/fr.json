@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Mémoire à long terme",
+    "description": "Permet à l'agent de retenir des faits et les sessions passées d'une session à l'autre."
+  }
+}

@@ -1453,6 +1453,75 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-agent-team -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-read-audio -->
+<a id="deepseek-aidsh-experimental-tool-read-audio"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-read-audio`
+
+- `inject`: `tools` · `fs` · `subprocess`
+- `source`: [`packages/experimental/tool-read-audio/src/index.ts:36`](../packages/experimental/tool-read-audio/src/index.ts)
+
+```ts config-catalog
+/** Plugin config; every field has a validated default. */
+export interface Config {
+  /** Longest transcription segment in seconds. */
+  maxSegmentSeconds?: number
+  /** Shortest segment worth cutting at a pause. */
+  minSegmentSeconds?: number
+  /** silencedetect noise floor. */
+  silenceNoise?: string
+  /** Shortest pause counted as silence, in seconds. */
+  silenceSeconds?: number
+  /** Longest file accepted, in seconds. */
+  maxDurationSeconds?: number
+  /** Transcript characters returned before switching to a time index. */
+  maxTranscriptChars?: number
+  /** Length of one entry of the time index, in seconds. */
+  indexBlockSeconds?: number
+  /** Deadline for each ffmpeg command. */
+  commandTimeoutMs?: number
+  /** Directory for cached transcripts. */
+  cacheDir?: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-read-audio -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-read-video -->
+<a id="deepseek-aidsh-experimental-tool-read-video"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-read-video`
+
+- `inject`: `tools` · `fs` · `subprocess`
+- `source`: [`packages/experimental/tool-read-video/src/index.ts:48`](../packages/experimental/tool-read-video/src/index.ts)
+
+```ts config-catalog
+/** Plugin config; every field has a validated default. */
+export interface Config {
+  /** Frames returned by one call. */
+  maxFramesPerCall?: number
+  /** Frame selection: scene changes, or evenly spaced as a baseline. */
+  sampling?: Sampling
+  /** Minimum scene-change score (0–1). */
+  sceneThreshold?: number
+  /** Frames wider than this are scaled down. */
+  frameMaxWidth?: number
+  /** Frames written before selection, bounding disk use on noisy video. */
+  maxCandidateFrames?: number
+  /** Longest file accepted, in seconds. */
+  maxDurationSeconds?: number
+  /** Transcript characters included in one timeline before speech is summarized. */
+  maxTranscriptChars?: number
+  /** Deadline for each ffmpeg command. */
+  commandTimeoutMs?: number
+  /** Directory for cached transcripts (shared with read_audio). */
+  cacheDir?: string
+}
+
+/** How frames are chosen inside a window. */
+export type Sampling = 'scene' | 'uniform'
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-read-video -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-subagent-oar -->
 <a id="deepseek-aidsh-experimental-tool-subagent-oar"></a>
 
@@ -2447,6 +2516,35 @@ export interface ReconnectConfig {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-mcp-client -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-memory -->
+<a id="deepseek-aidsh-memory"></a>
+
+## `@deepseek-ai/dsh-memory`
+
+- `inject`: `tools` · `systemPrompt`
+- `source`: [`packages/memory/memory/src/index.ts:49`](../packages/memory/memory/src/index.ts)
+
+```ts config-catalog
+/** Plugin config; every field has a validated default. */
+export interface Config {
+  /** Directory holding MEMORY.md and episodic.db. */
+  root?: string
+  /** MEMORY.md byte cap. */
+  capBytes?: number
+  /** Run the reflect pass after each turn. */
+  reflect?: boolean
+  /** Output token cap of one reflect request. */
+  reflectMaxTokens?: number
+  /** Deadline of one reflect request. */
+  reflectTimeoutMs?: number
+  /** Hits returned by one recall. */
+  recallLimit?: number
+  /** Clip length for ordinary tool results stored in episodic memory. */
+  maxToolChars?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-memory -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-message-feedback -->
 <a id="deepseek-aidsh-message-feedback"></a>
@@ -4240,6 +4338,37 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-ralph -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-read-document -->
+<a id="deepseek-aidsh-tool-read-document"></a>
+
+## `@deepseek-ai/dsh-tool-read-document`
+
+- `inject`: `tools` · `fs` · `subprocess`
+- `source`: [`packages/multimodal/tool-read-document/src/index.ts:45`](../packages/multimodal/tool-read-document/src/index.ts)
+
+```ts config-catalog
+/** Plugin config; every field has a validated default. */
+export interface Config {
+  /** Most pages one call may select. */
+  maxPagesPerCall?: number
+  /** Most page images one call may return. */
+  maxImagesPerCall?: number
+  /** A page with fewer text characters than this is treated as having no text layer. */
+  textLayerMinChars?: number
+  /** Render resolution for page images. */
+  renderDpi?: number
+  /** A document whose whole text is at most this long is returned whole when `pages` is omitted. */
+  wholeTextMaxChars?: number
+  /** Per-page text cap in characters. */
+  maxPageChars?: number
+  /** Deadline for each poppler or LibreOffice command. */
+  commandTimeoutMs?: number
+  /** Directory for cached text extraction results. */
+  cacheDir?: string
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-read-document -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-session-query -->
 <a id="deepseek-aidsh-tool-session-query"></a>
 
@@ -4526,6 +4655,29 @@ export interface Config {
 export type ApprovalPolicy = 'ask' | 'never'
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-user-approval -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-vision-bridge -->
+<a id="deepseek-aidsh-vision-bridge"></a>
+
+## `@deepseek-ai/dsh-vision-bridge`
+
+- `inject`: `tools` · `fs` · `llm` · `attachments`
+- `source`: [`packages/multimodal/vision-bridge/src/index.ts:34`](../packages/multimodal/vision-bridge/src/index.ts)
+
+```ts config-catalog
+/** Plugin config; every field has a validated default. */
+export interface Config {
+  /** Provider of the image-capable model; empty uses the calling agent's provider. */
+  provider?: string
+  /** Image-capable model that answers. */
+  model?: string
+  /** Output token cap of one answer. */
+  maxTokens?: number
+  /** Deadline of one answer. */
+  timeoutMs?: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-vision-bridge -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web -->
 <a id="deepseek-aidsh-web"></a>
@@ -5008,6 +5160,7 @@ export interface Config {
 | `@deepseek-ai/dsh-llm-deepseek` | — | [`packages/llm/llm-deepseek/src/index.ts`](../packages/llm/llm-deepseek/src/index.ts) |
 | `@deepseek-ai/dsh-llm-mock-server` | — | [`packages/test-support/llm-mock-server/src/index.ts`](../packages/test-support/llm-mock-server/src/index.ts) |
 | `@deepseek-ai/dsh-loader-smoke` | — | [`packages/test-support/loader-smoke/src/index.ts`](../packages/test-support/loader-smoke/src/index.ts) |
+| `@deepseek-ai/dsh-media-core` | — | [`packages/multimodal/media-core/src/index.ts`](../packages/multimodal/media-core/src/index.ts) |
 | `@deepseek-ai/dsh-native-command` | — | [`packages/util/native-command/src/index.ts`](../packages/util/native-command/src/index.ts) |
 | `@deepseek-ai/dsh-official-bundles` | — | [`packages/util/official-bundles/src/index.ts`](../packages/util/official-bundles/src/index.ts) |
 | `@deepseek-ai/dsh-output-retention` | — | [`packages/util/output-retention/src/index.ts`](../packages/util/output-retention/src/index.ts) |

@@ -36,6 +36,11 @@
 | `@deepseek-ai/dsh-tool-str-replace-editor` | `str_replace_editor` | `ctx.tools`、`ctx.fs` | `tool/call`、`fs/observed after view presence/absence, edit absence, or successful mutation`、`tool/result` | - | 基于文件系统 seam 的独立查看／创建／唯一字面量替换／按行插入工具；可与任何 shell 或终端接口组合。 |
 | `@deepseek-ai/dsh-tool-fs` | `edit`、`read`、`read_image`、`write` | `ctx.workingDirectory`、`ctx.tools`、`ctx.fs`、`ctx.systemPrompt`、`ctx.attachments (image-tool registration)`、`ctx.llm + an image-capable route (image-tool execution)` | `tool/call`、`fs/write-intent or fs/edit-intent for mutations`、`fs/observed after read presence/absence or successful file operation`、`durable attachment (read_image)`、`tool/result` | - | 先读后写／编辑策略由 `@deepseek-ai/dsh-fs-observation-policy` 添加；它是一个 `fs/*` 事件门禁插件，不会改变 schema。加载这些工具的部署按预期也应加载该插件。没有 `ctx.attachments` 时图片工具不会注册；其 schema 与路由无关，执行时除非确切路由的模型声明图片输入，否则拒绝。 |
 | `@deepseek-ai/dsh-tool-fs-search` | `glob`、`grep` | `ctx.workingDirectory`、`ctx.tools`、`ctx.subprocess`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn 随包提供的 ripgrep 二进制文件（`@vscode/ripgrep`），并作为普通前台调用运行，绝不作为后台任务；无需在宿主机安装 `rg`，也不经过 shell 层。本目录使用 `sampleOverCapGlobResults: true`；部署必须显式选择该行为。结果超过上限时，会通过可选的 ctx.spillStore 后端保存完整的格式化列表；在共置部署中，如果后端公开本地路径，返回的定位信息可供后续读取／搜索。 |
+| `@deepseek-ai/dsh-tool-read-document` | `read_document` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (page images)`、`poppler and LibreOffice on the host` | `tool/call`、`durable attachment (page images)`、`tool/result` | - | 不带 `pages` 时，短文档整篇返回，长文档返回逐页大纲。只有没有文字层的页面（`image` 模式下为每一页）才返回页面图片，并且仅在挂载了附件存储且路由模型声明了图片输入时返回；否则每个此类页面附带说明。 |
+| `@deepseek-ai/dsh-experimental-tool-read-audio` | `read_audio` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.speechToText (at call time)`、`ffmpeg on the host` | `tool/call`、`tool/result` | - | 时间戳来自按静音切段：每个片段通过语音 seam 单独转写。转写超过 `maxTranscriptChars` 时改为返回时间索引，`start`/`end` 从缓存的整文件转写中选取窗口。 |
+| `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (frames)`、`ctx.speechToText (speech, at call time)`、`ffmpeg on the host` | `tool/call`、`durable attachment (frames)`、`tool/result` | - | 在所请求的窗口内按场景切换（配置为均匀时则均匀）采样帧，并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。 |
+| `@deepseek-ai/dsh-vision-bridge` | `ask_image` | `ctx.tools`、`ctx.fs`、`ctx.llm`、`ctx.attachments`、`a configured image-capable model` | `tool/call`、`durable attachment (the asked image)`、`tool/result` | - | 图片和问题在一次辅助请求中交给配置的识图模型；只返回文字答案，因此纯文本路由可以使用图片，而图片块不会进入其历史。 |
+| `@deepseek-ai/dsh-memory` | `memory_read`、`memory_replace`、`memory_rewrite`、`memory_write`、`recall` | `ctx.tools`、`ctx.systemPrompt`、`ctx.llm (reflect pass)` | `tool/call`、`tool/result`、`MEMORY.md and episodic.db under the configured root` | - | 每次请求中 MEMORY.md 也作为运行时上下文出现。每轮结束后，插件把这一轮存入情景记忆，并在开启 `reflect` 时，用一次基于 agent 路由的辅助请求提取并归档长期事实。 |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`、`terminal_list`、`terminal_open`、`terminal_read`、`terminal_send`、`terminal_signal` | `ctx.workingDirectory`、`ctx.tools`、`ctx.terminals`、`ctx.systemPrompt`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。 |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`、`get_goal`、`update_goal` | `ctx.tools`、`ctx.agents`、`ctx.goals`、`ctx.systemPrompt`、`a calling Agent in an authorized open turn` | `tool/call`、`goal/change for mutations`、`tool/result` | - | create、edit、pause 和 resume 要求直接来自人类的根权限；complete 和 blocked 也接受确切的当前 Goal Round。blocked 的默认下限是 3 个获准的 Round。 |
 | `@deepseek-ai/dsh-tool-schedule` | `schedule_create`、`schedule_delete`、`schedule_list`、`schedule_update` | `ctx.tools`、`ctx.schedule` | `tool/call`、Schedule storage domain 创建、更新或删除、`tool/result` | - | preset 或 Agent scope 挂载本包；由 preset 决定哪些 agent 获得这四个管理工具。每次调用都作用于调用方 Agent 的 Session。接受 after_seconds、显式绝对 at、有界固定速率 every_seconds、带显式 IANA 时区的每日与每周本地时间，以及作为五字段表达式的 cron。管理使用宿主 storage domain；到期消息会恢复原 Session。 |
@@ -1221,6 +1226,266 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
 来源：[`packages/fs/tool-fs-search/src/index.ts`](../packages/fs/tool-fs-search/src/index.ts)
 
 glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn 随包提供的 ripgrep 二进制文件（`@vscode/ripgrep`），并作为普通前台调用运行，绝不作为后台任务；无需在宿主机安装 `rg`，也不经过 shell 层。本目录使用 `sampleOverCapGlobResults: true`；部署必须显式选择该行为。结果超过上限时，会通过可选的 ctx.spillStore 后端保存完整的格式化列表；在共置部署中，如果后端公开本地路径，返回的定位信息可供后续读取／搜索。
+
+<a id="deepseek-aidsh-tool-read-document"></a>
+
+## `@deepseek-ai/dsh-tool-read-document`
+
+### `read_document`
+
+读取 PDF 或 Office 文档（.pdf、.docx、.pptx、.xlsx、.odt 等）。不带 pages：短文档返回全文，长文档返回逐页大纲。带 pages：返回这些页；模型接受图片时，扫描页、幻灯片和图表以页面图片返回。即使页面有文字，也可用 mode "image" 查看其版面、表格或图表。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the document."
+    },
+    "pages": {
+      "type": "string",
+      "description": "Pages to read, 1-based: \"3\", \"2-5\" or \"1,4-6\". At most 10 per call."
+    },
+    "mode": {
+      "type": "string",
+      "description": "auto (default): images only for pages without a text layer; text: never images; image: an image for every selected page.",
+      "enum": [
+        "auto",
+        "text",
+        "image"
+      ]
+    }
+  },
+  "required": [
+    "file_path"
+  ]
+}
+```
+
+来源：[`packages/multimodal/tool-read-document/src/index.ts`](../packages/multimodal/tool-read-document/src/index.ts)
+
+不带 `pages` 时，短文档整篇返回，长文档返回逐页大纲。只有没有文字层的页面（`image` 模式下为每一页）才返回页面图片，并且仅在挂载了附件存储且路由模型声明了图片输入时返回；否则每个此类页面附带说明。
+
+<a id="deepseek-aidsh-experimental-tool-read-audio"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-read-audio`
+
+### `read_audio`
+
+把音频或视频文件（.mp3、.wav、.m4a、.mp4 等）转写为带时间戳的文字。短录音返回完整转写；长录音返回时间索引，再用 start/end 调用以读取其中一段。时间戳让你能准确引用某句话是何时说的。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the audio or video file."
+    },
+    "start": {
+      "type": "string",
+      "description": "Window start: seconds, MM:SS or HH:MM:SS. Default: beginning."
+    },
+    "end": {
+      "type": "string",
+      "description": "Window end: seconds, MM:SS or HH:MM:SS. Default: end of file."
+    }
+  },
+  "required": [
+    "file_path"
+  ]
+}
+```
+
+来源：[`packages/experimental/tool-read-audio/src/index.ts`](../packages/experimental/tool-read-audio/src/index.ts)
+
+时间戳来自按静音切段：每个片段通过语音 seam 单独转写。转写超过 `maxTranscriptChars` 时改为返回时间索引，`start`/`end` 从缓存的整文件转写中选取窗口。
+
+<a id="deepseek-aidsh-experimental-tool-read-video"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-read-video`
+
+### `read_video`
+
+观看视频文件（.mp4、.mov、.webm、屏幕录像等）：返回画面变化处的关键帧和语音，合并为一条带时间戳的时间线。先看整段视频，再围绕某个时刻用 start/end 再次调用以查看更多细节。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the video file."
+    },
+    "start": {
+      "type": "string",
+      "description": "Window start: seconds, MM:SS or HH:MM:SS. Default: beginning."
+    },
+    "end": {
+      "type": "string",
+      "description": "Window end: seconds, MM:SS or HH:MM:SS. Default: end of video."
+    },
+    "transcript": {
+      "type": "boolean",
+      "description": "Include the spoken audio. Default true."
+    }
+  },
+  "required": [
+    "file_path"
+  ]
+}
+```
+
+来源：[`packages/experimental/tool-read-video/src/index.ts`](../packages/experimental/tool-read-video/src/index.ts)
+
+在所请求的窗口内按场景切换（配置为均匀时则均匀）采样帧，并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。
+
+<a id="deepseek-aidsh-vision-bridge"></a>
+
+## `@deepseek-ai/dsh-vision-bridge`
+
+### `ask_image`
+
+针对一个图片文件（PNG/JPEG/WebP/GIF）提问，并从视觉模型获得文字答案。在你自己无法查看图片时使用，例如截图、示意图、扫描页，或其他工具保存的帧。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the image file."
+    },
+    "question": {
+      "type": "string",
+      "description": "What you need to know; ask for exact text when it matters."
+    }
+  },
+  "required": [
+    "file_path",
+    "question"
+  ]
+}
+```
+
+来源：[`packages/multimodal/vision-bridge/src/index.ts`](../packages/multimodal/vision-bridge/src/index.ts)
+
+图片和问题在一次辅助请求中交给配置的识图模型；只返回文字答案，因此纯文本路由可以使用图片，而图片块不会进入其历史。
+
+<a id="deepseek-aidsh-memory"></a>
+
+## `@deepseek-ai/dsh-memory`
+
+### `memory_read`
+
+读取完整的长期记忆文件（MEMORY.md），包括来源标注。
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+来源：[`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+### `memory_replace`
+
+替换 MEMORY.md 中一处精确且唯一的子串，用于修正或更新事实；替换为空即删除。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "old": {
+      "type": "string"
+    },
+    "new": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "old",
+    "new"
+  ]
+}
+```
+
+来源：[`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+### `memory_rewrite`
+
+替换整个 MEMORY.md 以整理记忆：合并重复、删除过时事实、压缩细节。保持 "## section" / "- fact" 格式。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+来源：[`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+### `memory_write`
+
+向长期记忆保存一条长期事实：未来会话中仍成立的用户偏好、项目约定或决策。记忆已满时失败；此时先用 memory_rewrite 整理。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "section": {
+      "type": "string",
+      "enum": [
+        "user",
+        "project",
+        "decisions",
+        "general"
+      ]
+    },
+    "fact": {
+      "type": "string",
+      "description": "One self-contained line."
+    }
+  },
+  "required": [
+    "section",
+    "fact"
+  ]
+}
+```
+
+来源：[`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+### `recall`
+
+按关键词搜索更早会话中的对话、工具结果和媒体转写。在用户提到不在长期记忆中的过往工作时使用。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+来源：[`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+每次请求中 MEMORY.md 也作为运行时上下文出现。每轮结束后，插件把这一轮存入情景记忆，并在开启 `reflect` 时，用一次基于 agent 路由的辅助请求提取并归档长期事实。
 
 <a id="deepseek-aidsh-experimental-tool-terminal"></a>
 

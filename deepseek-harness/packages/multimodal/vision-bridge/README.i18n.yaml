@@ -1,0 +1,64 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/multimodal/vision-bridge/README.md
+/:
+  en: c1afef9b03db1f58
+  zh: b49869b1d778ba41
+/deepseek-ai-dsh-vision-bridge:
+  en: fa10b3ccea50d873
+  zh: f5bfef5dc589d2c0
+/deepseek-ai-dsh-vision-bridge/summary:
+  en: 32c9f08ed3ef4de1
+  zh: 6fe8e5e117bea94e
+/deepseek-ai-dsh-vision-bridge/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-vision-bridge/use-this-package:
+  en: ebd5c78d5f47d214
+  zh: 0f9cf42e8d7ea1b8
+/deepseek-ai-dsh-vision-bridge/use-this-package/minimal-configuration:
+  en: 96c89cbf4b949ab4
+  zh: 5d7daaf610ab448a
+/deepseek-ai-dsh-vision-bridge/understand-the-implementation:
+  en: 8bce491864706fcb
+  zh: c8ca43319fc484bb
+/deepseek-ai-dsh-vision-bridge/further-exploration:
+  en: 93152df84846d8e3
+  zh: 3584bb46d3d2e14b
+/deepseek-ai-dsh-vision-bridge/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-vision-bridge/model-experience/tool-schema:
+  en: e4c7376d4f29dbd5
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-vision-bridge/model-experience/tool-schema/what-the-model-sees:
+  en: 3f1f89f3426bede7
+  zh: cddcb3ba74cb6a43
+/deepseek-ai-dsh-vision-bridge/model-experience/tool-schema/token-effect:
+  en: 97cce067584eadff
+  zh: a16550a49fe07f17
+/deepseek-ai-dsh-vision-bridge/model-experience/tool-schema/kv-cache-effect:
+  en: 79a20d1db0f4a32e
+  zh: 42d0feaa756f0b34
+/deepseek-ai-dsh-vision-bridge/model-experience/tool-result:
+  en: f8ffc2b983f05ffc
+  zh: 8573891441963be4
+/deepseek-ai-dsh-vision-bridge/model-experience/tool-result/what-the-model-sees:
+  en: 26b6ce7d94d6fe6c
+  zh: b78f67ce96f20bf8
+/deepseek-ai-dsh-vision-bridge/model-experience/tool-result/what-the-model-sees/verbatim-system-prompt-of-the-auxiliary-request:
+  en: 65c778c947238366
+  zh: c2fba867752a3b6f
+/deepseek-ai-dsh-vision-bridge/model-experience/tool-result/token-effect:
+  en: ae239ddd9520d091
+  zh: 907ee5207d418052
+/deepseek-ai-dsh-vision-bridge/model-experience/tool-result/kv-cache-effect:
+  en: 391741f6569d47a8
+  zh: 3b952f92608b5298
+/deepseek-ai-dsh-vision-bridge/known-limitations-and-deferred-work:
+  en: 3cf079a646e71331
+  zh: 1f9bd05aceb0545b
+/deepseek-ai-dsh-vision-bridge/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 9c6918ce849f6c93

@@ -7,7 +7,8 @@
  */
 
 import { globSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, dirname, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import type { ToolSchema } from '@deepseek-ai/dsh-llm'
@@ -57,6 +58,11 @@ import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
 import * as ToolPresent from '@deepseek-ai/dsh-tool-present'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import * as ToolFsSearch from '@deepseek-ai/dsh-tool-fs-search'
+import * as ToolReadDocument from '@deepseek-ai/dsh-tool-read-document'
+import * as ToolReadAudio from '@deepseek-ai/dsh-experimental-tool-read-audio'
+import * as ToolReadVideo from '@deepseek-ai/dsh-experimental-tool-read-video'
+import * as VisionBridge from '@deepseek-ai/dsh-vision-bridge'
+import * as Memory from '@deepseek-ai/dsh-memory'
 import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
 import TerminalSessionService from '@deepseek-ai/dsh-terminal'
 import * as ToolPty from '@deepseek-ai/dsh-tool-terminal'
@@ -429,6 +435,66 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'glob and grep are unconditional discovery tools that spawn the packaged ripgrep binary (`@vscode/ripgrep`) through ctx.subprocess as ordinary foreground calls (never background jobs) — no host `rg` install and no shell layer. The catalog uses `sampleOverCapGlobResults: true`; deployments must choose that behavior explicitly. Capped results save the complete formatted list through the optional ctx.spillStore backend; returned locators are follow-up-readable/searchable when the backend exposes local paths in co-located deployments.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-read-document',
+    dir: 'tool-read-document',
+    source: 'packages/multimodal/tool-read-document/src/index.ts',
+    requires: ['ctx.tools', 'ctx.fs', 'ctx.subprocess', 'ctx.attachments + an image-capable route (page images)', 'poppler and LibreOffice on the host'],
+    writes: ['tool/call', 'durable attachment (page images)', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(ToolReadDocument)
+    },
+    note: 'Without `pages` a short document returns whole and a long one returns a per-page outline. Page images are returned only for pages without a text layer (or every page in `image` mode) and only when an attachment store is mounted and the routed model declares image input; otherwise each such page carries a note.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-experimental-tool-read-audio',
+    dir: 'tool-read-audio',
+    source: 'packages/experimental/tool-read-audio/src/index.ts',
+    requires: ['ctx.tools', 'ctx.fs', 'ctx.subprocess', 'ctx.speechToText (at call time)', 'ffmpeg on the host'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(ToolReadAudio)
+    },
+    note: 'Timestamps come from silence-aware segmentation: each segment is transcribed separately through the speech seam. A transcript over `maxTranscriptChars` returns a time index instead, and `start`/`end` select a window from the cached whole-file transcript.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-experimental-tool-read-video',
+    dir: 'tool-read-video',
+    source: 'packages/experimental/tool-read-video/src/index.ts',
+    requires: ['ctx.tools', 'ctx.fs', 'ctx.subprocess', 'ctx.attachments + an image-capable route (frames)', 'ctx.speechToText (speech, at call time)', 'ffmpeg on the host'],
+    writes: ['tool/call', 'durable attachment (frames)', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(ToolReadVideo)
+    },
+    note: 'Frames are sampled at scene changes (or uniformly when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-vision-bridge',
+    dir: 'vision-bridge',
+    source: 'packages/multimodal/vision-bridge/src/index.ts',
+    requires: ['ctx.tools', 'ctx.fs', 'ctx.llm', 'ctx.attachments', 'a configured image-capable model'],
+    writes: ['tool/call', 'durable attachment (the asked image)', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(CatalogAttachmentStore)
+      await ctx.plugin(LlmRuntime)
+      await ctx.plugin(VisionBridge)
+    },
+    note: 'The image and question go to the configured image-capable model in an auxiliary request; only the text answer returns, so a text-only route can use images without image blocks entering its history.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-memory',
+    dir: 'memory',
+    source: 'packages/memory/memory/src/index.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.llm (reflect pass)'],
+    writes: ['tool/call', 'tool/result', 'MEMORY.md and episodic.db under the configured root'],
+    async mount(ctx) {
+      await ctx.plugin(Memory, { root: join(tmpdir(), 'dsh-tool-catalog-memory') })
+    },
+    note: 'MEMORY.md is also placed in every request as runtime context. After each turn the plugin stores the turn in episodic memory and, with `reflect` on, files durable facts it extracts with one auxiliary request on the agent\'s route.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-terminal',
