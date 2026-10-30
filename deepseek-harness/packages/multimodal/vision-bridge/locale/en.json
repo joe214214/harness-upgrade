@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Vision bridge",
+    "description": "Lets a text-only model ask a vision model about images."
+  }
+}

@@ -441,6 +441,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ownerPropsReferences: [
       'MessageImageLoader',
       'OpenFileOptions',
+      'Turn',
       'TurnProcessOwnerProps',
     ],
     standardProps: [
@@ -619,6 +620,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       '/** Owner currency of the completed-Turn extension chain. */\nexport interface TurnTailOwnerProps {\n  turn: TurnLocation\n  seq: number\n  openFile: (path: string) => void\n}',
     ],
     ownerPropsReferences: [
+      'Turn',
       'TurnLocation',
     ],
     standardProps: [
@@ -5292,6 +5294,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'PreparingToolCall',
       'StartedToolCall',
       'ToolResultNode',
+      'Turn',
       'UseDisclosure',
     ],
     standardProps: [

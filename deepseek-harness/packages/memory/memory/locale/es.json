@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Memoria a largo plazo",
+    "description": "Permite al agente recordar hechos y sesiones anteriores entre sesiones."
+  }
+}

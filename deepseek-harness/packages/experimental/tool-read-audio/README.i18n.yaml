@@ -1,0 +1,79 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/tool-read-audio/README.md
+/:
+  en: d93d1538b0d5bccf
+  zh: c0966e6811683ec5
+/deepseek-ai-dsh-experimental-tool-read-audio:
+  en: 784741aed012961b
+  zh: 7fc1dd03d167e546
+/deepseek-ai-dsh-experimental-tool-read-audio/summary:
+  en: ecd64fb9571640da
+  zh: 67f3619f9408d035
+/deepseek-ai-dsh-experimental-tool-read-audio/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-experimental-tool-read-audio/use-this-package:
+  en: 995301a6a1b159ad
+  zh: 596aa575dce59892
+/deepseek-ai-dsh-experimental-tool-read-audio/use-this-package/minimal-configuration:
+  en: 7e32fdf2571d190c
+  zh: 0e14b8c3b29a8617
+/deepseek-ai-dsh-experimental-tool-read-audio/use-this-package/what-each-call-does:
+  en: 76b48ce6addfd953
+  zh: 15c9997bdb54048a
+/deepseek-ai-dsh-experimental-tool-read-audio/use-this-package/configuration:
+  en: 86e3b219fac3107c
+  zh: 9865a01564cc6747
+/deepseek-ai-dsh-experimental-tool-read-audio/understand-the-implementation:
+  en: a8ea90f5f789672c
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-experimental-tool-read-audio/understand-the-implementation/why-segment-level-timestamps:
+  en: 3e66abf597df121e
+  zh: e8e5e7e0eaa9f473
+/deepseek-ai-dsh-experimental-tool-read-audio/understand-the-implementation/audio-format:
+  en: 001b2988a9c3c01e
+  zh: db37725f9b1cd5b9
+/deepseek-ai-dsh-experimental-tool-read-audio/understand-the-implementation/caching:
+  en: 28ef54bea5ba91f2
+  zh: ffe2c536734c8248
+/deepseek-ai-dsh-experimental-tool-read-audio/understand-the-implementation/source-map:
+  en: c930b60b3895d895
+  zh: f2602d97b5ad810d
+/deepseek-ai-dsh-experimental-tool-read-audio/further-exploration:
+  en: 7a7c78ca9fcdb420
+  zh: ae9b4fe6c645396c
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-schema:
+  en: e4c7376d4f29dbd5
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-schema/what-the-model-sees:
+  en: 578525c907a7f5c3
+  zh: 3de0b46c0beb2d33
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-schema/token-effect:
+  en: 97cce067584eadff
+  zh: a16550a49fe07f17
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-schema/kv-cache-effect:
+  en: 79a20d1db0f4a32e
+  zh: 42d0feaa756f0b34
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-result:
+  en: f8ffc2b983f05ffc
+  zh: 8573891441963be4
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-result/what-the-model-sees:
+  en: 6c6ef74c8e1b8093
+  zh: 18c209f580aadf62
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-result/token-effect:
+  en: 95eedd9e7988fb97
+  zh: 85ee67a307d84a9c
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-result/kv-cache-effect:
+  en: 95cd51cd8d905ef2
+  zh: eb3dac64f7d9804d
+/deepseek-ai-dsh-experimental-tool-read-audio/known-limitations-and-deferred-work:
+  en: 53407851366a82b9
+  zh: 2575ea6092f93129
+/deepseek-ai-dsh-experimental-tool-read-audio/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 9c6918ce849f6c93

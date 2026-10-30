@@ -1,0 +1,76 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/multimodal/tool-read-document/README.md
+/:
+  en: 1700fdb527327d81
+  zh: 43f457ec1b70d10a
+/deepseek-ai-dsh-tool-read-document:
+  en: 5fa1e39897a800c8
+  zh: 73731cbb758fdd92
+/deepseek-ai-dsh-tool-read-document/summary:
+  en: fa0a98e8d9ac68f6
+  zh: 55d81322fa6d9e5d
+/deepseek-ai-dsh-tool-read-document/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-tool-read-document/use-this-package:
+  en: e1873902c83a9928
+  zh: e91d04b688c0501c
+/deepseek-ai-dsh-tool-read-document/use-this-package/minimal-configuration:
+  en: 7e32fdf2571d190c
+  zh: 0e14b8c3b29a8617
+/deepseek-ai-dsh-tool-read-document/use-this-package/what-each-call-does:
+  en: 2e3b49cce2496108
+  zh: 720dada1ef5b7292
+/deepseek-ai-dsh-tool-read-document/use-this-package/configuration:
+  en: 22097e6b7ecc9db3
+  zh: 84c7712a621bbde2
+/deepseek-ai-dsh-tool-read-document/understand-the-implementation:
+  en: a8ea90f5f789672c
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-tool-read-document/understand-the-implementation/design-philosophy:
+  en: a76cd74a266cfeaf
+  zh: a5e6d11f4da95f17
+/deepseek-ai-dsh-tool-read-document/understand-the-implementation/pipeline:
+  en: d3c7f45b9bfa3b00
+  zh: a9d0dc0003c66b35
+/deepseek-ai-dsh-tool-read-document/understand-the-implementation/source-map:
+  en: d4a723bf3e3d1295
+  zh: 8dfcb0234f094d4d
+/deepseek-ai-dsh-tool-read-document/further-exploration:
+  en: 7cf2779d1f10f124
+  zh: de2d19a019c9728a
+/deepseek-ai-dsh-tool-read-document/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-tool-read-document/model-experience/tool-schema:
+  en: e4c7376d4f29dbd5
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-tool-read-document/model-experience/tool-schema/what-the-model-sees:
+  en: ff8ce024582d10a5
+  zh: d1fce24a734249ed
+/deepseek-ai-dsh-tool-read-document/model-experience/tool-schema/token-effect:
+  en: 1e8fde90fe94d5ce
+  zh: 881aee5c2725f70e
+/deepseek-ai-dsh-tool-read-document/model-experience/tool-schema/kv-cache-effect:
+  en: 79a20d1db0f4a32e
+  zh: 42d0feaa756f0b34
+/deepseek-ai-dsh-tool-read-document/model-experience/tool-result:
+  en: f8ffc2b983f05ffc
+  zh: 8573891441963be4
+/deepseek-ai-dsh-tool-read-document/model-experience/tool-result/what-the-model-sees:
+  en: 5b841545b2b3974f
+  zh: b5980ab3ba085919
+/deepseek-ai-dsh-tool-read-document/model-experience/tool-result/token-effect:
+  en: 52688a601cb19e4e
+  zh: b0a7a1d7a4bdf722
+/deepseek-ai-dsh-tool-read-document/model-experience/tool-result/kv-cache-effect:
+  en: 95cd51cd8d905ef2
+  zh: eb3dac64f7d9804d
+/deepseek-ai-dsh-tool-read-document/known-limitations-and-deferred-work:
+  en: 7d964e200a484733
+  zh: 84035bd5ed9b901f
+/deepseek-ai-dsh-tool-read-document/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 9c6918ce849f6c93

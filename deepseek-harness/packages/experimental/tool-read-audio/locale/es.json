@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Transcripciones de audio",
+    "description": "Permite al agente transcribir grabaciones en texto con marcas de tiempo."
+  }
+}

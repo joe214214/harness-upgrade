@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Long-term memory",
+    "description": "Lets the agent remember facts and past sessions across sessions."
+  }
+}

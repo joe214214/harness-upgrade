@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Puente de visión",
+    "description": "Permite que un modelo solo de texto pregunte a un modelo de visión sobre imágenes."
+  }
+}

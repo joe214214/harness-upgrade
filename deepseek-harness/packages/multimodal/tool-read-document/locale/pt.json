@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Leitor de documentos",
+    "description": "Permite que o agente leia documentos PDF e Office, com páginas digitalizadas mostradas como imagens."
+  }
+}
