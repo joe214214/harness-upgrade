@@ -372,6 +372,8 @@
       "@deepseek-ai/dsh-experimental-tool-worktree": ["./packages/experimental/tool-worktree/src"],
       "@deepseek-ai/dsh-experimental-tool-read-audio": ["./packages/experimental/tool-read-audio/src"],
       "@deepseek-ai/dsh-experimental-tool-read-video": ["./packages/experimental/tool-read-video/src"],
+      "@deepseek-ai/dsh-experimental-co-canvas": ["./packages/experimental/co-canvas/src"],
+      "@deepseek-ai/dsh-experimental-co-canvas/types": ["./packages/experimental/co-canvas/src/types.ts"],
       "@deepseek-ai/dsh-experimental-forge": ["./packages/experimental/forge/src"],
       "@deepseek-ai/dsh-experimental-forge/types": ["./packages/experimental/forge/src/types.ts"],
       "@deepseek-ai/dsh-experimental-forge-github": ["./packages/experimental/forge-github/src"],
