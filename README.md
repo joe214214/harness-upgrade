@@ -1,6 +1,6 @@
-# harness-upgrade — multimodal input and long-term memory for DeepSeek Harness
+# harness-upgrade — multimodal input, long-term memory and human-in-the-loop browsing for DeepSeek Harness
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) is DeepSeek's open-source, all-plugin agent runtime. Out of the box its agents read text and single images; its own docs list PDF, audio and video as deferred and ship no built-in memory. This project adds them as **seven native dsh packages**, built only on dsh's documented extension points — no change to the agent loop — and held to dsh's own engineering gates.
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) is DeepSeek's open-source, all-plugin agent runtime. Out of the box its agents read text and single images; its own docs list PDF, audio and video as deferred and ship no built-in memory, and its browser agents work alone. This project adds all three as **nine native dsh packages**, built only on dsh's documented extension points — no change to the agent loop — and held to dsh's own engineering gates.
 
 | What an agent can now do | Package | Tool |
 |---|---|---|
@@ -9,9 +9,10 @@
 | Watch videos as a timeline of keyframes and speech | `dsh-experimental-tool-read-video` | `read_video` |
 | Use images on a text-only model (e.g. `deepseek-v4-pro`) | `dsh-vision-bridge` | `ask_image` |
 | Remember facts and past sessions across sessions | `dsh-memory` | `memory_*`, `recall` |
+| Work in a browser the user watches live, marks, and can take over | `dsh-experimental-co-canvas` + Web tab | `ask_user_to_mark` |
 | (shared) command runner, cache, windows, image commits | `dsh-media-core` | — |
 
-[`deepseek-harness/`](deepseek-harness) is the complete upgraded harness: the official `0.2.2-alpha.2` release imported unmodified in one commit, with every change of this project as separate commits on top (139 files, +9,039 / −197 lines). `git log -- deepseek-harness` shows exactly what was added.
+[`deepseek-harness/`](deepseek-harness) is the complete upgraded harness: the official `0.2.2-alpha.2` release imported unmodified in one commit, with every change of this project as separate commits on top (197 files, +12,654 / −210 lines, including regenerated catalogs). `git log -- deepseek-harness` shows exactly what was added.
 
 ## Try it
 
@@ -40,6 +41,16 @@ dsh-mm headless "what error is in bug.webm?"  # one task, answer printed
 ![DSH Web UI reading a scanned PDF page with read_document](docs/web-ui-scanned-pdf.png)
 
 ## Demos (real runs on the DeepSeek API)
+
+**Co-canvas · Point instead of explaining.** The agent works in a shared browser that the Web UI shows live in a side tab. The user can box, point at or draw an arrow on the page with a note; each mark is resolved to the element underneath — `button "Submit" (2nd of 2 button elements with this text)` plus a CSS selector — and reaches the agent with its next tool result. Two real runs on a page with two identical "Submit" buttons:
+
+- *The agent asks.* Told only to "press the Submit button", the agent noticed the ambiguity and called `ask_user_to_mark`; the user boxed Plan B and sent the mark; the agent clicked Plan B.
+- *The user corrects mid-task.* Told to "submit Plan A", the agent was paused the moment the page appeared; the user boxed Plan B with "Change of plan" and resumed. The browser action the agent had already chosen was refused instead of run, and it re-planned: "You changed the plan to Plan B… Plan A was never submitted."
+
+| The agent asks; the user marks | The user corrects mid-task |
+|---|---|
+| ![Agent question and the user's box around Plan B's Submit](docs/co-canvas-1-question-marked.png) | ![Agent re-planned to Plan B after the user's mark](docs/co-canvas-4-correction-done.png) |
+
 
 **1 · Fix a bug from a screen recording.** [`demos/1-video-bug`](demos/1-video-bug/shop) holds a tiny web shop and a 10-second Playwright recording in which Checkout throws. The agent watches the video, reads the error off the frame (`TypeError … reading 'price' (cart.js:11)`), finds the off-by-one loop, fixes it, and verifies the fix with Node. Change-ranked sampling picks 5 frames — one per UI change — and the last one is the error banner.
 
@@ -74,8 +85,11 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 - **A canonical WAV header, written by hand.** ffmpeg's WAV muxer adds `LIST` chunks that the SenseVoice provider rejects; a unit test validates every segment with dsh's own validator.
 - **Fakes hide lifecycle.** The scripted recognizer was always ready; real SenseVoice refuses until its model is downloaded and loaded, a step only dsh's voice UI triggered. `read_audio` now starts or joins the provider's preparation through the seam and waits for it.
 - **Tool adoption is a design problem.** Once bash worked, the model extracted frames with ffmpeg instead of calling `read_video`; one scoped system-prompt sentence per tool (dsh's own pattern for `read`) fixed it.
+- **MCP answers "how a model uses a tool", not "how a human joins in".** The agent's browser tools stay the stock Playwright MCP server in attach mode; co-canvas owns the same Chromium and hooks dsh's `tools/pre-execute` and `tools/post-execute` events — the plugin-only places where a human's input can reach a running agent loop.
+- **A gate must match real names.** Pause first matched tools named `browser_*`; real Playwright MCP tools are `mcp__playwright-mcp__browser_*`, so a paused agent would have kept clicking. Unit tests used the bare name; reading a real session log caught it.
+- **Stale actions are the real hazard.** Delivering a correction after the agent's next action is too late if that action is the wrong click. A browser call chosen before the user's latest input is refused with the marks instead of run.
 - **Benchmarks leak.** An early memory test "passed" because the agent globbed outside its workspace and read the harness's own logs. Answers now stay in memory until all runs finish.
-- **Upstream's bar, not ours.** 57 package tests; dsh's 43 documentation gates pass (bilingual READMEs with Model Experience sections, generated tool/config catalogs, an acknowledged persistence-type change, locale metadata in 8 languages).
+- **Upstream's bar, not ours.** 69 package tests; dsh's 43 documentation gates and `build:check` pass (bilingual READMEs with Model Experience sections, generated tool/config catalogs, an acknowledged persistence-type change, locale metadata in 8 languages).
 
 ## Status
 
@@ -83,7 +97,8 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 |---|---|
 | `read_document`, `read_video`, `ask_image`, `memory` | Done, verified end to end on DeepSeek |
 | `read_audio` | Done and unit-tested with a scripted recognizer; a first real SenseVoice run found and fixed a missing provider-preparation step; full run pending network access to the Hugging Face file CDN (`us.aws.cdn.hf.co`) |
-| Web UI cards, speech output | Not started |
+| Co-canvas (shared browser, marks, pause/take over) | Done, verified end to end on DeepSeek through the real Web UI; Windows uses the built-in Edge |
+| Speech output | Not started |
 | Upstream PR | Changes are separate commits on the imported release, ready to move to a fork |
 
 ## Repository layout

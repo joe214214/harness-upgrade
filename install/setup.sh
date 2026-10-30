@@ -47,8 +47,17 @@ step "Installing dependencies (a few minutes the first time)"
 step "Building (about 3 minutes)"
 (cd "$dsh" && NODE_OPTIONS=--max-old-space-size=8192 pnpm run build:artifacts)
 
+step "Choosing the co-canvas browser"
+# An installed Chrome is used directly; otherwise Playwright downloads its own Chromium once.
+if have google-chrome || [ -d "/Applications/Google Chrome.app" ]; then
+  browser="        channel: chrome"
+else
+  (cd "$dsh/packages/experimental/co-canvas" && pnpm exec playwright-core install chromium)
+  browser=""
+fi
+
 step "Writing the plugin overlay and the dsh-mm launcher"
-sed -e "s#@DSH@#$dsh#g" -e "s#@DATA@#$install_dir#g" "$here/overlay.yml.in" > "$install_dir/overlay.yml"
+sed -e "s#@DSH@#$dsh#g" -e "s#@DATA@#$install_dir#g" -e "s#^@BROWSER@\$#$browser#" "$here/overlay.yml.in" > "$install_dir/overlay.yml"
 mkdir -p "$install_dir/bin"
 cp "$here/dsh-mm.mjs" "$install_dir/bin/dsh-mm.mjs"
 node -e 'console.log(JSON.stringify({ dsh: process.argv[1], overlay: process.argv[2] }))' \

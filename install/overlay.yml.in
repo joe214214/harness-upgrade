@@ -1,5 +1,6 @@
 # Adds the multimodal and memory packages to a DSH profile (passed with --patch).
-# setup.sh / setup.ps1 substitute @DSH@ (the patched checkout) and @DATA@ (memory and models).
+# setup.sh / setup.ps1 substitute @DSH@ (the harness), @DATA@ (memory, models, browser profile)
+# and @BROWSER@ (the co-canvas browser choice).
 - insert:
     - id: tool-read-document
       name: '@DSH@/packages/multimodal/tool-read-document/src/index.ts'
@@ -21,3 +22,17 @@
       name: '@DSH@/packages/memory/memory/src/index.ts'
       config:
         root: '@DATA@/memory'
+    - id: co-canvas
+      name: '@DSH@/packages/experimental/co-canvas/src/index.ts'
+      config:
+        userDataDir: '@DATA@/co-canvas-profile'
+@BROWSER@
+    - id: ui-co-canvas
+      name: '@DSH@/packages/experimental/client-ui-co-canvas/src/index.ts'
+    - id: browser-use
+      name: '@DSH@/packages/browser-use/browser-use/src/index.ts'
+    - id: browser-use-playwright-mcp
+      name: '@DSH@/packages/experimental/browser-use-playwright-mcp/src/index.ts'
+      config:
+        mode: attach
+        endpoint: 'http://127.0.0.1:9333'
