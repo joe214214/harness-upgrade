@@ -133,6 +133,8 @@ export async function transcribeMedia(
     language: spec.language,
     max: options.maxSegmentSeconds,
     min: options.minSegmentSeconds,
+    // Bump when planSegments changes, so transcripts planned the old way are not reused.
+    planner: 2,
     noise: options.silenceNoise,
     pause: options.silenceSeconds,
   })

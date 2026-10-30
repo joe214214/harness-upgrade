@@ -1509,7 +1509,7 @@ export interface Config {
 export interface Config {
   /** Longest transcription segment in seconds. */
   maxSegmentSeconds?: number
-  /** Shortest segment worth cutting at a pause. */
+  /** A segment ends at the first pause after this many seconds. */
   minSegmentSeconds?: number
   /** silencedetect noise floor. */
   silenceNoise?: string
