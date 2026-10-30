@@ -21,6 +21,7 @@ import { chromium } from 'playwright-core'
 import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import CoCanvas, { describeTarget, marksMessage } from '../src/index.ts'
 import type { CanvasFrame, CanvasMark, CanvasState } from '../src/types.ts'
+import type { Page } from 'playwright-core'
 
 /** Playwright's own Chromium, or any build under PLAYWRIGHT_BROWSERS_PATH. */
 function findChromium(): string | undefined {
@@ -56,6 +57,35 @@ describe('model-facing text', () => {
     expect(text).toContain('2. point at (10, 20)')
   })
 })
+
+/**
+ * Centre of an element inside the toolbar's closed shadow root, found through CDP, which pierces shadow roots.
+ * Tests then click it with the real mouse, as a user would.
+ */
+async function toolbarPoint(page: Page, className: string): Promise<{ x: number; y: number }> {
+  const cdp = await page.context().newCDPSession(page)
+  try {
+    interface DomNode { nodeId: number; attributes?: string[]; children?: DomNode[]; shadowRoots?: DomNode[] }
+    const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true }) as { root: DomNode }
+    const find = (node: DomNode): DomNode | undefined => {
+      const attrs = node.attributes ?? []
+      const cls = attrs[attrs.indexOf('class') + 1] ?? ''
+      if (attrs.includes('class') && cls.split(' ').includes(className)) return node
+      for (const child of [...node.shadowRoots ?? [], ...node.children ?? []]) {
+        const hit = find(child)
+        if (hit !== undefined) return hit
+      }
+      return undefined
+    }
+    const node = find(root)
+    if (node === undefined) throw new Error(`toolbar element .${className} not found`)
+    const { model } = await cdp.send('DOM.getBoxModel', { nodeId: node.nodeId })
+    const [x1 = 0, y1 = 0, , , x3 = 0, y3 = 0] = model.content
+    return { x: (x1 + x3) / 2, y: (y1 + y3) / 2 }
+  } finally {
+    await cdp.detach()
+  }
+}
 
 async function freePort(): Promise<number> {
   const server = createServer()
@@ -163,6 +193,58 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     canvas.answer(state.question.id)
     const result = await answer
     expect(result.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain('1st of 2 button elements')
+  }, 60_000)
+
+  it('records a mark drawn on the page itself through the toolbar', async () => {
+    const { canvas, call } = await setup()
+    const page = canvas.browser.page!
+    await expect.poll(() => toolbarPoint(page, 'mark').then(() => true, () => false)).toBe(true)
+    const note = await toolbarPoint(page, 'note')
+    await page.mouse.click(note.x, note.y)
+    await page.keyboard.type('this one')
+    const button = await toolbarPoint(page, 'mark')
+    await page.mouse.click(button.x, button.y)
+    const box = (await page.locator('button').nth(2).boundingBox())!
+    await page.mouse.move(box.x - 6, box.y - 6)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width + 6, box.y + box.height + 6, { steps: 5 })
+    await page.mouse.up()
+    const pendingCount = async (): Promise<number | undefined> => {
+      const next = await canvas.follow(new AbortController().signal)[Symbol.asyncIterator]().next()
+      return (next.value as CanvasState | undefined)?.pending.length
+    }
+    await expect.poll(pendingCount).toBe(1)
+    const delivered = text(await call('read'))
+    expect(delivered).toContain('button "Submit" (2nd of 2 button elements with this text)')
+    expect(delivered).toContain('note: "this one"')
+    // The preview drawn for the crop is gone and the toolbar is visible again.
+    expect(await page.evaluate(() => document.getElementById('__dsh_co_canvas_preview'))).toBeNull()
+    expect(await page.evaluate(() => document.querySelector<HTMLElement>('dsh-co-canvas')?.style.visibility)).toBe('visible')
+  }, 60_000)
+
+  it('keeps the toolbar away from page scripts and accessibility snapshots', async () => {
+    const { canvas } = await setup()
+    const page = canvas.browser.page!
+    await expect.poll(() => toolbarPoint(page, 'mark').then(() => true, () => false)).toBe(true)
+    expect(await page.evaluate(() => typeof (window as unknown as Record<string, unknown>).__dshCoCanvas)).toBe('undefined')
+    // A script-dispatched click is not trusted, so it cannot start a mark.
+    await page.evaluate(() => { document.querySelector('dsh-co-canvas')!.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+    const snapshot = await page.locator('body').ariaSnapshot()
+    expect(snapshot).toContain('Submit')
+    expect(snapshot).not.toMatch(/Pause agent|Mark|Send marks/u)
+  }, 60_000)
+
+  it('injects the toolbar into pages the agent navigates or opens through its own CDP connection', async () => {
+    const { canvas } = await setup()
+    const agent = await chromium.connectOverCDP(canvas.browser.endpoint)
+    onTestFinished(async () => { await agent.close() })
+    const hasToolbar = (page: Page) => page.evaluate(() => document.querySelector('dsh-co-canvas') !== null)
+    const navigated = agent.contexts()[0]!.pages()[0]!
+    await navigated.goto('data:text/html,<button>Next</button>')
+    await expect.poll(() => hasToolbar(navigated)).toBe(true)
+    const opened = await agent.contexts()[0]!.newPage()
+    await opened.goto('data:text/html,<button>Other</button>')
+    await expect.poll(() => hasToolbar(opened)).toBe(true)
   }, 60_000)
 
   it('streams frames and closes the browser on disposal', async () => {

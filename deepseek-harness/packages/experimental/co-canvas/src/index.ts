@@ -15,20 +15,25 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, ContextFormed } from '@deepseek-ai/dsh-llm'
-import { routeAcceptsImages } from '@deepseek-ai/dsh-media-core'
+import { STORED_IMAGE_SCHEMA, imageBlock, routeAcceptsImages } from '@deepseek-ai/dsh-media-core'
+import type { StoredImage } from '@deepseek-ai/dsh-media-core'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { SharedBrowser } from './browser.ts'
+import type { Page } from 'playwright-core'
+import type { OverlayMessage, OverlayState } from './overlay.ts'
 import { marksMessage } from './marks.ts'
 import type { CanvasControl, CanvasFrame, CanvasInput, CanvasMark, CanvasQuestion, CanvasState, MarkInput } from './types.ts'
 
 export type * from './types.ts'
 export { describeMark, describeTarget, marksMessage } from './marks.ts'
-export { SharedBrowser } from './browser.ts'
-export type { SharedBrowserOptions } from './browser.ts'
+export { SharedBrowser, parseToolbarMessage } from './browser.ts'
+export type { Capture, SharedBrowserOptions } from './browser.ts'
+export { OVERLAY_SOURCE } from './overlay.ts'
+export type { OverlayMessage, OverlayState } from './overlay.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -68,6 +73,8 @@ export interface Config {
   viewportHeight: number
   /** JPEG quality of live frames. */
   frameQuality: number
+  /** Inject the marking toolbar into every page, for marking directly in the browser window. */
+  pageToolbar: boolean
   /** Regular expression matching the agent's browser tool names; matching calls wait while the user holds control. */
   gatedTools: string
   /** Most marks listed in one delivery. */
@@ -83,6 +90,15 @@ export interface Config {
 /** Model-facing reason for a browser action that was chosen before the user's latest input. */
 export const STALE_ACTION = 'This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.'
 
+/** Text of a delivery that only brings the crops of marks a refusal already described. */
+export const CARRIED_CROPS = '<user_marks>\nScreenshots of the marks described in your refused browser action, each with the mark drawn in red.\n</user_marks>'
+
+/** Result of one `ask_user_to_mark` call. */
+export interface AskResult {
+  readonly text: string
+  readonly images: StoredImage[]
+}
+
 const optionalString = z.union([z.string().min(1), z.const(undefined)])
 
 /** One undelivered mark with its crop, taken when it was drawn. */
@@ -97,10 +113,10 @@ interface OpenQuestion extends CanvasQuestion {
 
 /**
  * The `ask_user_to_mark` tool definition.
- * @param ask - shows the question to the user and resolves with the marks as model-facing text.
+ * @param ask - shows the question to the user and resolves with the marks as model-facing text and crops.
  * @returns the tool, ready to register.
  */
-export function askUserToMarkTool(ask: (question: string, signal: AbortSignal) => Promise<string>): ToolDefinition {
+export function askUserToMarkTool(ask: (question: string, exec: ToolExecution) => Promise<AskResult>): ToolDefinition {
   return defineTool({
     name: 'ask_user_to_mark',
     description: 'Ask the user to point at something in the shared browser, and wait for their answer. '
@@ -110,10 +126,16 @@ export function askUserToMarkTool(ask: (question: string, signal: AbortSignal) =
       question: { type: 'string', required: true, description: 'What the user should mark, e.g. "Which Submit button should I press?"' },
     },
     output: {
-      schema: { type: 'object', additionalProperties: false, properties: { text: { type: 'string', required: true } } },
-      render: (_args, value) => [{ type: 'text', text: value.text }],
+      schema: {
+        type: 'object', additionalProperties: false,
+        properties: { text: { type: 'string', required: true }, images: { type: 'array', items: { ...STORED_IMAGE_SCHEMA }, required: true } },
+      },
+      render: (_args, value) => [{ type: 'text', text: value.text }, ...value.images.map(image => imageBlock(image))],
     },
-    execute: async (args, exec) => ({ text: await ask(args.question, exec.signal) }),
+    execute: async (args, exec) => {
+      const { text, images } = await ask(args.question, exec)
+      return { text, images }
+    },
     presentCall(args): GenericCallView {
       return { card: 'generic', title: `Ask the user to mark: ${args.question}`, kind: 'other' }
     },
@@ -133,10 +155,11 @@ export default class CoCanvas extends TypertRemoteService {
     viewportWidth: z.natural().min(320).default(1280),
     viewportHeight: z.natural().min(240).default(800),
     frameQuality: z.natural().min(10).max(100).default(60),
+    pageToolbar: z.boolean().default(true),
     gatedTools: z.string().min(1).default('(^|__)browser_'),
     maxMarksPerMessage: z.natural().min(1).default(10),
     maxCropsPerMessage: z.natural().default(3),
-    cropMargin: z.natural().default(40),
+    cropMargin: z.natural().default(120),
     askTimeoutMs: z.natural().min(1000).default(300_000),
   })
 
@@ -147,6 +170,8 @@ export default class CoCanvas extends TypertRemoteService {
   private handback: CanvasControl | undefined
   private pending: PendingMark[] = []
   private question: OpenQuestion | undefined
+  /** Crops of marks already described in a refusal, delivered with the next tool result. */
+  private carried: PendingMark[] = []
   private readonly listeners = new Set<() => void>()
 
   constructor(ctx: Context, private readonly config: Config) {
@@ -160,7 +185,9 @@ export default class CoCanvas extends TypertRemoteService {
       viewport: { width: config.viewportWidth, height: config.viewportHeight },
       startUrl: config.startUrl,
       frameQuality: config.frameQuality,
+      pageToolbar: config.pageToolbar,
     })
+    this.browser.onToolbar = (page, message) => { void this.onToolbarMessage(page, message) }
 
     // MCP tools are registered as `mcp__<server>__<tool>`, so the default also matches a prefixed name.
     const gated = new RegExp(config.gatedTools, 'u')
@@ -171,6 +198,8 @@ export default class CoCanvas extends TypertRemoteService {
       const taken = this.takePending()
       if (taken === undefined) return next()
       const marks = marksMessage(taken.pending.map(p => p.mark), taken.handback, this.config.maxMarksPerMessage)
+      // A refusal carries text only; the crops follow with the next tool result.
+      this.carried.push(...taken.pending.filter(p => p.crop !== undefined))
       return { kind: 'deny', reason: `${STALE_ACTION}\n${marks}` }
     })
     ctx.on('tools/post-execute', async (exec, _result, next) => {
@@ -191,7 +220,7 @@ export default class CoCanvas extends TypertRemoteService {
           + 'a browser action chosen before the user\'s latest input is not run.',
     })
 
-    ctx.tools.register(askUserToMarkTool((question, signal) => this.ask(question, signal)))
+    ctx.tools.register(askUserToMarkTool((question, exec) => this.ask(question, exec)))
   }
 
   async* [Service.init](): AsyncGenerator<() => Promise<void> | void, void, void> {
@@ -242,20 +271,8 @@ export default class CoCanvas extends TypertRemoteService {
    * @returns the recorded mark.
    */
   @Remote
-  async mark(input: MarkInput): Promise<CanvasMark> {
-    const { x, y, width, height } = input.rect
-    const focus = input.shape === 'box' ? { x: x + width / 2, y: y + height / 2 } : input.shape === 'arrow' ? { x: x + width, y: y + height } : { x, y }
-    const [target, page, crop] = await Promise.all([
-      this.browser.hitTest(focus.x, focus.y),
-      this.browser.describe(),
-      this.config.maxCropsPerMessage > 0 ? this.browser.crop(input.rect, this.config.cropMargin) : Promise.resolve(undefined),
-    ])
-    const mark: CanvasMark = {
-      ...input, id: randomUUID(), url: page.url, title: page.title, at: Date.now(), ...target === undefined ? {} : { target },
-    }
-    this.pending.push({ mark, crop })
-    this.changed()
-    return mark
+  mark(input: MarkInput): Promise<CanvasMark> {
+    return this.record(input, undefined)
   }
 
   /**
@@ -300,6 +317,38 @@ export default class CoCanvas extends TypertRemoteService {
     if (this.question?.id === questionId) this.question.settle()
   }
 
+  private async record(input: MarkInput, page: Page | undefined): Promise<CanvasMark> {
+    const { x, y, width, height } = input.rect
+    const focus = input.shape === 'box' ? { x: x + width / 2, y: y + height / 2 } : input.shape === 'arrow' ? { x: x + width, y: y + height } : { x, y }
+    const margin = this.config.maxCropsPerMessage > 0 ? this.config.cropMargin : undefined
+    const { target, crop } = await this.browser.capture(page, input.shape, input.rect, focus, margin)
+    const where = await this.browser.describe(page)
+    const mark: CanvasMark = {
+      ...input, id: randomUUID(), url: where.url, title: where.title, at: Date.now(), ...target === undefined ? {} : { target },
+    }
+    this.pending.push({ mark, crop })
+    this.changed()
+    return mark
+  }
+
+  private async onToolbarMessage(page: Page, message: OverlayMessage): Promise<void> {
+    switch (message.type) {
+      case 'hello': this.browser.pushToolbarStateTo(page, this.toolbarState(page.url())); return
+      case 'mark': await this.record({ shape: message.shape, rect: message.rect, ...message.note === '' ? {} : { note: message.note } }, page); return
+      case 'control': this.setControl(message.control); return
+      case 'answer': this.answer(message.questionId); return
+    }
+  }
+
+  private toolbarState(url: string): OverlayState {
+    return {
+      control: this.control,
+      question: this.question === undefined ? null : { id: this.question.id, text: this.question.text },
+      marks: this.pending.filter(p => p.mark.url === url).map(p => ({ shape: p.mark.shape, rect: p.mark.rect })),
+      url,
+    }
+  }
+
   private async state(): Promise<CanvasState> {
     const page = await this.browser.describe()
     return {
@@ -312,7 +361,10 @@ export default class CoCanvas extends TypertRemoteService {
     }
   }
 
-  private changed(): void { for (const listener of this.listeners) listener() }
+  private changed(): void {
+    for (const listener of this.listeners) listener()
+    this.browser.pushToolbarState(url => this.toolbarState(url))
+  }
 
   private untilAgentControl(signal: AbortSignal): Promise<void> {
     if (this.control === 'agent') return Promise.resolve()
@@ -327,7 +379,8 @@ export default class CoCanvas extends TypertRemoteService {
     }).then(() => {})
   }
 
-  private async ask(text: string, signal: AbortSignal): Promise<string> {
+  private async ask(text: string, exec: ToolExecution): Promise<AskResult> {
+    const signal = exec.signal
     if (this.question !== undefined) throw new Error('another ask_user_to_mark question is still open')
     const { promise, resolve } = Promise.withResolvers<undefined>()
     const question: OpenQuestion = { id: randomUUID(), text, settle: () => { resolve(undefined) } }
@@ -344,10 +397,25 @@ export default class CoCanvas extends TypertRemoteService {
       this.question = undefined
       this.changed()
     }
-    const marks = this.pending.splice(0).map(p => p.mark)
+    const answered = this.pending.splice(0)
     this.changed()
-    if (marks.length === 0) return 'The user did not mark anything. Ask in your reply, or continue with your best judgement.'
-    return marksMessage(marks, undefined, this.config.maxMarksPerMessage)
+    if (answered.length === 0) return { text: 'The user did not mark anything. Ask in your reply, or continue with your best judgement.', images: [] }
+    const marks = marksMessage(answered.map(p => p.mark), undefined, this.config.maxMarksPerMessage)
+    return { text: marks, images: await this.saveCrops(answered, exec) }
+  }
+
+  /** Persist the newest crops when the calling route accepts images. */
+  private async saveCrops(marks: readonly PendingMark[], exec: ToolExecution): Promise<StoredImage[]> {
+    const attachments = this.ctx.get('attachments')
+    const crops = marks.filter(p => p.crop !== undefined).slice(-this.config.maxCropsPerMessage)
+    if (crops.length === 0 || attachments === undefined || !await routeAcceptsImages(this.ctx, exec)) return []
+    const saved: StoredImage[] = []
+    for (const { mark, crop } of crops) {
+      const ref = await attachments.saveImage({ data: crop as Buffer, mediaType: 'image/png', name: `mark ${mark.id.slice(0, 8)}.png` })
+      saved.push({ attachmentId: ref.attachmentId, mediaType: ref.mediaType, bytes: ref.bytes, width: ref.width, height: ref.height,
+        ...ref.name === undefined ? {} : { name: ref.name } })
+    }
+    return saved
   }
 
   private takePending(): { pending: PendingMark[]; handback: CanvasControl | undefined } | undefined {
@@ -360,17 +428,14 @@ export default class CoCanvas extends TypertRemoteService {
 
   private async takeDelivery(exec: ToolExecution): Promise<UserMessage | undefined> {
     const taken = this.takePending()
-    if (taken === undefined) return undefined
-    const { pending, handback } = taken
-    const content: ContentBlock[] = [{ type: 'text', text: marksMessage(pending.map(p => p.mark), handback, this.config.maxMarksPerMessage) }]
-    const attachments = this.ctx.get('attachments')
-    const crops = pending.filter(p => p.crop !== undefined).slice(-this.config.maxCropsPerMessage)
-    if (crops.length > 0 && attachments !== undefined && await routeAcceptsImages(this.ctx, exec)) {
-      for (const { mark, crop } of crops) {
-        const ref = await attachments.saveImage({ data: crop as Buffer, mediaType: 'image/png', name: `mark ${mark.id.slice(0, 8)}.png` })
-        content.push({ type: 'image', attachment: ref })
-      }
-    }
+    const carried = this.carried.splice(0)
+    if (taken === undefined && carried.length === 0) return undefined
+    const text = taken === undefined
+      ? CARRIED_CROPS
+      : marksMessage(taken.pending.map(p => p.mark), taken.handback, this.config.maxMarksPerMessage)
+    const images = await this.saveCrops([...carried, ...taken?.pending ?? []], exec)
+    if (taken === undefined && images.length === 0) return undefined
+    const content: ContentBlock[] = [{ type: 'text', text }, ...images.map(imageBlock)]
     return createUserMessage({ content, source: { kind: 'dsh-co-canvas' } })
   }
 }

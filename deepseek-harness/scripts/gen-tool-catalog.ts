@@ -494,7 +494,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
     writes: ['tool/call', 'tool/result', 'user marks attached to later tool results'],
     // Only the tool is mounted: the service would launch the shared browser.
     mount(ctx) {
-      ctx.tools.register(askUserToMarkTool(() => Promise.resolve('')))
+      ctx.tools.register(askUserToMarkTool(() => Promise.resolve({ text: '', images: [] })))
       return Promise.resolve()
     },
     note: 'The question appears beside the live page in the co-canvas tab; the result lists the marks drawn before the user sends them, each grounded to the element under it. Marks drawn without a question arrive after the next tool result.',
