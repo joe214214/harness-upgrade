@@ -62,6 +62,7 @@ import * as ToolReadDocument from '@deepseek-ai/dsh-tool-read-document'
 import * as ToolReadAudio from '@deepseek-ai/dsh-experimental-tool-read-audio'
 import * as ToolReadVideo from '@deepseek-ai/dsh-experimental-tool-read-video'
 import * as VisionBridge from '@deepseek-ai/dsh-vision-bridge'
+import { askUserToMarkTool } from '@deepseek-ai/dsh-experimental-co-canvas'
 import * as Memory from '@deepseek-ai/dsh-memory'
 import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
 import TerminalSessionService from '@deepseek-ai/dsh-terminal'
@@ -484,6 +485,19 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(VisionBridge)
     },
     note: 'The image and question go to the configured image-capable model in an auxiliary request; only the text answer returns, so a text-only route can use images without image blocks entering its history.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-experimental-co-canvas',
+    dir: 'co-canvas',
+    source: 'packages/experimental/co-canvas/src/index.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.typert', 'a Chromium the Host can launch', 'the co-canvas Web tab'],
+    writes: ['tool/call', 'tool/result', 'user marks attached to later tool results'],
+    // Only the tool is mounted: the service would launch the shared browser.
+    mount(ctx) {
+      ctx.tools.register(askUserToMarkTool(() => Promise.resolve('')))
+      return Promise.resolve()
+    },
+    note: 'The question appears beside the live page in the co-canvas tab; the result lists the marks drawn before the user sends them, each grounded to the element under it. Marks drawn without a question arrive after the next tool result.',
   },
   {
     pkg: '@deepseek-ai/dsh-memory',

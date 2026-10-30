@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-30-co-canvas-message-source.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-10-30-co-canvas-message-source.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-10-30-co-canvas-message-source:
+  en: a04f658a93ca75bb
+  zh: 9fdda67456d95afe
+/2026-10-30-co-canvas-message-source/summary:
+  en: 073ef0d3de867b6c
+  zh: df245426a205ce6d
+/2026-10-30-co-canvas-message-source/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-10-30-co-canvas-message-source/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-10-30-co-canvas-message-source/compatibility:
+  en: 9effe83ac3274bdd
+  zh: 947e7b61cc4f6200
+/2026-10-30-co-canvas-message-source/verification:
+  en: 01bf29aab803ff2d
+  zh: 9070e36448df392f
+/2026-10-30-co-canvas-message-source/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

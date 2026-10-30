@@ -19,7 +19,7 @@ import { routeAcceptsImages } from '@deepseek-ai/dsh-media-core'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { GenericCallView, ToolExecution } from '@deepseek-ai/dsh-tools'
+import type { GenericCallView, ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { SharedBrowser } from './browser.ts'
 import { marksMessage } from './marks.ts'
@@ -39,6 +39,11 @@ declare module '@deepseek-ai/cordis' {
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
+    /**
+     * User marks and control handbacks attached to a tool result by co-canvas.
+     * Readers preserve this message without the producer, which never reads the kind back.
+     * @persistenceAttribution
+     */
     'dsh-co-canvas': { kind: 'dsh-co-canvas' } & ContextFormed
   }
 }
@@ -57,7 +62,9 @@ export interface Config {
   userDataDir: string
   /** Page opened at launch. */
   startUrl: string
+  /** Viewport width in CSS pixels. */
   viewportWidth: number
+  /** Viewport height in CSS pixels. */
   viewportHeight: number
   /** JPEG quality of live frames. */
   frameQuality: number
@@ -85,6 +92,31 @@ interface OpenQuestion extends CanvasQuestion {
   readonly settle: () => void
 }
 
+/**
+ * The `ask_user_to_mark` tool definition.
+ * @param ask - shows the question to the user and resolves with the marks as model-facing text.
+ * @returns the tool, ready to register.
+ */
+export function askUserToMarkTool(ask: (question: string, signal: AbortSignal) => Promise<string>): ToolDefinition {
+  return defineTool({
+    name: 'ask_user_to_mark',
+    description: 'Ask the user to point at something in the shared browser, and wait for their answer. '
+      + 'They see your question beside the live page and answer by marking it; you get each marked element with a CSS selector. '
+      + 'Use it when the target is ambiguous or you cannot find it, instead of guessing.',
+    parameters: {
+      question: { type: 'string', required: true, description: 'What the user should mark, e.g. "Which Submit button should I press?"' },
+    },
+    output: {
+      schema: { type: 'object', additionalProperties: false, properties: { text: { type: 'string', required: true } } },
+      render: (_args, value) => [{ type: 'text', text: value.text }],
+    },
+    execute: async (args, exec) => ({ text: await ask(args.question, exec.signal) }),
+    presentCall(args): GenericCallView {
+      return { card: 'generic', title: `Ask the user to mark: ${args.question}`, kind: 'other' }
+    },
+  })
+}
+
 /** Owner of the shared browser and of the user's marks and control. */
 export default class CoCanvas extends TypertRemoteService {
   static inject = ['tools', 'systemPrompt', 'typert']
@@ -105,6 +137,7 @@ export default class CoCanvas extends TypertRemoteService {
     askTimeoutMs: z.natural().min(1000).default(300_000),
   })
 
+  /** The shared Chromium the agent's browser tools attach to. */
   readonly browser: SharedBrowser
   private control: CanvasControl = 'agent'
   /** Control the user held since the agent's last delivery. */
@@ -147,23 +180,7 @@ export default class CoCanvas extends TypertRemoteService {
           + 'they take priority over your plan. While the user holds control, your browser actions wait until it is handed back.',
     })
 
-    ctx.tools.register(defineTool({
-      name: 'ask_user_to_mark',
-      description: 'Ask the user to point at something in the shared browser, and wait for their answer. '
-        + 'They see your question beside the live page and answer by marking it; you get each marked element with a CSS selector. '
-        + 'Use it when the target is ambiguous or you cannot find it, instead of guessing.',
-      parameters: {
-        question: { type: 'string', required: true, description: 'What the user should mark, e.g. "Which Submit button should I press?"' },
-      },
-      output: {
-        schema: { type: 'object', additionalProperties: false, properties: { text: { type: 'string', required: true } } },
-        render: (_args, value) => [{ type: 'text', text: value.text }],
-      },
-      execute: async (args, exec) => ({ text: await this.ask(args.question, exec.signal) }),
-      presentCall(args): GenericCallView {
-        return { card: 'generic', title: `Ask the user to mark: ${args.question}`, kind: 'other' }
-      },
-    }))
+    ctx.tools.register(askUserToMarkTool((question, signal) => this.ask(question, signal)))
   }
 
   async* [Service.init](): AsyncGenerator<() => Promise<void> | void, void, void> {

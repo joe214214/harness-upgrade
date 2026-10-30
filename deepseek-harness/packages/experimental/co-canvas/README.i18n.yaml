@@ -1,0 +1,103 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/co-canvas/README.md
+/:
+  en: b5c459028d1bd1b7
+  zh: bf00895184a4c2a9
+/deepseek-ai-dsh-experimental-co-canvas:
+  en: a1f47bbb55d4e26a
+  zh: bd368f021242a901
+/deepseek-ai-dsh-experimental-co-canvas/summary:
+  en: 208c429c1f59994a
+  zh: 79dd6b06981ac244
+/deepseek-ai-dsh-experimental-co-canvas/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-experimental-co-canvas/use-this-package:
+  en: 6f346bcf1b2d5d1b
+  zh: 21bb3137f94aef8a
+/deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation:
+  en: a8ea90f5f789672c
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/one-browser-two-controllers:
+  en: 779ac82bcd0f0282
+  zh: e41abf7bc2fa1c0a
+/deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/live-view:
+  en: 4459ea40420d693d
+  zh: c33f45fe37a6f17c
+/deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/grounding-a-mark:
+  en: e50c3be0712cd0e4
+  zh: d275f7f476b82dc1
+/deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/delivery-and-control:
+  en: 86eb83a54e9764a3
+  zh: f92c0520f1cea708
+/deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/source-map:
+  en: 06520d14b09135b3
+  zh: 3020e99845717e08
+/deepseek-ai-dsh-experimental-co-canvas/further-exploration:
+  en: ac3c50ab35940b21
+  zh: 9ef1a832b78b46f4
+/deepseek-ai-dsh-experimental-co-canvas/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/system-prompt-guidance:
+  en: dbc7966c48c88456
+  zh: c6d8f0cdc82904a7
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/system-prompt-guidance/what-the-model-sees:
+  en: fa2e20670f1d2695
+  zh: aff32eec6f33aca7
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/system-prompt-guidance/what-the-model-sees/verbatim-guidance:
+  en: ee8865eda3bcc252
+  zh: 2c7fb4946d77aa1d
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/system-prompt-guidance/token-effect:
+  en: 38ca268f5ba1700f
+  zh: ca6b3b079195f47c
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/system-prompt-guidance/kv-cache-effect:
+  en: c7a9cdeb70fde0c0
+  zh: f420ab249d212d30
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/tool-schema:
+  en: e4c7376d4f29dbd5
+  zh: 6b7a9eaf69c9ea53
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/tool-schema/what-the-model-sees:
+  en: a4c3c40905a3ca03
+  zh: 3ce8d918164e33de
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/tool-schema/token-effect:
+  en: 97cce067584eadff
+  zh: a16550a49fe07f17
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/tool-schema/kv-cache-effect:
+  en: 79a20d1db0f4a32e
+  zh: 42d0feaa756f0b34
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/tool-result:
+  en: f8ffc2b983f05ffc
+  zh: 8573891441963be4
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/tool-result/what-the-model-sees:
+  en: 4837fcb8d46820d1
+  zh: e533cf9fe7e46717
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/tool-result/token-effect:
+  en: 7465022eb83209c3
+  zh: 3f9014c79a670c8b
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/tool-result/kv-cache-effect:
+  en: 45c20995b8ace59a
+  zh: 1f3ec855e32869e5
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/delivered-marks:
+  en: 814296402f4197b1
+  zh: 5101c0a898070a6a
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/delivered-marks/what-the-model-sees:
+  en: 64f038a022f30897
+  zh: ce46ad6e9c0a4c6e
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/delivered-marks/what-the-model-sees/example:
+  en: fac1d4d7e305e25e
+  zh: 8ae2f80d42769b42
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/delivered-marks/token-effect:
+  en: bf184498d2c0c40e
+  zh: 545cb3e26831289c
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/delivered-marks/kv-cache-effect:
+  en: aa6384b12232a60a
+  zh: e0d55000e3173f3e
+/deepseek-ai-dsh-experimental-co-canvas/known-limitations-and-deferred-work:
+  en: d0b831a28e34de65
+  zh: 3948915d5707ef7f
+/deepseek-ai-dsh-experimental-co-canvas/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 9c6918ce849f6c93

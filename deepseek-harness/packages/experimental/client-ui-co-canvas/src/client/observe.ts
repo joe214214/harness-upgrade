@@ -11,7 +11,9 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
  * @param open - opens the Remote stream.
  * @returns the latest value (null before the first item and after a carrier failure) and a disposer.
  */
-export function liveStream<T>(ctx: Context, name: string, open: (signal: AbortSignal) => AsyncIterable<T>): { store: HostObservable<T | null>; dispose: () => Promise<void> } {
+export function liveStream<T>(
+  ctx: Context, name: string, open: (signal: AbortSignal) => AsyncIterable<T>,
+): { store: HostObservable<T | null>; dispose: () => Promise<void> } {
   let value: T | null = null
   const listeners = new Set<() => void>()
   let running: { readonly stop: () => Promise<void> } | undefined
