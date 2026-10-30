@@ -1,0 +1,16 @@
+const { chromium } = require('playwright')
+;(async () => {
+  const dir = process.argv[2]
+  const browser = await chromium.launch()
+  const context = await browser.newContext({ viewport: { width: 960, height: 540 }, recordVideo: { dir, size: { width: 960, height: 540 } } })
+  const page = await context.newPage()
+  await page.goto('http://127.0.0.1:8765/index.html')
+  await page.waitForTimeout(1500)
+  await page.click('#add-coffee'); await page.waitForTimeout(1200)
+  await page.click('#add-bagel'); await page.waitForTimeout(1200)
+  await page.click('#add-coffee'); await page.waitForTimeout(1500)
+  await page.click('#checkout'); await page.waitForTimeout(3000)
+  const video = page.video()
+  await context.close(); await browser.close()
+  console.log(await video.path())
+})()

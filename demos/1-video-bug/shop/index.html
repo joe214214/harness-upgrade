@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Tiny Shop</title>
+<style>
+body{font:18px system-ui,sans-serif;margin:40px;background:#f6f7f9}
+h1{margin:0 0 20px}button{font:inherit;padding:8px 16px;margin:4px;border-radius:6px;border:1px solid #888;background:#fff;cursor:pointer}
+#cart{background:#fff;padding:16px;border-radius:8px;min-height:80px;margin:16px 0}
+#error{display:none;background:#c62828;color:#fff;padding:16px;border-radius:8px;font-family:monospace;font-size:20px}
+#total{font-size:22px;font-weight:600}
+</style></head><body>
+<h1>Tiny Shop</h1>
+<div><button id="add-coffee">Add coffee ($4)</button><button id="add-bagel">Add bagel ($3)</button><button id="checkout">Checkout</button></div>
+<div id="cart"></div><div id="total"></div><div id="error"></div>
+<script src="cart.js"></script>
+<script src="app.js"></script>
+</body></html>

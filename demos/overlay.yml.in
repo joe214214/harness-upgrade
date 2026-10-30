@@ -1,0 +1,15 @@
+# Enable the multimodal and memory packages from a DSH source checkout.
+# run.sh substitutes @DSH@ with the checkout path.
+- insert:
+    - id: tool-read-document
+      name: '@DSH@/packages/multimodal/tool-read-document/src/index.ts'
+    - id: tool-read-audio
+      name: '@DSH@/packages/experimental/tool-read-audio/src/index.ts'
+    - id: tool-read-video
+      name: '@DSH@/packages/experimental/tool-read-video/src/index.ts'
+    - id: vision-bridge
+      name: '@DSH@/packages/multimodal/vision-bridge/src/index.ts'
+    - id: memory
+      name: '@DSH@/packages/memory/memory/src/index.ts'
+      config:
+        root: '@MEMORY@'
