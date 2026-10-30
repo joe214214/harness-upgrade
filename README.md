@@ -42,7 +42,7 @@ dsh-mm headless "what error is in bug.webm?"  # one task, answer printed
 
 ## Demos (real runs on the DeepSeek API)
 
-**Co-canvas · Point instead of explaining.** The agent works in a shared browser that the Web UI shows live in a side tab. The user can box, point at or draw an arrow on the page with a note; each mark is resolved to the element underneath — `button "Submit" (2nd of 2 button elements with this text)` plus a CSS selector — and reaches the agent with its next tool result. Two real runs on a page with two identical "Submit" buttons:
+**Co-canvas · Point instead of explaining.** The agent works in a shared browser that the Web UI shows live in a side tab. The user can box, point at or draw an arrow on the page with a note; each mark is resolved to the element underneath — `button "Submit" (2nd of 2 button elements with this text)` plus a CSS selector — and reaches the agent with its next tool result. Two real runs on a page with two identical "Submit" buttons — **[watch the 77-second video](docs/co-canvas-demo.mp4)** (Chinese captions):
 
 - *The agent asks.* Told only to "press the Submit button", the agent noticed the ambiguity and called `ask_user_to_mark`; the user boxed Plan B and sent the mark; the agent clicked Plan B.
 - *The user corrects mid-task.* Told to "submit Plan A", the agent was paused the moment the page appeared; the user boxed Plan B with "Change of plan" and resumed. The browser action the agent had already chosen was refused instead of run, and it re-planned: "You changed the plan to Plan B… Plan A was never submitted."
