@@ -1,7 +1,7 @@
 From 758622cb4ebed086d2850ed6feba616090327fdf Mon Sep 17 00:00:00 2001
 From: joe214214 <y852zhou@uwaterloo.ca>
 Date: Fri, 30 Oct 2026 01:43:12 +0000
-Subject: [PATCH 2/6] feat(multimodal): add read_audio with silence-aware
+Subject: [PATCH 2/8] feat(multimodal): add read_audio with silence-aware
  timestamped transcripts
 
 Segments are cut at detected pauses, wrapped in canonical 16 kHz PCM16 WAV
