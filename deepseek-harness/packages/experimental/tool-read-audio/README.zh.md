@@ -56,6 +56,8 @@ kind: "package-reference"
 | `maxTranscriptChars` | `12000` | 改为时间索引前返回的转写大小 |
 | `indexBlockSeconds` | `300` | 时间索引中每一项的时长 |
 | `commandTimeoutMs` | `300000` | 每条 ffmpeg 命令的时限 |
+| `autoPrepare` | `true` | 提供方未就绪时启动其准备（SenseVoice 即首次下载与加载模型）；为 `false` 时改为报告 |
+| `prepareTimeoutMs` | `1800000` | 该准备过程的时限 |
 | `cacheDir` | `<tmpdir>/dsh-media-cache` | 转写缓存，与 `read_video` 共享 |
 
 -----
@@ -73,6 +75,10 @@ kind: "package-reference"
 ### 音频格式
 
 每个片段解码为 16 kHz 单声道 PCM16 原始数据，再由工具自己写入标准的 44 字节 WAV 头。ffmpeg 的 WAV 封装器可能添加 `LIST` 块，而语音提供方会拒绝它。样本不足 0.1 秒的片段会被跳过。
+
+### 提供方准备
+
+SenseVoice 等提供方在首次转写前必须下载并加载模型。工具在第一个片段之前经由 seam 的 `preparation` 控制启动或加入该准备过程，并等待就绪；失败、取消或超时都会让调用失败并带上提供方给出的原因。因此在新机器上的第一次调用包含模型下载。
 
 ### 缓存
 
