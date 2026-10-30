@@ -13,6 +13,32 @@
 
 The packages live on a branch of a dsh fork; until that repository is published they are in [`dsh-patches/`](dsh-patches/README.md) as `git am`-ready patches on top of dsh `0.2.2-alpha.2`.
 
+## Try it
+
+One script clones DSH at the base release, applies the patches, installs and builds everything (about 5 minutes), and adds a `dsh-mm` command. Only a [DeepSeek API key](https://platform.deepseek.com/api_keys) is needed; the script asks for it.
+
+**Windows** (PowerShell; installs missing Git, Node.js, FFmpeg and Poppler with winget):
+
+```powershell
+git clone https://github.com/joe214214/harness-upgrade; cd harness-upgrade
+powershell -ExecutionPolicy Bypass -File install\setup.ps1          # add -WithOffice for .docx/.pptx/.xlsx
+```
+
+**macOS / Linux** (needs Node.js 24.9+; `brew install poppler ffmpeg` or `apt install poppler-utils ffmpeg`):
+
+```bash
+git clone https://github.com/joe214214/harness-upgrade && cd harness-upgrade && install/setup.sh
+```
+
+Then, in any project folder:
+
+```
+dsh-mm                                        # DSH Web UI with all new tools
+dsh-mm headless "what error is in bug.webm?"  # one task, answer printed
+```
+
+![DSH Web UI reading a scanned PDF page with read_document](docs/web-ui-scanned-pdf.png)
+
 ## Demos (real runs on the DeepSeek API)
 
 **1 · Fix a bug from a screen recording.** [`demos/1-video-bug`](demos/1-video-bug/shop) holds a tiny web shop and a 10-second Playwright recording in which Checkout throws. The agent watches the video, reads the error off the frame (`TypeError … reading 'price' (cart.js:11)`), finds the off-by-one loop, fixes it, and verifies the fix with Node. Change-ranked sampling picks 5 frames — one per UI change — and the last one is the error banner.
