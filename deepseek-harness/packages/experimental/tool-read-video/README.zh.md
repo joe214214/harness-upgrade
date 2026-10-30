@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-experimental-tool-read-video` 让 agent 能看视频，例如 bug 的屏幕录像、产品演示或录制的讲座。它在画面变化处取关键帧，与说话内容一起合并为一条带时间戳的时间线。第一次调用用少量帧覆盖整段视频；agent 再围绕某个时刻缩小 `start` 与 `end`，同样的帧预算分布在更短的时间段上，就能看到更多细节。
+`dsh-experimental-tool-read-video` 让 agent 能看视频，例如 bug 的屏幕录像、产品演示或录制的讲座。它在画面变化最大的时刻取关键帧，与说话内容一起合并为一条带时间戳的时间线。第一次调用用少量帧覆盖整段视频；agent 再围绕某个时刻缩小 `start` 与 `end`，同样的帧预算分布在更短的时间段上，就能看到更多细节。
 
 ## 目录
 
@@ -40,10 +40,10 @@ kind: "package-reference"
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `maxFramesPerCall` | `8` | 一次调用返回的帧数 |
-| `sampling` | `scene` | `scene` 在画面变化处取帧；`uniform` 均匀取帧（作为基线） |
-| `sceneThreshold` | `0.3` | 场景切换的最低得分 |
+| `sampling` | `scene` | `scene` 保留第一帧与变化最大的时刻；`uniform` 均匀取帧（作为基线） |
+| `minSceneScore` | `0.001` | 低于该值的场景得分视为编码噪声 |
+| `minFrameGapSeconds` | `1` | 所选帧之间的最小间隔 |
 | `frameMaxWidth` | `1024` | 更宽的帧会被缩小 |
-| `maxCandidateFrames` | `300` | 筛选前写出的候选帧数上限，限制磁盘占用 |
 | `maxDurationSeconds` | `14400` | 接受的最长文件 |
 | `maxTranscriptChars` | `8000` | 一条时间线中包含的语音上限 |
 | `commandTimeoutMs` | `300000` | 每条 ffmpeg 命令的时限 |
@@ -59,7 +59,7 @@ kind: "package-reference"
 
 ### 帧选择
 
-一次 ffmpeg 运行先定位到窗口，再应用 `select='eq(n,0)+gt(scene,θ)'`（均匀模式下为 `fps=N/span`）与 `showinfo`，写出候选帧。`showinfo` 报告每帧的时间；候选帧随后被均匀精简到 `maxFramesPerCall`，并始终保留窗口的第一帧，因此静态视频也至少有一帧。屏幕录像很少变化，这正是场景采样能用比均匀采样少得多的帧覆盖它的原因。
+第一次 ffmpeg 扫描在 320 像素宽的副本上用场景检测器给窗口内每一帧打分。保留窗口第一帧，然后按得分从高到低选取高于 `minSceneScore` 的变化，每个与已选帧至少相隔 `minFrameGapSeconds`，直到 `maxFramesPerCall`；每帧取在变化点之后 0.3 秒，确保过渡已经稳定。随后对每个选定时间用输入定位提取一帧。之所以用排序代替固定阈值，是因为得分取决于内容：电影镜头切换得分高于 0.3，而屏幕录像中出现报错横幅只得 0.13，一行文字变化约 0.005。均匀模式把帧放在窗口等分片段的中点。
 
 ### 时间线
 
@@ -70,7 +70,7 @@ kind: "package-reference"
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口、配置、工具定义、时间线渲染 |
-| [`src/frames.ts`](src/frames.ts) | ffmpeg 滤镜、`showinfo` 解析、帧精简 |
+| [`src/frames.ts`](src/frames.ts) | 场景打分、变化排序、均匀时间点、帧提取 |
 
 </details>
 
@@ -121,7 +121,7 @@ kind: "package-reference"
 <a id="known-limitations-and-deferred-work"></a>
 
 - **纯文本路由没有帧** — 时间线只包含语音与说明；不会替模型描述画面。
-- **场景检测会漏掉缓慢变化** — 渐变或缓慢滚动的得分可能低于 `sceneThreshold`；缩小窗口或使用 `uniform` 采样可以覆盖。
+- **缓慢变化排名靠后** — 缓慢滚动把变化分散成许多小分数，帧预算可能被更明显的变化占用；缩小窗口或使用 `uniform` 采样可以覆盖。
 - **只支持宿主机执行** — ffmpeg 在提供方的进程路径上运行，并把帧写到宿主机临时目录。
 
 <a id="dev-note"></a>

@@ -470,7 +470,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(LocalSubprocessRuntime)
       await ctx.plugin(ToolReadVideo)
     },
-    note: 'Frames are sampled at scene changes (or uniformly when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span.',
+    note: 'Frames are the largest visual changes ranked by scene score (or uniformly spaced when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span.',
   },
   {
     pkg: '@deepseek-ai/dsh-vision-bridge',

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-tool-read-video` lets the agent watch a video, such as a screen recording of a bug, a demo, or a recorded talk. It returns keyframes taken where the picture changes, together with what was said, in one timestamped timeline. The first call covers the whole video with a few frames; the agent then narrows `start` and `end` around a moment, and the same frame budget spread over a shorter span shows it in more detail.
+`dsh-experimental-tool-read-video` lets the agent watch a video, such as a screen recording of a bug, a demo, or a recorded talk. It returns keyframes taken at the largest visual changes, together with what was said, in one timestamped timeline. The first call covers the whole video with a few frames; the agent then narrows `start` and `end` around a moment, and the same frame budget spread over a shorter span shows it in more detail.
 
 ## Table of Contents
 
@@ -40,10 +40,10 @@ Mount the plugin next to a filesystem backend, the subprocess service, an attach
 | Field | Default | Meaning |
 |---|---|---|
 | `maxFramesPerCall` | `8` | Frames returned by one call |
-| `sampling` | `scene` | `scene` keeps frames at visual changes; `uniform` spaces them evenly (the baseline) |
-| `sceneThreshold` | `0.3` | Minimum scene-change score |
+| `sampling` | `scene` | `scene` keeps the first frame and the largest visual changes; `uniform` spaces frames evenly (the baseline) |
+| `minSceneScore` | `0.001` | Scene scores below this are treated as encoder noise |
+| `minFrameGapSeconds` | `1` | Minimum spacing between selected frames |
 | `frameMaxWidth` | `1024` | Wider frames are scaled down |
-| `maxCandidateFrames` | `300` | Frames written before selection, bounding disk use |
 | `maxDurationSeconds` | `14400` | Longest file accepted |
 | `maxTranscriptChars` | `8000` | Speech included in one timeline |
 | `commandTimeoutMs` | `300000` | Deadline for each ffmpeg command |
@@ -59,7 +59,7 @@ Mount the plugin next to a filesystem backend, the subprocess service, an attach
 
 ### Frame selection
 
-One ffmpeg run seeks to the window, applies `select='eq(n,0)+gt(scene,θ)'` (or `fps=N/span` in uniform mode) with `showinfo`, and writes the candidate frames. `showinfo` reports each frame's time; the candidates are then thinned evenly to `maxFramesPerCall`, always keeping the window's first frame, so a static video still yields one frame. Screen recordings change rarely, which is why scene sampling covers them with far fewer frames than uniform sampling.
+A first ffmpeg pass scores every frame of the window with the scene detector on a 320-pixel-wide copy. The window's first frame is kept, then the highest-scoring changes above `minSceneScore`, each at least `minFrameGapSeconds` from those already kept, until `maxFramesPerCall`; each frame is taken 0.3 s after its change point so a transition has settled. Each selected time is then extracted with an input seek. Ranking replaces a fixed threshold because scores depend on content: film cuts score above 0.3, while an error banner appearing in a screen recording scored 0.13 and a one-line text change about 0.005. Uniform mode places frames in the middle of equal slices of the window.
 
 ### Timeline
 
@@ -70,7 +70,7 @@ Frames are committed with `ctx.attachments.saveImage`. Speech comes from the `re
 | File | Responsibility |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry, config, tool definition, timeline rendering |
-| [`src/frames.ts`](src/frames.ts) | ffmpeg filter, `showinfo` parsing, frame thinning |
+| [`src/frames.ts`](src/frames.ts) | Scene scoring, change ranking, uniform times, frame extraction |
 
 </details>
 
@@ -121,7 +121,7 @@ Append-only; the result follows the reusable request prefix and does not invalid
 <a id="known-limitations-and-deferred-work"></a>
 
 - **No frames for text-only routes** — the timeline carries speech and a note; frames are not described on the model's behalf.
-- **Scene detection misses slow changes** — a gradual fade or slow scroll may score below `sceneThreshold`; narrowing the window or `uniform` sampling covers it.
+- **Gradual changes rank low** — a slow scroll spreads its change over many small scores, so the frame budget may go to sharper changes; narrowing the window or `uniform` sampling covers it.
 - **Host execution only** — ffmpeg runs on the provider's process path and writes frames to the host temporary directory.
 
 <a id="dev-note"></a>
