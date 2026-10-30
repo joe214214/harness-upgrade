@@ -28,7 +28,7 @@ declare module '@deepseek-ai/dsh-llm' {
 export const name = 'vision-bridge'
 
 /** Required services. */
-export const inject = ['tools', 'fs', 'llm', 'attachments']
+export const inject = ['tools', 'fs', 'llm', 'attachments', 'systemPrompt']
 
 /** Plugin config; every field has a validated default. */
 export interface Config {
@@ -77,6 +77,15 @@ async function resolveTarget(ctx: Context, exec: ToolExecution, requested: strin
  */
 export function apply(ctx: Context, config: Config): void {
   const cfg = config as ResolvedConfig
+  ctx.systemPrompt.section({
+    name: 'tool:ask_image',
+    order: ctx.systemPrompt.getSectionOrder('TOOL_ASK_IMAGE'),
+    interpolate: false,
+    text: ({ scope }) => ctx.tools.get('ask_image', scope) === undefined
+      ? ''
+      : 'When you cannot view an image yourself, ask about it with ask_image instead of guessing from its file name or surrounding text.',
+  })
+
   ctx.tools.register(defineTool({
     name: 'ask_image',
     description: 'Ask a question about an image file (PNG/JPEG/WebP/GIF) and get a text answer from a vision model. '

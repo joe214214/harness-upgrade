@@ -102,6 +102,26 @@ The whole-file transcript is cached under a key built from the file's SHA-256, t
 <a id="model-experience"></a>
 ## Model Experience
 
+### System-prompt guidance
+
+#### What the model sees
+
+One sentence in the system prompt, present only while the tool is visible in the calling scope, steering the model to this tool instead of shell commands.
+
+##### Verbatim guidance
+
+```markdown
+Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns.
+```
+
+#### Token effect
+
+Fixed and small, on every request where the tool is visible.
+
+#### KV Cache effect
+
+Prefix-stable while the tool's visibility is unchanged; it sits in the cached system prompt.
+
 ### Tool schema
 
 #### What the model sees

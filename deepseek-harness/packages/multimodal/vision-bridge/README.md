@@ -69,6 +69,26 @@ The tool reads the file through `ctx.fs`, commits it with `ctx.attachments.saveI
 <a id="model-experience"></a>
 ## Model Experience
 
+### System-prompt guidance
+
+#### What the model sees
+
+One sentence in the system prompt, present only while the tool is visible in the calling scope, steering the model to this tool instead of shell commands.
+
+##### Verbatim guidance
+
+```markdown
+When you cannot view an image yourself, ask about it with ask_image instead of guessing from its file name or surrounding text.
+```
+
+#### Token effect
+
+Fixed and small, on every request where the tool is visible.
+
+#### KV Cache effect
+
+Prefix-stable while the tool's visibility is unchanged; it sits in the cached system prompt.
+
 ### Tool schema
 
 #### What the model sees
