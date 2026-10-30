@@ -100,7 +100,10 @@ export class EpisodicMemory {
     }))
   }
 
-  /** @returns the number of stored Sessions. */
+  /**
+   * Count the Sessions that have stored turns.
+   * @returns the number of stored Sessions.
+   */
   sessionCount(): number {
     return (this.db.prepare('SELECT COUNT(*) AS n FROM sessions').get() as { n: number }).n
   }

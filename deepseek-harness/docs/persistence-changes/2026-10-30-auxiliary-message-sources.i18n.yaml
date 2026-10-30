@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-30-auxiliary-message-sources.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-10-30-auxiliary-message-sources.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-10-30-auxiliary-message-sources:
+  en: 1faad32621f9f9e9
+  zh: 2eb4a550ce4cd180
+/2026-10-30-auxiliary-message-sources/summary:
+  en: af64424e7823aa84
+  zh: e905b14d5f2da3fd
+/2026-10-30-auxiliary-message-sources/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-10-30-auxiliary-message-sources/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-10-30-auxiliary-message-sources/compatibility:
+  en: 3be81a4de1f81592
+  zh: ca07b638765c12a2
+/2026-10-30-auxiliary-message-sources/verification:
+  en: 08c147b0829b8cdb
+  zh: f4a4f34849162043
+/2026-10-30-auxiliary-message-sources/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269

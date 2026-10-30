@@ -1,0 +1,40 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/multimodal/media-core/README.md
+/:
+  en: 52dd99a85891cbc9
+  zh: 1069cf3dd3435916
+/deepseek-ai-dsh-media-core:
+  en: 9341dc429e446bf4
+  zh: 2ab0b6a47456e6d2
+/deepseek-ai-dsh-media-core/summary:
+  en: 2b2dee6c8cd94d35
+  zh: 6baf5d0dec7964a3
+/deepseek-ai-dsh-media-core/table-of-contents:
+  en: 76368b6b1da79c80
+  zh: 52384aee991ac542
+/deepseek-ai-dsh-media-core/use-this-package:
+  en: 5faddfbc780676f6
+  zh: 346ffc2fd05ef0ef
+/deepseek-ai-dsh-media-core/understand-the-implementation:
+  en: a8ea90f5f789672c
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-media-core/understand-the-implementation/design-philosophy:
+  en: 627ffc1eaed5ea08
+  zh: 9d9a97b959ef3faa
+/deepseek-ai-dsh-media-core/understand-the-implementation/source-map:
+  en: 80c7889ae6a488b6
+  zh: a7096c9078bc9931
+/deepseek-ai-dsh-media-core/model-experience:
+  en: 5d2ed6a6cae38a97
+  zh: 0698b09a0bec0dab
+/deepseek-ai-dsh-media-core/model-experience/kv-cache-effect:
+  en: a60e1955ae87a037
+  zh: c50d458257c031a4
+/deepseek-ai-dsh-media-core/known-limitations-and-deferred-work:
+  en: 730403a8f907eadf
+  zh: 2bcb7e4666ba96de
+/deepseek-ai-dsh-media-core/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 9c6918ce849f6c93

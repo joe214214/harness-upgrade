@@ -36,7 +36,10 @@ export class LongTermMemory {
    */
   constructor(readonly path: string, readonly capBytes: number) {}
 
-  /** @returns the file text, or empty when it does not exist. */
+  /**
+   * Read MEMORY.md.
+   * @returns the file text, or empty when it does not exist.
+   */
   read(): string {
     try {
       return readFileSync(this.path, 'utf8')
@@ -47,12 +50,18 @@ export class LongTermMemory {
     }
   }
 
-  /** @returns current UTF-8 size in bytes. */
+  /**
+   * Measure MEMORY.md against its cap.
+   * @returns current UTF-8 size in bytes.
+   */
   size(): number {
     return Buffer.byteLength(this.read(), 'utf8')
   }
 
-  /** @returns facts per section, without source tags. */
+  /**
+   * List the facts filed under each section.
+   * @returns facts per section, without source tags.
+   */
   sections(): Map<string, string[]> {
     const out = new Map<string, string[]>()
     let current = 'general'
@@ -115,7 +124,10 @@ export class LongTermMemory {
     this.write(`${text.replace(/\n+$/u, '')}\n`)
   }
 
-  /** @returns the memory as model context, without source tags; empty when there is none. */
+  /**
+   * Render MEMORY.md as model context.
+   * @returns the memory without source tags, wrapped with its size; empty when there is none.
+   */
   renderForPrompt(): string {
     const text = this.read().trim()
     if (!text) return ''

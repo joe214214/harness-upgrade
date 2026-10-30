@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/multimodal/README.md
+/:
+  en: 9b9337e8e6804e0d
+  zh: 20a36c8115e0aa8b
+/packages-multimodal:
+  en: dbbca0e779373d8f
+  zh: 7a29eb61f8703ab2
+/packages-multimodal/summary:
+  en: a79a5b7e1594ee0c
+  zh: a7ab623a6cf5b534
+/packages-multimodal/table-of-contents:
+  en: 1eb35b015a6c423f
+  zh: a8a3dceee2c9e943
+/packages-multimodal/packages:
+  en: 4015ed8865172d57
+  zh: 657d30285f823766
+/packages-multimodal/related-documentation:
+  en: a00c985e59350994
+  zh: dc55bc1fd29fb3ae
+/packages-multimodal/dev-note:
+  en: 5de1d6304e00c58f
+  zh: 4a3c2a7b64d1fdaf

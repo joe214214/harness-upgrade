@@ -1,0 +1,21 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    { "path": "../../../vendor/cosmokit" },
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../../vendor/schemastery" },
+    { "path": "../../core/tools" },
+    { "path": "../../fs/fs" },
+    { "path": "../../subprocess/subprocess" },
+    { "path": "../../session/working-directory" },
+    { "path": "../speech-to-text" },
+    { "path": "../../multimodal/media-core" }
+  ]
+}

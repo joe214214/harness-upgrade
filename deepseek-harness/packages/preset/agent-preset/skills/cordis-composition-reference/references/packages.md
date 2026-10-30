@@ -220,6 +220,8 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-experimental-speech-to-text-sensevoice` | yes | Local SenseVoice ONNX transcription with a managed sherpa-onnx process |
 | `@deepseek-ai/dsh-experimental-subagent-oar` | yes | Experimental one-shot subagents through OAR runtimes |
 | `@deepseek-ai/dsh-experimental-tool-agent-team` | yes | Scoped model-facing Agent Teams tools over ctx.agentTeams |
+| `@deepseek-ai/dsh-experimental-tool-read-audio` | yes | Model-facing read_audio tool: timestamped transcripts of audio and video files through the speech seam, with silence-aware segmentation and a time index for long recordings |
+| `@deepseek-ai/dsh-experimental-tool-read-video` | yes | Model-facing read_video tool: scene-change keyframes and speech of a video merged into one timestamped timeline, read coarse to fine |
 | `@deepseek-ai/dsh-experimental-tool-subagent-oar` | yes | Delegate standalone tasks to configured external subagent providers |
 | `@deepseek-ai/dsh-experimental-tool-worktree` | no | Model tool that creates and enters a new Git worktree |
 | `@deepseek-ai/dsh-experimental-translator` | yes | Machine translation with reusable Session results |
@@ -335,6 +337,19 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 |---|---|---|
 | `@deepseek-ai/dsh-mcp-client` | yes | MCP client bridge: connects to MCP servers and registers their tools on ctx.tools |
 | `@deepseek-ai/dsh-mcp-resources` | no | Scoped MCP resource discovery and reading through shared model tools |
+
+## memory
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-memory` | yes | Cross-Session long-term memory: a size-capped MEMORY.md the agent curates, FTS5 episodic recall over past Sessions, and a post-turn reflect pass, built on system-prompt context, tools, and agent/turn-stopping |
+
+## multimodal
+
+| Package | Config | Description |
+|---|---|---|
+| `@deepseek-ai/dsh-tool-read-document` | yes | Model-facing read_document tool: PDF and Office files read coarse to fine, with scanned pages and figures rendered to images for image-capable models |
+| `@deepseek-ai/dsh-vision-bridge` | yes | ask_image tool: a model on a text-only route asks an image-capable model about an image and receives only the text answer |
 
 ## plan
 

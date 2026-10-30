@@ -32,6 +32,11 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-str-replace-editor` | `str_replace_editor` | `ctx.tools`, `ctx.fs` | `tool/call`, `fs/observed after view presence/absence, edit absence, or successful mutation`, `tool/result` | - | Standalone view/create/unique literal replace/line insert tool over the filesystem seam; it composes with any shell or terminal API. |
 | `@deepseek-ai/dsh-tool-fs` | `edit`, `read`, `read_image`, `write` | `ctx.workingDirectory`, `ctx.tools`, `ctx.fs`, `ctx.systemPrompt`, `ctx.attachments (image-tool registration)`, `ctx.llm + an image-capable route (image-tool execution)` | `tool/call`, `fs/write-intent or fs/edit-intent for mutations`, `fs/observed after read presence/absence or successful file operation`, `durable attachment (read_image)`, `tool/result` | - | The read-before-write/edit policy is added by `@deepseek-ai/dsh-fs-observation-policy` (an `fs/*` event-gate plugin, no schema change); a deployment that loads these tools is expected to also load it. The image tool is not registered without `ctx.attachments`; its schema is route-independent, and execution refuses unless the exact routed model declares image input. |
 | `@deepseek-ai/dsh-tool-fs-search` | `glob`, `grep` | `ctx.workingDirectory`, `ctx.tools`, `ctx.subprocess`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | glob and grep are unconditional discovery tools that spawn the packaged ripgrep binary (`@vscode/ripgrep`) through ctx.subprocess as ordinary foreground calls (never background jobs) — no host `rg` install and no shell layer. The catalog uses `sampleOverCapGlobResults: true`; deployments must choose that behavior explicitly. Capped results save the complete formatted list through the optional ctx.spillStore backend; returned locators are follow-up-readable/searchable when the backend exposes local paths in co-located deployments. |
+| `@deepseek-ai/dsh-tool-read-document` | `read_document` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.attachments + an image-capable route (page images)`, `poppler and LibreOffice on the host` | `tool/call`, `durable attachment (page images)`, `tool/result` | - | Without `pages` a short document returns whole and a long one returns a per-page outline. Page images are returned only for pages without a text layer (or every page in `image` mode) and only when an attachment store is mounted and the routed model declares image input; otherwise each such page carries a note. |
+| `@deepseek-ai/dsh-experimental-tool-read-audio` | `read_audio` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.speechToText (at call time)`, `ffmpeg on the host` | `tool/call`, `tool/result` | - | Timestamps come from silence-aware segmentation: each segment is transcribed separately through the speech seam. A transcript over `maxTranscriptChars` returns a time index instead, and `start`/`end` select a window from the cached whole-file transcript. |
+| `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.attachments + an image-capable route (frames)`, `ctx.speechToText (speech, at call time)`, `ffmpeg on the host` | `tool/call`, `durable attachment (frames)`, `tool/result` | - | Frames are sampled at scene changes (or uniformly when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span. |
+| `@deepseek-ai/dsh-vision-bridge` | `ask_image` | `ctx.tools`, `ctx.fs`, `ctx.llm`, `ctx.attachments`, `a configured image-capable model` | `tool/call`, `durable attachment (the asked image)`, `tool/result` | - | The image and question go to the configured image-capable model in an auxiliary request; only the text answer returns, so a text-only route can use images without image blocks entering its history. |
+| `@deepseek-ai/dsh-memory` | `memory_read`, `memory_replace`, `memory_rewrite`, `memory_write`, `recall` | `ctx.tools`, `ctx.systemPrompt`, `ctx.llm (reflect pass)` | `tool/call`, `tool/result`, `MEMORY.md and episodic.db under the configured root` | - | MEMORY.md is also placed in every request as runtime context. After each turn the plugin stores the turn in episodic memory and, with `reflect` on, files durable facts it extracts with one auxiliary request on the agent's route. |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.workingDirectory`, `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
 | `@deepseek-ai/dsh-tool-schedule` | `schedule_create`, `schedule_delete`, `schedule_list`, `schedule_update` | `ctx.tools`, `ctx.schedule` | `tool/call`, `Schedule storage domain create, update, or delete`, `tool/result` | - | A preset or Agent scope mounts this package; the preset decides which agents receive the four management tools. Each call acts on the calling Agent's Session. Accepts after_seconds, explicit absolute at, bounded fixed-rate every_seconds, daily and weekly local times in an explicit IANA zone, and cron as a five-field expression. Management uses the Host storage domain; due messages resume the original Session. |
@@ -1215,6 +1220,266 @@ Search file contents with a ripgrep regular expression. Returns matching lines w
 Source: [`packages/fs/tool-fs-search/src/index.ts`](../packages/fs/tool-fs-search/src/index.ts)
 
 glob and grep are unconditional discovery tools that spawn the packaged ripgrep binary (`@vscode/ripgrep`) through ctx.subprocess as ordinary foreground calls (never background jobs) — no host `rg` install and no shell layer. The catalog uses `sampleOverCapGlobResults: true`; deployments must choose that behavior explicitly. Capped results save the complete formatted list through the optional ctx.spillStore backend; returned locators are follow-up-readable/searchable when the backend exposes local paths in co-located deployments.
+
+<a id="deepseek-aidsh-tool-read-document"></a>
+
+## `@deepseek-ai/dsh-tool-read-document`
+
+### `read_document`
+
+Read a PDF or Office document (.pdf, .docx, .pptx, .xlsx, .odt, …). Without pages: returns the whole text of a short document, or a per-page outline of a long one. With pages: returns those pages; scanned pages, slides and figures come back as page images when the model accepts images. Use mode "image" to see a page's layout, tables or charts even when it has text.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the document."
+    },
+    "pages": {
+      "type": "string",
+      "description": "Pages to read, 1-based: \"3\", \"2-5\" or \"1,4-6\". At most 10 per call."
+    },
+    "mode": {
+      "type": "string",
+      "description": "auto (default): images only for pages without a text layer; text: never images; image: an image for every selected page.",
+      "enum": [
+        "auto",
+        "text",
+        "image"
+      ]
+    }
+  },
+  "required": [
+    "file_path"
+  ]
+}
+```
+
+Source: [`packages/multimodal/tool-read-document/src/index.ts`](../packages/multimodal/tool-read-document/src/index.ts)
+
+Without `pages` a short document returns whole and a long one returns a per-page outline. Page images are returned only for pages without a text layer (or every page in `image` mode) and only when an attachment store is mounted and the routed model declares image input; otherwise each such page carries a note.
+
+<a id="deepseek-aidsh-experimental-tool-read-audio"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-read-audio`
+
+### `read_audio`
+
+Transcribe an audio or video file (.mp3, .wav, .m4a, .mp4, …) into timestamped text. A short recording returns the whole transcript; a long one returns a time index, then call again with start/end to read a part. Timestamps let you quote exactly when something was said.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the audio or video file."
+    },
+    "start": {
+      "type": "string",
+      "description": "Window start: seconds, MM:SS or HH:MM:SS. Default: beginning."
+    },
+    "end": {
+      "type": "string",
+      "description": "Window end: seconds, MM:SS or HH:MM:SS. Default: end of file."
+    }
+  },
+  "required": [
+    "file_path"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-read-audio/src/index.ts`](../packages/experimental/tool-read-audio/src/index.ts)
+
+Timestamps come from silence-aware segmentation: each segment is transcribed separately through the speech seam. A transcript over `maxTranscriptChars` returns a time index instead, and `start`/`end` select a window from the cached whole-file transcript.
+
+<a id="deepseek-aidsh-experimental-tool-read-video"></a>
+
+## `@deepseek-ai/dsh-experimental-tool-read-video`
+
+### `read_video`
+
+Watch a video file (.mp4, .mov, .webm, screen recordings, …): returns keyframes at visual changes and the spoken audio, merged into one timestamped timeline. Start with the whole video, then call again with start/end around a moment to see it in more detail.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the video file."
+    },
+    "start": {
+      "type": "string",
+      "description": "Window start: seconds, MM:SS or HH:MM:SS. Default: beginning."
+    },
+    "end": {
+      "type": "string",
+      "description": "Window end: seconds, MM:SS or HH:MM:SS. Default: end of video."
+    },
+    "transcript": {
+      "type": "boolean",
+      "description": "Include the spoken audio. Default true."
+    }
+  },
+  "required": [
+    "file_path"
+  ]
+}
+```
+
+Source: [`packages/experimental/tool-read-video/src/index.ts`](../packages/experimental/tool-read-video/src/index.ts)
+
+Frames are sampled at scene changes (or uniformly when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span.
+
+<a id="deepseek-aidsh-vision-bridge"></a>
+
+## `@deepseek-ai/dsh-vision-bridge`
+
+### `ask_image`
+
+Ask a question about an image file (PNG/JPEG/WebP/GIF) and get a text answer from a vision model. Use it when you cannot view images yourself, e.g. screenshots, diagrams, scanned pages, or frames saved by other tools.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "file_path": {
+      "type": "string",
+      "description": "Path to the image file."
+    },
+    "question": {
+      "type": "string",
+      "description": "What you need to know; ask for exact text when it matters."
+    }
+  },
+  "required": [
+    "file_path",
+    "question"
+  ]
+}
+```
+
+Source: [`packages/multimodal/vision-bridge/src/index.ts`](../packages/multimodal/vision-bridge/src/index.ts)
+
+The image and question go to the configured image-capable model in an auxiliary request; only the text answer returns, so a text-only route can use images without image blocks entering its history.
+
+<a id="deepseek-aidsh-memory"></a>
+
+## `@deepseek-ai/dsh-memory`
+
+### `memory_read`
+
+Read the whole long-term memory file (MEMORY.md), including source tags.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+### `memory_replace`
+
+Replace one exact, unique substring of MEMORY.md to fix or update a fact; an empty replacement deletes it.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "old": {
+      "type": "string"
+    },
+    "new": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "old",
+    "new"
+  ]
+}
+```
+
+Source: [`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+### `memory_rewrite`
+
+Replace the whole MEMORY.md to consolidate it: merge duplicates, drop stale facts, compress details. Keep the "## section" / "- fact" format.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "text": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "text"
+  ]
+}
+```
+
+Source: [`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+### `memory_write`
+
+Save one durable fact to long-term memory: a user preference, project convention or decision that should still hold in future sessions. Fails when memory is full; then consolidate with memory_rewrite first.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "section": {
+      "type": "string",
+      "enum": [
+        "user",
+        "project",
+        "decisions",
+        "general"
+      ]
+    },
+    "fact": {
+      "type": "string",
+      "description": "One self-contained line."
+    }
+  },
+  "required": [
+    "section",
+    "fact"
+  ]
+}
+```
+
+Source: [`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+### `recall`
+
+Search earlier sessions' conversations, tool results and media transcripts by keywords. Use when the user refers to previous work that is not in long-term memory.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "query"
+  ]
+}
+```
+
+Source: [`packages/memory/memory/src/index.ts`](../packages/memory/memory/src/index.ts)
+
+MEMORY.md is also placed in every request as runtime context. After each turn the plugin stores the turn in episodic memory and, with `reflect` on, files durable facts it extracts with one auxiliary request on the agent's route.
 
 <a id="deepseek-aidsh-tool-terminal"></a>
 
