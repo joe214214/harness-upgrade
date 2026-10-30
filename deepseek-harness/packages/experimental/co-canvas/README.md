@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-co-canvas` lets the user work in the same browser as the agent. It launches one Chromium that the agent's browser tools attach to, and the [co-canvas tab](../client-ui-co-canvas/README.md) shows it live. The user boxes, points at, or draws an arrow to an element, with an optional note; each mark is resolved to the element underneath (role, text, selector, and which look-alike it is) and reaches the agent with its next tool result. The user can pause the agent or take over. The agent can ask for a mark with `ask_user_to_mark` instead of guessing.
+`dsh-experimental-co-canvas` lets the user work in the same browser as the agent. It launches one Chromium that the agent's browser tools attach to; the user marks pages directly in that browser window through an injected toolbar, or in the live view of the [co-canvas tab](../client-ui-co-canvas/README.md). The user boxes or points at an element, with an optional note; each mark is resolved to the element underneath (role, text, selector, and which look-alike it is) and reaches the agent with its next tool result. The user can pause the agent or take over. The agent can ask for a mark with `ask_user_to_mark`.
 
 ## Table of Contents
 
@@ -54,10 +54,11 @@ Mount it with the co-canvas tab and a browser-use provider in attach mode that p
 | `startUrl` | `about:blank` | Page opened at launch |
 | `viewportWidth`, `viewportHeight` | `1280`, `800` | Viewport in CSS pixels |
 | `frameQuality` | `60` | JPEG quality of live frames |
+| `pageToolbar` | `true` | Inject the marking toolbar into every page of the browser window |
 | `gatedTools` | `(^\|__)browser_` | Regular expression for the agent's browser tool names, bare or MCP-prefixed; matching calls wait while the user holds control |
 | `maxMarksPerMessage` | `10` | Most marks listed in one delivery; older ones are counted |
 | `maxCropsPerMessage` | `3` | Most cropped screenshots per delivery on image-capable routes; `0` disables them |
-| `cropMargin` | `40` | Context pixels around a cropped mark |
+| `cropMargin` | `120` | Context pixels around a cropped mark |
 | `askTimeoutMs` | `300000` | How long `ask_user_to_mark` waits |
 
 -----
@@ -76,9 +77,13 @@ The service launches a persistent Chromium context with a remote-debugging port.
 
 `frames` streams JPEG frames from the CDP screencast of the active page and reattaches when the active page changes. A slow reader receives only the newest frame. `follow` streams the URL, title, control holder, open question, and undelivered marks.
 
+### In-page toolbar
+
+With `pageToolbar`, every top-level document gets a small toolbar: a note field, Mark, and Pause or Resume, plus the agent's open question with a button that sends the marks. It runs in an isolated world; the binding it reports through exists only in that world, so the page's own scripts cannot send marks, and it accepts only trusted (user-generated) events. Its host is `aria-hidden`, so accessibility snapshots of the page omit it. `document.open()` erases every listener in a document, so the toolbar is rebuilt whenever its host leaves the document.
+
 ### Grounding a mark
 
-The focus point of a mark is the centre of a box, the head of an arrow, or the point itself. `DOM.getNodeForLocation` finds the node there; a function evaluated on that node returns its tag, text, role, label, a CSS selector, and its position among elements with the same tag and text. A PNG crop around the mark is taken at the same time, so a later navigation does not change what the user marked.
+The focus point of a mark is the centre of a box, the head of an arrow, or the point itself. `DOM.getNodeForLocation` finds the node there; a function evaluated on that node returns its tag, text, role, label, a CSS selector, and its position among elements with the same tag and text. The toolbar is hidden meanwhile. A PNG crop of `cropMargin` pixels around the mark is taken at the same time with the mark drawn on it, so a later navigation does not change what the user marked.
 
 ### Delivery and control
 
@@ -89,7 +94,8 @@ A `tools/post-execute` listener attaches undelivered marks, and any handback sin
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Service, config, Remote methods, tool hooks, `ask_user_to_mark` |
-| [`src/browser.ts`](src/browser.ts) | Browser launch, active page, screencast, hit testing, crops, input |
+| [`src/browser.ts`](src/browser.ts) | Browser launch, active page, screencast, toolbar wiring, hit testing, crops, input |
+| [`src/overlay.ts`](src/overlay.ts) | The in-page toolbar and its messages |
 | [`src/marks.ts`](src/marks.ts) | Model-facing mark text |
 | [`src/types.ts`](src/types.ts) | Types shared with the Web tab |
 
@@ -147,11 +153,11 @@ Prefix-stable while the definition and visibility are unchanged.
 
 #### What the model sees
 
-`ask_user_to_mark` returns the marks drawn while the question was open, in the format below, or a sentence saying that the user marked nothing.
+`ask_user_to_mark` returns the marks drawn while the question was open, in the format below, followed on image-capable routes by up to `maxCropsPerMessage` crops with the marks drawn on them, or a sentence saying that the user marked nothing.
 
 #### Token effect
 
-About one line per mark, at most `maxMarksPerMessage` lines.
+About one line per mark, at most `maxMarksPerMessage` lines, plus each crop's image cost.
 
 #### KV Cache effect
 
@@ -161,7 +167,7 @@ Append-only; the result follows the reusable request prefix.
 
 #### What the model sees
 
-A browser call chosen before the user's latest input fails without running, with this reason followed by the marks in the format below.
+A browser call chosen before the user's latest input fails without running, with this reason followed by the marks in the format below. On image-capable routes their crops follow with the next tool result, under a one-line `<user_marks>` note.
 
 ##### Verbatim reason
 
@@ -207,7 +213,8 @@ Append-only; the message follows the tool result it is attached to.
 - **One shared browser per Host** — every Session that attaches uses the same browser, and one question can be open at a time.
 - **Marks are not stored outside the Session** — undelivered marks are lost when the Host restarts.
 - **Host-only browser** — the browser runs on the Host machine; remote execution environments are not supported.
-- **Top frame only** — hit testing resolves elements of the main document, not inside cross-origin iframes.
+- **Top frame only** — the toolbar and hit testing cover the main document, not iframes.
+- **Visible to screenshots** — the agent's own page screenshots include the toolbar in a corner of the viewport.
 
 <a id="dev-note"></a>
 ### Dev Note

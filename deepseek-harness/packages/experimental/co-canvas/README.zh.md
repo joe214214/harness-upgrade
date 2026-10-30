@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-experimental-co-canvas` 让用户和 agent 在同一个浏览器里协作。它启动一个 Chromium，agent 的浏览器工具连接到它，[协同画布标签页](../client-ui-co-canvas/README.zh.md)实时显示它。用户框选、点选某个元素或画箭头指向它，并附上一句话；每个标注都会定位到下方的元素（角色、文字、选择器，以及它是哪一个相似元素），随 agent 的下一个工具结果送达。用户可以暂停 agent 或接管页面。agent 也可以用 `ask_user_to_mark` 请用户标注，而不是自己猜。
+`dsh-experimental-co-canvas` 让用户和 agent 在同一个浏览器里协作。它启动一个 Chromium，agent 的浏览器工具连接到它；用户可以通过注入的工具栏直接在这个浏览器窗口里标注页面，也可以在[协同画布标签页](../client-ui-co-canvas/README.zh.md)的实时画面上标注。用户框选或点选某个元素，并附上一句话；每个标注都会定位到下方的元素（角色、文字、选择器，以及它是哪一个相似元素），随 agent 的下一个工具结果送达。用户可以暂停 agent 或接管页面。agent 也可以用 `ask_user_to_mark` 请用户标注。
 
 ## 目录
 
@@ -54,10 +54,11 @@ kind: "package-reference"
 | `startUrl` | `about:blank` | 启动时打开的页面 |
 | `viewportWidth`、`viewportHeight` | `1280`、`800` | 视口大小（CSS 像素） |
 | `frameQuality` | `60` | 实时画面的 JPEG 质量 |
+| `pageToolbar` | `true` | 向浏览器窗口的每个页面注入标注工具栏 |
 | `gatedTools` | `(^\|__)browser_` | 匹配 agent 浏览器工具名称的正则表达式，带或不带 MCP 前缀均可；用户持有控制权时匹配的调用会等待 |
 | `maxMarksPerMessage` | `10` | 一次送达最多列出的标注数；更早的只给出数量 |
 | `maxCropsPerMessage` | `3` | 支持图片的路由上每次送达最多附带的截图数；`0` 表示不附带 |
-| `cropMargin` | `40` | 截图在标注四周保留的像素 |
+| `cropMargin` | `120` | 截图在标注四周保留的像素 |
 | `askTimeoutMs` | `300000` | `ask_user_to_mark` 的等待时限 |
 
 -----
@@ -76,9 +77,13 @@ kind: "package-reference"
 
 `frames` 从活动页的 CDP screencast 推送 JPEG 画面，活动页变化时重新连接。读取较慢时只收到最新一帧。`follow` 推送 URL、标题、控制方、待回答的问题和未送达的标注。
 
+### 页面内工具栏
+
+开启 `pageToolbar` 时，每个顶层文档都会出现一个小工具栏：附言输入框、“标注”和“暂停/继续”按钮，以及 agent 待回答的问题和发送标注的按钮。它运行在隔离环境中；它上报所用的 binding 只存在于该环境，因此页面自身的脚本无法发送标注，而且它只接受可信（用户产生的）事件。它的宿主元素带有 `aria-hidden`，页面的无障碍快照不包含它。`document.open()` 会清除文档中的所有监听器，因此宿主一旦离开文档，工具栏就会整体重建。
+
 ### 标注定位
 
-标注的焦点是框的中心、箭头的末端或点本身。`DOM.getNodeForLocation` 找到该处的节点；在节点上执行的函数返回它的标签、文字、角色、标签名、CSS 选择器，以及它在同标签同文字元素中的位置。同时截取标注周围的 PNG，之后页面跳转也不会改变用户标注的内容。
+标注的焦点是框的中心、箭头的末端或点本身。`DOM.getNodeForLocation` 找到该处的节点；在节点上执行的函数返回它的标签、文字、角色、标签名、CSS 选择器，以及它在同标签同文字元素中的位置。期间工具栏会被隐藏。同时截取标注周围 `cropMargin` 像素的 PNG，并在图上画出标注，之后页面跳转也不会改变用户标注的内容。
 
 ### 送达与控制权
 
@@ -89,7 +94,8 @@ kind: "package-reference"
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | 服务、配置、Remote 方法、工具钩子、`ask_user_to_mark` |
-| [`src/browser.ts`](src/browser.ts) | 浏览器启动、活动页、screencast、命中测试、截图、输入 |
+| [`src/browser.ts`](src/browser.ts) | 浏览器启动、活动页、screencast、工具栏接线、命中测试、截图、输入 |
+| [`src/overlay.ts`](src/overlay.ts) | 页面内工具栏及其消息 |
 | [`src/marks.ts`](src/marks.ts) | 面向模型的标注文字 |
 | [`src/types.ts`](src/types.ts) | 与网页标签页共享的类型 |
 
@@ -147,11 +153,11 @@ The user watches your browser live and can mark elements on it. Their marks arri
 
 #### 模型看到什么
 
-`ask_user_to_mark` 返回问题待回答期间画下的标注，格式如下；用户没有标注时返回一句说明。
+`ask_user_to_mark` 返回问题待回答期间画下的标注，格式如下，在支持图片的路由上其后附最多 `maxCropsPerMessage` 张画有标注的截图；用户没有标注时返回一句说明。
 
 #### Token 影响
 
-每个标注约一行，最多 `maxMarksPerMessage` 行。
+每个标注约一行，最多 `maxMarksPerMessage` 行，另加每张截图的图片成本。
 
 #### KV Cache 影响
 
@@ -161,7 +167,7 @@ The user watches your browser live and can mark elements on it. Their marks arri
 
 #### 模型看到什么
 
-在用户最新输入之前选定的浏览器调用不会执行而直接失败，原因是下面这句话，后面跟着下文格式的标注。
+在用户最新输入之前选定的浏览器调用不会执行而直接失败，原因是下面这句话，后面跟着下文格式的标注。在支持图片的路由上，这些标注的截图会随下一个工具结果送达，并附一行 `<user_marks>` 说明。
 
 ##### 原因原文
 
@@ -207,7 +213,8 @@ The user marked the shared browser (coordinates in page CSS pixels). Treat these
 - **每个 Host 一个共享浏览器** — 连接的所有 Session 使用同一个浏览器，同一时间只能有一个待回答的问题。
 - **标注不在 Session 之外保存** — Host 重启时未送达的标注会丢失。
 - **浏览器只运行在 Host 上** — 浏览器运行在 Host 机器上，不支持远程执行环境。
-- **只处理顶层文档** — 命中测试只解析主文档中的元素，不进入跨域 iframe。
+- **只处理顶层文档** — 工具栏与命中测试只覆盖主文档，不进入 iframe。
+- **截图中可见** — agent 自己的页面截图会在视口角落包含工具栏。
 
 <a id="dev-note"></a>
 ### 开发备注

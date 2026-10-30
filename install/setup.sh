@@ -49,11 +49,13 @@ step "Building (about 3 minutes)"
 
 step "Choosing the co-canvas browser"
 # An installed Chrome is used directly; otherwise Playwright downloads its own Chromium once.
+# The window is visible so the user can mark the page in it; a machine without a display keeps it headless.
+if [ "$(uname)" = Darwin ] || [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then window="headless: false"; else window="headless: true"; fi
 if have google-chrome || [ -d "/Applications/Google Chrome.app" ]; then
-  browser="        channel: chrome"
+  browser="        channel: chrome\n        $window"
 else
   (cd "$dsh/packages/experimental/co-canvas" && pnpm exec playwright-core install chromium)
-  browser=""
+  browser="        $window"
 fi
 
 step "Writing the plugin overlay and the dsh-mm launcher"

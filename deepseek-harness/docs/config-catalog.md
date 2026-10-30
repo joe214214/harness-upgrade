@@ -1088,7 +1088,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-experimental-co-canvas`
 
 - `inject`: `tools` · `systemPrompt` · `typert`
-- `source`: [`packages/experimental/co-canvas/src/index.ts:52`](../packages/experimental/co-canvas/src/index.ts)
+- `source`: [`packages/experimental/co-canvas/src/index.ts:57`](../packages/experimental/co-canvas/src/index.ts)
 
 ```ts config-catalog
 /** Deployment settings of the shared browser and of mark delivery. */
@@ -1111,6 +1111,8 @@ export interface Config {
   viewportHeight: number
   /** JPEG quality of live frames. */
   frameQuality: number
+  /** Inject the marking toolbar into every page, for marking directly in the browser window. */
+  pageToolbar: boolean
   /** Regular expression matching the agent's browser tool names; matching calls wait while the user holds control. */
   gatedTools: string
   /** Most marks listed in one delivery. */

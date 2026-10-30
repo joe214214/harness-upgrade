@@ -103,8 +103,9 @@ Step 'Writing the plugin overlay and the dsh-mm launcher'
 $dshFwd = $Dsh -replace '\\', '/'
 $dataFwd = $InstallDir -replace '\\', '/'
 $overlay = Join-Path $InstallDir 'overlay.yml'
-# Co-canvas drives the Microsoft Edge that ships with Windows, so no browser download is needed.
-$text = (Get-Content -Raw (Join-Path $Here 'overlay.yml.in')).Replace('@DSH@', $dshFwd).Replace('@DATA@', $dataFwd).Replace('@BROWSER@', '        channel: msedge')
+# Co-canvas opens a visible window of the Microsoft Edge that ships with Windows, so no browser download is needed;
+# the user marks the page directly in that window.
+$text = (Get-Content -Raw (Join-Path $Here 'overlay.yml.in')).Replace('@DSH@', $dshFwd).Replace('@DATA@', $dataFwd).Replace('@BROWSER@', "        channel: msedge`n        headless: false")
 [IO.File]::WriteAllText($overlay, $text)
 Copy-Item (Join-Path $Here 'dsh-mm.mjs') (Join-Path $Bin 'dsh-mm.mjs') -Force
 [IO.File]::WriteAllText((Join-Path $Bin 'dsh-mm.json'), (@{ dsh = $Dsh; overlay = $overlay } | ConvertTo-Json))
