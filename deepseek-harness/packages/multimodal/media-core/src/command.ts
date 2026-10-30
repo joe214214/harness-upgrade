@@ -17,8 +17,10 @@ export interface CommandRequest {
   readonly cwd: string
   /** Deadline for the whole run. */
   readonly timeoutMs: number
-  /** In-memory cap for stdout; stderr keeps a fixed diagnostic tail. */
+  /** In-memory cap for stdout. */
   readonly maxStdoutBytes: number
+  /** In-memory cap for stderr; ffmpeg filters such as silencedetect and showinfo report there. */
+  readonly maxStderrBytes: number
   /** Caller cancellation. */
   readonly signal: AbortSignal
 }
@@ -43,7 +45,6 @@ export class MediaCommandError extends Error {
   }
 }
 
-const STDERR_TAIL_BYTES = 4096
 const KILL_GRACE_MS = 2000
 
 /**
@@ -70,7 +71,7 @@ export async function runMediaCommand(ctx: Context, request: CommandRequest, ins
     stdio: {
       stdin: 'ignore',
       stdout: { maxBytes: request.maxStdoutBytes },
-      stderr: { maxBytes: STDERR_TAIL_BYTES },
+      stderr: { maxBytes: request.maxStderrBytes },
     },
     graceMs: KILL_GRACE_MS,
     signal: AbortSignal.any([request.signal, deadline]),
