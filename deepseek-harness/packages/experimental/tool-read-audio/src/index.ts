@@ -30,7 +30,7 @@ export type { TranscribeOptions, TranscriptSegment } from './transcribe.ts'
 export const name = 'tool-read-audio'
 
 /** Required services; the transcript itself needs `speechToText` at call time. */
-export const inject = ['tools', 'fs', 'subprocess']
+export const inject = ['tools', 'fs', 'subprocess', 'systemPrompt']
 
 /** Plugin config; every field has a validated default. */
 export interface Config {
@@ -176,6 +176,15 @@ export async function transcribeFile(
  */
 export function apply(ctx: Context, config: Config): void {
   const cfg = config as ResolvedConfig
+  ctx.systemPrompt.section({
+    name: 'tool:read_audio',
+    order: ctx.systemPrompt.getSectionOrder('TOOL_READ_AUDIO'),
+    interpolate: false,
+    text: ({ scope }) => ctx.tools.get('read_audio', scope) === undefined
+      ? ''
+      : 'Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns.',
+  })
+
   ctx.tools.register(defineTool({
     name: 'read_audio',
     description: 'Transcribe an audio or video file (.mp3, .wav, .m4a, .mp4, …) into timestamped text. '

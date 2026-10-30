@@ -137,7 +137,7 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.systemPrompt.context({
     name: 'memory',
-    order: 900,
+    order: ctx.systemPrompt.getContextOrder('LONG_TERM_MEMORY'),
     interpolate: false,
     text: () => `${GUIDE}\n\n${longterm.renderForPrompt() || '<memory>(empty)</memory>'}`,
   })

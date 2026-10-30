@@ -39,7 +39,7 @@ export { documentKind, parsePageCount, splitPages } from './pdf.ts'
 export const name = 'tool-read-document'
 
 /** Services required by `read_document`; `attachments` and `llm` are optional. */
-export const inject = ['tools', 'fs', 'subprocess']
+export const inject = ['tools', 'fs', 'subprocess', 'systemPrompt']
 
 /** Plugin config; every field has a validated default. */
 export interface Config {
@@ -169,6 +169,15 @@ export function apply(ctx: Context, config: Config): void {
   const cfg = config as ResolvedConfig
   const cache = new MediaCache(cfg.cacheDir)
   const limits: PdfLimits = { timeoutMs: cfg.commandTimeoutMs, maxTextBytes: 64 * 1024 * 1024 }
+
+  ctx.systemPrompt.section({
+    name: 'tool:read_document',
+    order: ctx.systemPrompt.getSectionOrder('TOOL_READ_DOCUMENT'),
+    interpolate: false,
+    text: ({ scope }) => ctx.tools.get('read_document', scope) === undefined
+      ? ''
+      : 'Use the read_document tool — not shell tools like pdftotext or libreoffice — to read PDF and Office files. Call it without pages first for the outline, then request the pages you need.',
+  })
 
   ctx.tools.register(defineTool({
     name: 'read_document',

@@ -1456,7 +1456,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-experimental-tool-read-audio`
 
-- `inject`: `tools` · `fs` · `subprocess`
+- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
 - `source`: [`packages/experimental/tool-read-audio/src/index.ts:36`](../packages/experimental/tool-read-audio/src/index.ts)
 
 ```ts config-catalog
@@ -3866,7 +3866,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:263`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:268`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
@@ -4341,7 +4341,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-tool-read-document`
 
-- `inject`: `tools` · `fs` · `subprocess`
+- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
 - `source`: [`packages/multimodal/tool-read-document/src/index.ts:45`](../packages/multimodal/tool-read-document/src/index.ts)
 
 ```ts config-catalog
@@ -4659,7 +4659,7 @@ export type ApprovalPolicy = 'ask' | 'never'
 
 ## `@deepseek-ai/dsh-vision-bridge`
 
-- `inject`: `tools` · `fs` · `llm` · `attachments`
+- `inject`: `tools` · `fs` · `llm` · `attachments` · `systemPrompt`
 - `source`: [`packages/multimodal/vision-bridge/src/index.ts:34`](../packages/multimodal/vision-bridge/src/index.ts)
 
 ```ts config-catalog

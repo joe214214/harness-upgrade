@@ -69,6 +69,26 @@ kind: "package-reference"
 <a id="model-experience"></a>
 ## 模型体验
 
+### 系统提示指引
+
+#### 模型看到什么
+
+系统提示中的一句话，仅在工具对调用作用域可见时出现，引导模型使用本工具而不是 shell 命令。
+
+##### 指引原文
+
+```markdown
+When you cannot view an image yourself, ask about it with ask_image instead of guessing from its file name or surrounding text.
+```
+
+#### Token 影响
+
+固定且很小，出现在工具可见的每次请求中。
+
+#### KV Cache 影响
+
+工具可见性不变时前缀稳定；它位于被缓存的系统提示中。
+
 ### 工具 schema
 
 #### 模型看到什么
