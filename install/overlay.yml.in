@@ -1,0 +1,23 @@
+# Adds the multimodal and memory packages to a DSH profile (passed with --patch).
+# setup.sh / setup.ps1 substitute @DSH@ (the patched checkout) and @DATA@ (memory and models).
+- insert:
+    - id: tool-read-document
+      name: '@DSH@/packages/multimodal/tool-read-document/src/index.ts'
+    - id: vision-bridge
+      name: '@DSH@/packages/multimodal/vision-bridge/src/index.ts'
+    - id: speech-to-text
+      name: '@DSH@/packages/experimental/speech-to-text/src/index.ts'
+      config:
+        defaultProvider: sensevoice-local
+    - id: speech-to-text-sensevoice
+      name: '@DSH@/packages/experimental/speech-to-text-sensevoice/src/index.ts'
+      config:
+        dataRoot: '@DATA@/sensevoice'
+    - id: tool-read-audio
+      name: '@DSH@/packages/experimental/tool-read-audio/src/index.ts'
+    - id: tool-read-video
+      name: '@DSH@/packages/experimental/tool-read-video/src/index.ts'
+    - id: memory
+      name: '@DSH@/packages/memory/memory/src/index.ts'
+      config:
+        root: '@DATA@/memory'

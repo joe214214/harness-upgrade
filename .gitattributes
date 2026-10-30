@@ -1,0 +1,3 @@
+# Patches must stay byte-exact for git am, and shell scripts must keep LF, on Windows checkouts too.
+*.patch -text
+*.sh text eol=lf
