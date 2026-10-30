@@ -56,13 +56,14 @@ export function planSegments(duration: number, silences: readonly Silence[], max
   const cuts = silences.map(s => (s.start + s.end) / 2).filter(t => t > 0 && t < duration)
   const spans: Span[] = []
   let start = 0
-  while (duration - start > maxSeconds) {
-    const limit = start + maxSeconds
-    const candidates = cuts.filter(t => t >= start + minSeconds && t <= limit)
-    const cut = candidates.at(-1) ?? limit
+  for (;;) {
+    // The first pause after minSeconds ends the segment, so a segment is about one utterance;
+    // speech without such a pause is cut hard at maxSeconds.
+    const pause = cuts.find(t => t >= start + minSeconds && t <= start + maxSeconds)
+    const cut = pause ?? (duration - start > maxSeconds ? start + maxSeconds : undefined)
     // A tail shorter than minSeconds joins this segment instead of standing
     // alone: a sliver of audio decodes to too few samples to recognize.
-    if (duration - cut < minSeconds) break
+    if (cut === undefined || duration - cut < minSeconds) break
     spans.push({ start, end: cut })
     start = cut
   }

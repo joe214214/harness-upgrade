@@ -79,10 +79,15 @@ describe('segmentation', () => {
     expect(parseSilences(stderr, 12)).toEqual([{ start: 3, end: 5 }, { start: 9.01, end: 12 }])
   })
 
-  it('cuts in the middle of the last usable pause and hard-cuts long speech', () => {
-    // The pause at 3-5 s gives a cut at 4 s; the next pause's middle (10 s) is past 4 + 5, so 9 s is a hard cut.
+  it('cuts in the middle of the first pause after the minimum and hard-cuts long speech', () => {
+    // The pause at 3-5 s gives a cut at 4 s; the next pause's middle (10 s) is past 4 + 5, so 9 s is a hard cut,
+    // and the pause then ends the following segment at 10 s.
     expect(planSegments(14, [{ start: 3, end: 5 }, { start: 9, end: 11 }], 5, 1)).toEqual([
-      { start: 0, end: 4 }, { start: 4, end: 9 }, { start: 9, end: 14 },
+      { start: 0, end: 4 }, { start: 4, end: 9 }, { start: 9, end: 10 }, { start: 10, end: 14 },
+    ])
+    // Every pause at least minSeconds after the previous cut ends a segment; the 2.2 s pause is too early.
+    expect(planSegments(20, [{ start: 2, end: 2.4 }, { start: 5, end: 5.4 }, { start: 9, end: 9.4 }], 30, 4)).toEqual([
+      { start: 0, end: 5.2 }, { start: 5.2, end: 9.2 }, { start: 9.2, end: 20 },
     ])
     expect(planSegments(12, [], 5, 1)).toEqual([{ start: 0, end: 5 }, { start: 5, end: 10 }, { start: 10, end: 12 }])
     expect(planSegments(4, [], 5, 1)).toEqual([{ start: 0, end: 4 }])
