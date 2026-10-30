@@ -1113,8 +1113,8 @@ export interface Config {
   viewportHeight: number
   /** JPEG quality of live frames. */
   frameQuality: number
-  /** Tool-name prefix of the agent's browser tools, which wait while the user holds control. */
-  gatedToolPrefix: string
+  /** Regular expression matching the agent's browser tool names; matching calls wait while the user holds control. */
+  gatedTools: string
   /** Most marks listed in one delivery. */
   maxMarksPerMessage: number
   /** Most cropped screenshots attached to one delivery on image-capable routes; zero disables them. */

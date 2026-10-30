@@ -68,8 +68,8 @@ export interface Config {
   viewportHeight: number
   /** JPEG quality of live frames. */
   frameQuality: number
-  /** Tool-name prefix of the agent's browser tools, which wait while the user holds control. */
-  gatedToolPrefix: string
+  /** Regular expression matching the agent's browser tool names; matching calls wait while the user holds control. */
+  gatedTools: string
   /** Most marks listed in one delivery. */
   maxMarksPerMessage: number
   /** Most cropped screenshots attached to one delivery on image-capable routes; zero disables them. */
@@ -79,6 +79,9 @@ export interface Config {
   /** How long ask_user_to_mark waits for an answer. */
   askTimeoutMs: number
 }
+
+/** Model-facing reason for a browser action that was chosen before the user's latest input. */
+export const STALE_ACTION = 'This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.'
 
 const optionalString = z.union([z.string().min(1), z.const(undefined)])
 
@@ -130,7 +133,7 @@ export default class CoCanvas extends TypertRemoteService {
     viewportWidth: z.natural().min(320).default(1280),
     viewportHeight: z.natural().min(240).default(800),
     frameQuality: z.natural().min(10).max(100).default(60),
-    gatedToolPrefix: z.string().min(1).default('browser_'),
+    gatedTools: z.string().min(1).default('(^|__)browser_'),
     maxMarksPerMessage: z.natural().min(1).default(10),
     maxCropsPerMessage: z.natural().default(3),
     cropMargin: z.natural().default(40),
@@ -159,9 +162,16 @@ export default class CoCanvas extends TypertRemoteService {
       frameQuality: config.frameQuality,
     })
 
+    // MCP tools are registered as `mcp__<server>__<tool>`, so the default also matches a prefixed name.
+    const gated = new RegExp(config.gatedTools, 'u')
     ctx.on('tools/pre-execute', async (exec, next) => {
-      if (exec.name.startsWith(config.gatedToolPrefix) && this.control !== 'agent') await this.untilAgentControl(exec.signal)
-      return next()
+      if (!gated.test(exec.name)) return next()
+      if (this.control !== 'agent') await this.untilAgentControl(exec.signal)
+      // The agent chose this action before the user's latest input, so it is not run.
+      const taken = this.takePending()
+      if (taken === undefined) return next()
+      const marks = marksMessage(taken.pending.map(p => p.mark), taken.handback, this.config.maxMarksPerMessage)
+      return { kind: 'deny', reason: `${STALE_ACTION}\n${marks}` }
     })
     ctx.on('tools/post-execute', async (exec, _result, next) => {
       const downstream = await next()
@@ -177,7 +187,8 @@ export default class CoCanvas extends TypertRemoteService {
       text: ({ scope }) => ctx.tools.get('ask_user_to_mark', scope) === undefined
         ? ''
         : 'The user watches your browser live and can mark elements on it. Their marks arrive in <user_marks> after a tool result; '
-          + 'they take priority over your plan. While the user holds control, your browser actions wait until it is handed back.',
+          + 'they take priority over your plan. While the user holds control, your browser actions wait until it is handed back; '
+          + 'a browser action chosen before the user\'s latest input is not run.',
     })
 
     ctx.tools.register(askUserToMarkTool((question, signal) => this.ask(question, signal)))
@@ -339,12 +350,18 @@ export default class CoCanvas extends TypertRemoteService {
     return marksMessage(marks, undefined, this.config.maxMarksPerMessage)
   }
 
-  private async takeDelivery(exec: ToolExecution): Promise<UserMessage | undefined> {
+  private takePending(): { pending: PendingMark[]; handback: CanvasControl | undefined } | undefined {
     if (this.pending.length === 0 && this.handback === undefined) return undefined
-    const pending = this.pending.splice(0)
-    const handback = this.handback
+    const taken = { pending: this.pending.splice(0), handback: this.handback }
     this.handback = undefined
     this.changed()
+    return taken
+  }
+
+  private async takeDelivery(exec: ToolExecution): Promise<UserMessage | undefined> {
+    const taken = this.takePending()
+    if (taken === undefined) return undefined
+    const { pending, handback } = taken
     const content: ContentBlock[] = [{ type: 'text', text: marksMessage(pending.map(p => p.mark), handback, this.config.maxMarksPerMessage) }]
     const attachments = this.ctx.get('attachments')
     const crops = pending.filter(p => p.crop !== undefined).slice(-this.config.maxCropsPerMessage)

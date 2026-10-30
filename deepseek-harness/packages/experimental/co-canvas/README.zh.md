@@ -54,7 +54,7 @@ kind: "package-reference"
 | `startUrl` | `about:blank` | 启动时打开的页面 |
 | `viewportWidth`、`viewportHeight` | `1280`、`800` | 视口大小（CSS 像素） |
 | `frameQuality` | `60` | 实时画面的 JPEG 质量 |
-| `gatedToolPrefix` | `browser_` | agent 浏览器工具的名称前缀；用户持有控制权时这些工具会等待 |
+| `gatedTools` | `(^\|__)browser_` | 匹配 agent 浏览器工具名称的正则表达式，带或不带 MCP 前缀均可；用户持有控制权时匹配的调用会等待 |
 | `maxMarksPerMessage` | `10` | 一次送达最多列出的标注数；更早的只给出数量 |
 | `maxCropsPerMessage` | `3` | 支持图片的路由上每次送达最多附带的截图数；`0` 表示不附带 |
 | `cropMargin` | `40` | 截图在标注四周保留的像素 |
@@ -82,7 +82,7 @@ kind: "package-reference"
 
 ### 送达与控制权
 
-`tools/post-execute` 监听器把未送达的标注，以及上次送达后的控制权交还，作为一条附加用户消息附在 agent 下一次工具调用的结果上；agent 循环会将它与结果一起记录。`tools/pre-execute` 监听器在控制权回到 agent 之前，挂起名称以 `gatedToolPrefix` 开头的调用。用户输入经 Playwright 重放，只有用户持有控制权时才被接受。
+`tools/post-execute` 监听器把未送达的标注，以及上次送达后的控制权交还，作为一条附加用户消息附在 agent 下一次工具调用的结果上；agent 循环会将它与结果一起记录。`tools/pre-execute` 监听器在控制权回到 agent 之前，挂起名称匹配 `gatedTools` 的调用；如果 agent 选定这样的调用之后用户标注了页面或持有过控制权，该调用不会执行，而是带着标注被拒绝，因此过时的操作不会作用到页面上。用户输入经 Playwright 重放，只有用户持有控制权时才被接受。
 
 ### 源码地图
 
@@ -118,7 +118,7 @@ kind: "package-reference"
 ##### 指引原文
 
 ```markdown
-The user watches your browser live and can mark elements on it. Their marks arrive in <user_marks> after a tool result; they take priority over your plan. While the user holds control, your browser actions wait until it is handed back.
+The user watches your browser live and can mark elements on it. Their marks arrive in <user_marks> after a tool result; they take priority over your plan. While the user holds control, your browser actions wait until it is handed back; a browser action chosen before the user's latest input is not run.
 ```
 
 #### Token 影响
@@ -156,6 +156,24 @@ The user watches your browser live and can mark elements on it. Their marks arri
 #### KV Cache 影响
 
 只追加；结果位于可复用的请求前缀之后。
+
+### 被拒绝的浏览器操作
+
+#### 模型看到什么
+
+在用户最新输入之前选定的浏览器调用不会执行而直接失败，原因是下面这句话，后面跟着下文格式的标注：
+
+```markdown
+This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.
+```
+
+#### Token 影响
+
+只在用户于 agent 选定与调用之间操作时出现：一句话，另加每个标注约一行。
+
+#### KV Cache 影响
+
+只追加；该失败就是这次调用的工具结果。
 
 ### 送达的标注
 

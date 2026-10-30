@@ -54,7 +54,7 @@ Mount it with the co-canvas tab and a browser-use provider in attach mode that p
 | `startUrl` | `about:blank` | Page opened at launch |
 | `viewportWidth`, `viewportHeight` | `1280`, `800` | Viewport in CSS pixels |
 | `frameQuality` | `60` | JPEG quality of live frames |
-| `gatedToolPrefix` | `browser_` | Tool-name prefix of the agent's browser tools, which wait while the user holds control |
+| `gatedTools` | `(^\|__)browser_` | Regular expression for the agent's browser tool names, bare or MCP-prefixed; matching calls wait while the user holds control |
 | `maxMarksPerMessage` | `10` | Most marks listed in one delivery; older ones are counted |
 | `maxCropsPerMessage` | `3` | Most cropped screenshots per delivery on image-capable routes; `0` disables them |
 | `cropMargin` | `40` | Context pixels around a cropped mark |
@@ -82,7 +82,7 @@ The focus point of a mark is the centre of a box, the head of an arrow, or the p
 
 ### Delivery and control
 
-A `tools/post-execute` listener attaches undelivered marks, and any handback since the last delivery, to the result of the agent's next tool call as one additional user message; the agent loop logs it with the result. A `tools/pre-execute` listener holds calls whose name starts with `gatedToolPrefix` until control returns to the agent. User input is replayed through Playwright and refused unless the user holds control.
+A `tools/post-execute` listener attaches undelivered marks, and any handback since the last delivery, to the result of the agent's next tool call as one additional user message; the agent loop logs it with the result. A `tools/pre-execute` listener holds calls whose name matches `gatedTools` until control returns to the agent; if the user marked the page or held control after the agent chose such a call, the call is refused with the marks instead of run, so a stale action never reaches the page. User input is replayed through Playwright and refused unless the user holds control.
 
 ### Source map
 
@@ -118,7 +118,7 @@ One paragraph in the system prompt, present only while `ask_user_to_mark` is vis
 ##### Verbatim guidance
 
 ```markdown
-The user watches your browser live and can mark elements on it. Their marks arrive in <user_marks> after a tool result; they take priority over your plan. While the user holds control, your browser actions wait until it is handed back.
+The user watches your browser live and can mark elements on it. Their marks arrive in <user_marks> after a tool result; they take priority over your plan. While the user holds control, your browser actions wait until it is handed back; a browser action chosen before the user's latest input is not run.
 ```
 
 #### Token effect
@@ -156,6 +156,24 @@ About one line per mark, at most `maxMarksPerMessage` lines.
 #### KV Cache effect
 
 Append-only; the result follows the reusable request prefix.
+
+### Refused browser action
+
+#### What the model sees
+
+A browser call chosen before the user's latest input fails without running, with this reason followed by the marks in the format below:
+
+```markdown
+This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.
+```
+
+#### Token effect
+
+Only when the user acts between the agent's choice and the call: one sentence plus about one line per mark.
+
+#### KV Cache effect
+
+Append-only; the failure is the call's tool result.
 
 ### Delivered marks
 
