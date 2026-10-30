@@ -104,6 +104,26 @@ Shared helpers (command execution, cache, page selection, image commits) live in
 <a id="model-experience"></a>
 ## Model Experience
 
+### System-prompt guidance
+
+#### What the model sees
+
+One sentence in the system prompt, present only while the tool is visible in the calling scope, steering the model to this tool instead of shell commands.
+
+##### Verbatim guidance
+
+```markdown
+Use the read_document tool — not shell tools like pdftotext or libreoffice — to read PDF and Office files. Call it without pages first for the outline, then request the pages you need.
+```
+
+#### Token effect
+
+Fixed and small, on every request where the tool is visible.
+
+#### KV Cache effect
+
+Prefix-stable while the tool's visibility is unchanged; it sits in the cached system prompt.
+
 ### Tool schema
 
 #### What the model sees

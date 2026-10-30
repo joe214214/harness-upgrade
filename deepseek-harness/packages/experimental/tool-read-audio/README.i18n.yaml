@@ -47,6 +47,21 @@
 /deepseek-ai-dsh-experimental-tool-read-audio/model-experience:
   en: 215e7ba838619b7b
   zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance:
+  en: dbc7966c48c88456
+  zh: c6d8f0cdc82904a7
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance/what-the-model-sees:
+  en: f7ea2f113f2565ef
+  zh: 229dd74618916628
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance/what-the-model-sees/verbatim-guidance:
+  en: ee8865eda3bcc252
+  zh: 2c7fb4946d77aa1d
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance/token-effect:
+  en: 38ca268f5ba1700f
+  zh: ca6b3b079195f47c
+/deepseek-ai-dsh-experimental-tool-read-audio/model-experience/system-prompt-guidance/kv-cache-effect:
+  en: c7a9cdeb70fde0c0
+  zh: f420ab249d212d30
 /deepseek-ai-dsh-experimental-tool-read-audio/model-experience/tool-schema:
   en: e4c7376d4f29dbd5
   zh: 6b7a9eaf69c9ea53
