@@ -69,7 +69,8 @@ function readBaselineManifest(ref: string): ArchiveManifest {
   runGit(['cat-file', '-e', `${ref}^{commit}`])
   const manifestEntry = runGit(['ls-tree', '--name-only', ref, '--', manifestRepoPath]).trim()
   if (manifestEntry === '') return { version: 1, files: {} }
-  return parseArchiveManifest(runGit(['show', `${ref}:${manifestRepoPath}`]))
+  // `./` resolves against cwd, so the path also works when the harness is a subdirectory of the Git work tree.
+  return parseArchiveManifest(runGit(['show', `${ref}:./${manifestRepoPath}`]))
 }
 
 let manifest: ArchiveManifest = { version: 1, files: {} }

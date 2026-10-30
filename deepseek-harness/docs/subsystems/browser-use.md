@@ -64,4 +64,60 @@ register(name: BrowserUseProviderName): () => Promise<void>
 ```
 
 Source: [`packages/browser-use/browser-use/src/index.ts`](../../packages/browser-use/browser-use/src/index.ts)
+
+<a id="ctxcocanvas--cocanvas"></a>
+
+### `ctx.coCanvas` — `CoCanvas`
+
+Owner of the shared browser and of the user's marks and control.
+
+```ts cordis-catalog
+/**
+ * Follow the browser and collaboration state.
+ * @param signal - Client observation lifetime.
+ * @returns the current state, then each change.
+ */
+@Remote({ mode: 'stream' }) async* follow(signal: AbortSignal): AsyncIterable<CanvasState>
+
+/**
+ * Stream JPEG frames of the active page.
+ * @param signal - Client observation lifetime.
+ * @returns frames; slow readers receive only the newest.
+ */
+@Remote({ mode: 'stream' }) frames(signal: AbortSignal): AsyncIterable<CanvasFrame>
+
+/**
+ * Record one mark, grounded to the element under its focus point.
+ * @param input - shape, rectangle in page CSS pixels, optional note.
+ * @returns the recorded mark.
+ */
+@Remote async mark(input: MarkInput): Promise<CanvasMark>
+
+/**
+ * Withdraw an undelivered mark.
+ * @param id - mark id.
+ */
+@Remote removeMark(id: string): void
+
+/**
+ * Give the browser to the agent, pause it, or take it.
+ * @param control - new holder.
+ */
+@Remote setControl(control: CanvasControl): void
+
+/**
+ * Replay the user's input on the shared browser.
+ * @param input - click, scroll, text, or key press.
+ * @throws RemoteError unless the user holds control.
+ */
+@Remote async input(input: CanvasInput): Promise<void>
+
+/**
+ * Answer the open question with the marks drawn so far.
+ * @param questionId - the question being answered.
+ */
+@Remote answer(questionId: string): void
+```
+
+Source: [`packages/experimental/co-canvas/src/index.ts`](../../packages/experimental/co-canvas/src/index.ts)
 <!-- END GENERATED cordis-surface -->

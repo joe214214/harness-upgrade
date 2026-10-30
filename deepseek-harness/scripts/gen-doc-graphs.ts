@@ -333,6 +333,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns append-only Session instances and emits the durable session event feed.',
   },
   {
+    key: 'coCanvas',
+    pkg: 'experimental-co-canvas',
+    title: 'Experimental shared browser for user marks and handoff',
+    mode: 'core',
+    note: 'Owns one Chromium the browser tools attach to; delivers grounded user marks with the next tool result and holds browser tools while the user has control.',
+  },
+  {
     key: 'speechController',
     pkg: 'experimental-api-speech-to-text',
     title: 'Experimental transcription Remote',

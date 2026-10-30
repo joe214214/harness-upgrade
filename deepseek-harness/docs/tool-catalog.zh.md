@@ -40,6 +40,7 @@
 | `@deepseek-ai/dsh-experimental-tool-read-audio` | `read_audio` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.speechToText (at call time)`、`ffmpeg on the host` | `tool/call`、`tool/result` | - | 时间戳来自按静音切段：每个片段通过语音 seam 单独转写。转写超过 `maxTranscriptChars` 时改为返回时间索引，`start`/`end` 从缓存的整文件转写中选取窗口。 |
 | `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (frames)`、`ctx.speechToText (speech, at call time)`、`ffmpeg on the host` | `tool/call`、`durable attachment (frames)`、`tool/result` | - | 在所请求的窗口内按场景得分选取变化最大的帧（配置为均匀时则均匀），并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。 |
 | `@deepseek-ai/dsh-vision-bridge` | `ask_image` | `ctx.tools`、`ctx.fs`、`ctx.llm`、`ctx.attachments`、`a configured image-capable model` | `tool/call`、`durable attachment (the asked image)`、`tool/result` | - | 图片和问题在一次辅助请求中交给配置的识图模型；只返回文字答案，因此纯文本路由可以使用图片，而图片块不会进入其历史。 |
+| `@deepseek-ai/dsh-experimental-co-canvas` | `ask_user_to_mark` | `ctx.tools`、`ctx.systemPrompt`、`ctx.typert`、`a Chromium the Host can launch`、`the co-canvas Web tab` | `tool/call`、`tool/result`、`user marks attached to later tool results` | - | 问题显示在协同画布标签页中实时页面的旁边；结果列出用户发送前画下的标注，每个标注都定位到其下方的元素。没有问题时画下的标注在下一个工具结果之后送达。 |
 | `@deepseek-ai/dsh-memory` | `memory_read`、`memory_replace`、`memory_rewrite`、`memory_write`、`recall` | `ctx.tools`、`ctx.systemPrompt`、`ctx.llm (reflect pass)` | `tool/call`、`tool/result`、`MEMORY.md and episodic.db under the configured root` | - | 每次请求中 MEMORY.md 也作为运行时上下文出现。每轮结束后，插件把这一轮存入情景记忆，并在开启 `reflect` 时，用一次基于 agent 路由的辅助请求提取并归档长期事实。 |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`、`terminal_list`、`terminal_open`、`terminal_read`、`terminal_send`、`terminal_signal` | `ctx.workingDirectory`、`ctx.tools`、`ctx.terminals`、`ctx.systemPrompt`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。 |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`、`get_goal`、`update_goal` | `ctx.tools`、`ctx.agents`、`ctx.goals`、`ctx.systemPrompt`、`a calling Agent in an authorized open turn` | `tool/call`、`goal/change for mutations`、`tool/result` | - | create、edit、pause 和 resume 要求直接来自人类的根权限；complete 和 blocked 也接受确切的当前 Goal Round。blocked 的默认下限是 3 个获准的 Round。 |
@@ -1372,6 +1373,33 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 来源：[`packages/multimodal/vision-bridge/src/index.ts`](../packages/multimodal/vision-bridge/src/index.ts)
 
 图片和问题在一次辅助请求中交给配置的识图模型；只返回文字答案，因此纯文本路由可以使用图片，而图片块不会进入其历史。
+
+<a id="deepseek-aidsh-experimental-co-canvas"></a>
+
+## `@deepseek-ai/dsh-experimental-co-canvas`
+
+### `ask_user_to_mark`
+
+请用户在共享浏览器中指出某个东西，并等待回答。用户在实时页面旁看到你的问题，通过标注页面来回答；你会得到每个被标注的元素及其 CSS 选择器。目标不明确或找不到时使用它，而不是自己猜。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string",
+      "description": "What the user should mark, e.g. \"Which Submit button should I press?\""
+    }
+  },
+  "required": [
+    "question"
+  ]
+}
+```
+
+来源：[`packages/experimental/co-canvas/src/index.ts`](../packages/experimental/co-canvas/src/index.ts)
+
+问题显示在协同画布标签页中实时页面的旁边；结果列出用户发送前画下的标注，每个标注都定位到其下方的元素。没有问题时画下的标注在下一个工具结果之后送达。
 
 <a id="deepseek-aidsh-memory"></a>
 

@@ -36,6 +36,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-experimental-tool-read-audio` | `read_audio` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.speechToText (at call time)`, `ffmpeg on the host` | `tool/call`, `tool/result` | - | Timestamps come from silence-aware segmentation: each segment is transcribed separately through the speech seam. A transcript over `maxTranscriptChars` returns a time index instead, and `start`/`end` select a window from the cached whole-file transcript. |
 | `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.attachments + an image-capable route (frames)`, `ctx.speechToText (speech, at call time)`, `ffmpeg on the host` | `tool/call`, `durable attachment (frames)`, `tool/result` | - | Frames are the largest visual changes ranked by scene score (or uniformly spaced when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span. |
 | `@deepseek-ai/dsh-vision-bridge` | `ask_image` | `ctx.tools`, `ctx.fs`, `ctx.llm`, `ctx.attachments`, `a configured image-capable model` | `tool/call`, `durable attachment (the asked image)`, `tool/result` | - | The image and question go to the configured image-capable model in an auxiliary request; only the text answer returns, so a text-only route can use images without image blocks entering its history. |
+| `@deepseek-ai/dsh-experimental-co-canvas` | `ask_user_to_mark` | `ctx.tools`, `ctx.systemPrompt`, `ctx.typert`, `a Chromium the Host can launch`, `the co-canvas Web tab` | `tool/call`, `tool/result`, `user marks attached to later tool results` | - | The question appears beside the live page in the co-canvas tab; the result lists the marks drawn before the user sends them, each grounded to the element under it. Marks drawn without a question arrive after the next tool result. |
 | `@deepseek-ai/dsh-memory` | `memory_read`, `memory_replace`, `memory_rewrite`, `memory_write`, `recall` | `ctx.tools`, `ctx.systemPrompt`, `ctx.llm (reflect pass)` | `tool/call`, `tool/result`, `MEMORY.md and episodic.db under the configured root` | - | MEMORY.md is also placed in every request as runtime context. After each turn the plugin stores the turn in episodic memory and, with `reflect` on, files durable facts it extracts with one auxiliary request on the agent's route. |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.workingDirectory`, `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
@@ -1366,6 +1367,33 @@ Ask a question about an image file (PNG/JPEG/WebP/GIF) and get a text answer fro
 Source: [`packages/multimodal/vision-bridge/src/index.ts`](../packages/multimodal/vision-bridge/src/index.ts)
 
 The image and question go to the configured image-capable model in an auxiliary request; only the text answer returns, so a text-only route can use images without image blocks entering its history.
+
+<a id="deepseek-aidsh-experimental-co-canvas"></a>
+
+## `@deepseek-ai/dsh-experimental-co-canvas`
+
+### `ask_user_to_mark`
+
+Ask the user to point at something in the shared browser, and wait for their answer. They see your question beside the live page and answer by marking it; you get each marked element with a CSS selector. Use it when the target is ambiguous or you cannot find it, instead of guessing.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "question": {
+      "type": "string",
+      "description": "What the user should mark, e.g. \"Which Submit button should I press?\""
+    }
+  },
+  "required": [
+    "question"
+  ]
+}
+```
+
+Source: [`packages/experimental/co-canvas/src/index.ts`](../packages/experimental/co-canvas/src/index.ts)
+
+The question appears beside the live page in the co-canvas tab; the result lists the marks drawn before the user sends them, each grounded to the element under it. Marks drawn without a question arrive after the next tool result.
 
 <a id="deepseek-aidsh-memory"></a>
 
