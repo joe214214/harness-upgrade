@@ -1084,6 +1084,51 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-client-ui-forge -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-co-canvas -->
+<a id="deepseek-aidsh-experimental-co-canvas"></a>
+
+## `@deepseek-ai/dsh-experimental-co-canvas`
+
+- `inject`: `tools` · `systemPrompt` · `typert`
+- `source`: [`packages/experimental/co-canvas/src/index.ts:57`](../packages/experimental/co-canvas/src/index.ts)
+
+```ts config-catalog
+/** Deployment settings of the shared browser and of mark delivery. */
+export interface Config {
+  /** CDP port the agent's browser tools attach to. */
+  debugPort: number
+  /** Run the browser without a window; the Web panel shows it either way. */
+  headless: boolean
+  /** Chromium executable; omission uses `channel` or Playwright's browser. */
+  executablePath?: string | undefined
+  /** Installed browser channel, e.g. `chrome` or `msedge`. */
+  channel?: string | undefined
+  /** Browser profile directory. */
+  userDataDir: string
+  /** Page opened at launch. */
+  startUrl: string
+  /** Viewport width in CSS pixels. */
+  viewportWidth: number
+  /** Viewport height in CSS pixels. */
+  viewportHeight: number
+  /** JPEG quality of live frames. */
+  frameQuality: number
+  /** Inject the marking toolbar into every page, for marking directly in the browser window. */
+  pageToolbar: boolean
+  /** Regular expression matching the agent's browser tool names; matching calls wait while the user holds control. */
+  gatedTools: string
+  /** Most marks listed in one delivery. */
+  maxMarksPerMessage: number
+  /** Most cropped screenshots attached to one delivery on image-capable routes; zero disables them. */
+  maxCropsPerMessage: number
+  /** Context pixels around a cropped mark. */
+  cropMargin: number
+  /** How long ask_user_to_mark waits for an answer. */
+  askTimeoutMs: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-co-canvas -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp -->
 <a id="deepseek-aidsh-experimental-computer-use-cua-driver-mcp"></a>
 
@@ -1461,7 +1506,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-experimental-tool-read-audio`
 
-- `inject`: `tools` · `fs` · `subprocess`
+- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
 - `source`: [`packages/experimental/tool-read-audio/src/index.ts:36`](../packages/experimental/tool-read-audio/src/index.ts)
 
 ```ts config-catalog
@@ -3892,7 +3937,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:265`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:271`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
@@ -4369,7 +4414,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-tool-read-document`
 
-- `inject`: `tools` · `fs` · `subprocess`
+- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
 - `source`: [`packages/multimodal/tool-read-document/src/index.ts:45`](../packages/multimodal/tool-read-document/src/index.ts)
 
 ```ts config-catalog
@@ -4687,7 +4732,7 @@ export type ApprovalPolicy = 'ask' | 'never'
 
 ## `@deepseek-ai/dsh-vision-bridge`
 
-- `inject`: `tools` · `fs` · `llm` · `attachments`
+- `inject`: `tools` · `fs` · `llm` · `attachments` · `systemPrompt`
 - `source`: [`packages/multimodal/vision-bridge/src/index.ts:34`](../packages/multimodal/vision-bridge/src/index.ts)
 
 ```ts config-catalog
@@ -5074,6 +5119,7 @@ export interface Config {
 | `@deepseek-ai/dsh-experimental-auto-review` | `approval` · `llm` · `permissionPresets` · `sessions` · `tools` · `workingDirectory` | [`packages/experimental/auto-review/src/index.ts`](../packages/experimental/auto-review/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-agent-team` | — | [`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-claude-code-mods` | — | [`packages/experimental/client-ui-claude-code-mods/src/index.ts`](../packages/experimental/client-ui-claude-code-mods/src/index.ts) |
+| `@deepseek-ai/dsh-experimental-client-ui-co-canvas` | — | [`packages/experimental/client-ui-co-canvas/src/index.ts`](../packages/experimental/client-ui-co-canvas/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-stats` | — | [`packages/experimental/client-ui-stats/src/index.ts`](../packages/experimental/client-ui-stats/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-voice-input` | — | [`packages/experimental/client-ui-voice-input/src/index.ts`](../packages/experimental/client-ui-voice-input/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-computer-use-cua-driver-native` | `computerUse` · `tools` · `systemPrompt` | [`packages/experimental/computer-use-cua-driver-native/src/index.ts`](../packages/experimental/computer-use-cua-driver-native/src/index.ts) |

@@ -703,7 +703,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'frames; slow readers receive only the newest.',
       },
       {
-        signature: '@Remote async mark(input: MarkInput): Promise<CanvasMark>',
+        signature: '@Remote mark(input: MarkInput): Promise<CanvasMark>',
         description: 'Record one mark, grounded to the element under its focus point.',
         parameters: [{ name: 'input', description: 'shape, rectangle in page CSS pixels, optional note.' }],
         returns: 'the recorded mark.',
@@ -7447,6 +7447,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type OTelEventScalar = string | number | boolean;',
   },
   {
+    name: 'OverlayMessage',
+    declaration: 'export type OverlayMessage = {\n    readonly type: \'hello\';\n} | {\n    readonly type: \'mark\';\n    readonly shape: \'box\' | \'point\';\n    readonly rect: {\n        x: number;\n        y: number;\n        width: number;\n        height: number;\n    };\n    readonly note: string;\n} | {\n    readonly type: \'control\';\n    readonly control: \'agent\' | \'paused\';\n} | {\n    readonly type: \'answer\';\n    readonly questionId: string;\n};',
+  },
+  {
+    name: 'OverlayState',
+    declaration: 'export interface OverlayState {\n    readonly control: \'agent\' | \'paused\' | \'human\';\n    readonly question: {\n        readonly id: string;\n        readonly text: string;\n    } | null;\n    readonly marks: readonly {\n        readonly shape: string;\n        readonly rect: {\n            x: number;\n            y: number;\n            width: number;\n            height: number;\n        };\n    }[];\n    readonly url: string;\n}',
+  },
+  {
     name: 'OwnerIdentityRequest',
     declaration: 'export interface OwnerIdentityRequest {\n    readonly relay?: string;\n}',
   },
@@ -8988,11 +8996,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SharedBrowser',
-    declaration: 'export class SharedBrowser {\n    constructor(private readonly options: SharedBrowserOptions);\n    get endpoint(): string;\n    async start(): Promise<void>;\n    async close(): Promise<void>;\n    subscribe(listener: () => void): () => void;\n    get page(): Page | undefined;\n    async describe(): Promise<{\n        url: string;\n        title: string;\n    }>;\n    async *frames(signal: AbortSignal): AsyncIterable<CanvasFrame>;\n    async hitTest(x: number, y: number): Promise<MarkTarget | undefined>;\n    async crop(rect: CanvasRect, margin: number): Promise<Buffer | undefined>;\n    async input(input: CanvasInput): Promise<void>;\n    viewport(): {\n        width: number;\n        height: number;\n    };\n}',
+    declaration: 'export class SharedBrowser {\n    onToolbar: ((page: Page, message: OverlayMessage) => void) | undefined;\n    constructor(private readonly options: SharedBrowserOptions);\n    get endpoint(): string;\n    async start(): Promise<void>;\n    async close(): Promise<void>;\n    subscribe(listener: () => void): () => void;\n    get page(): Page | undefined;\n    async describe(target?: Page): Promise<{\n        url: string;\n        title: string;\n    }>;\n    async *frames(signal: AbortSignal): AsyncIterable<CanvasFrame>;\n    async capture(page: Page | undefined, shape: MarkShape, rect: CanvasRect, focus: {\n        x: number;\n        y: number;\n    }, margin: number | undefined): Promise<Capture>;\n    pushToolbarState(stateOf: (url: string) => OverlayState): void;\n    pushToolbarStateTo(page: Page, state: OverlayState): void;\n    async input(input: CanvasInput): Promise<void>;\n    viewport(): {\n        width: number;\n        height: number;\n    };\n}',
   },
   {
     name: 'SharedBrowserOptions',
-    declaration: 'export interface SharedBrowserOptions {\n    readonly userDataDir: string;\n    readonly debugPort: number;\n    readonly headless: boolean;\n    readonly executablePath?: string;\n    readonly channel?: string;\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n    readonly startUrl: string;\n    readonly frameQuality: number;\n}',
+    declaration: 'export interface SharedBrowserOptions {\n    readonly userDataDir: string;\n    readonly debugPort: number;\n    readonly headless: boolean;\n    readonly executablePath?: string;\n    readonly channel?: string;\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n    readonly startUrl: string;\n    readonly frameQuality: number;\n    readonly pageToolbar: boolean;\n}',
   },
   {
     name: 'ShellExecRequest',

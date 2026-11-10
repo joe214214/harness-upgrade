@@ -91,7 +91,7 @@ Owner of the shared browser and of the user's marks and control.
  * @param input - shape, rectangle in page CSS pixels, optional note.
  * @returns the recorded mark.
  */
-@Remote async mark(input: MarkInput): Promise<CanvasMark>
+@Remote mark(input: MarkInput): Promise<CanvasMark>
 
 /**
  * Withdraw an undelivered mark.
