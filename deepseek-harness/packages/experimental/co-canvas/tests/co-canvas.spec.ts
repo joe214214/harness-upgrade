@@ -18,7 +18,7 @@ import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { chromium } from 'playwright-core'
-import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import CoCanvas, { describeTarget, marksMessage } from '../src/index.ts'
 import type { CanvasFrame, CanvasMark, CanvasState } from '../src/types.ts'
 import type { Page } from 'playwright-core'
@@ -97,13 +97,15 @@ async function freePort(): Promise<number> {
 }
 
 describe.skipIf(executablePath === undefined)('shared browser', () => {
-  let dir: string
-  afterEach(async () => { await rm(dir, { recursive: true, force: true }) })
 
   async function setup() {
-    dir = await mkdtemp(join(tmpdir(), 'dsh-co-canvas-'))
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-co-canvas-'))
     const ctx = new Context()
-    onTestFinished(async () => { await ctx.fiber.dispose() })
+    // One hook, in order: the browser must be gone before its profile directory is removed.
+    onTestFinished(async () => {
+      await ctx.fiber.dispose()
+      await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    })
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(NativeToolExecutor)
