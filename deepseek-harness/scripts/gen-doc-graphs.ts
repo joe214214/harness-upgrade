@@ -216,7 +216,7 @@ const SERVICE_ROLES: ServiceRole[] = [
     pkg: 'experimental-client-ui-forge',
     title: 'Forge panel Remote',
     mode: 'service',
-    note: 'Streams one panel state per followed Session: a read-only Git inspection in the Session sandbox, the recognized code host and its sign-in, and the bound change requests with polled status.',
+    note: 'Streams one panel state per followed Session: Git inspection using Session permissions, the recognized code host and its sign-in, and the bound change requests with polled status.',
   },
   {
     key: 'worktrees',
@@ -300,6 +300,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Adapters register provider implementations; the loop and compaction call the provider-neutral stream service.',
   },
   {
+    key: 'sessionLogDeepSeek',
+    pkg: 'session-log-deepseek',
+    title: 'Session-log upload policy',
+    mode: 'core',
+    implementations: [],
+    note: 'Plugins register caller-owned exclusions before the canonical Session-log request contribution is prepared; unmatched requests use normal upload eligibility.',
+  },
+  {
     key: 'deepseekLlmApiExtensions',
     pkg: 'deepseek-llm-api-extensions',
     title: 'Official DeepSeek request extensions',
@@ -331,13 +339,6 @@ const SERVICE_ROLES: ServiceRole[] = [
     mode: 'core',
     consumers: ['agent-loop', 'agent', 'session-persistence', 'session-query', 'session-query-sqlite', 'subagent', 'message-feedback'],
     note: 'Owns append-only Session instances and emits the durable session event feed.',
-  },
-  {
-    key: 'coCanvas',
-    pkg: 'experimental-co-canvas',
-    title: 'Experimental shared browser for user marks and handoff',
-    mode: 'core',
-    note: 'Owns one Chromium the browser tools attach to; delivers grounded user marks with the next tool result and holds browser tools while the user has control.',
   },
   {
     key: 'speechController',
@@ -709,7 +710,7 @@ const SERVICE_ROLES: ServiceRole[] = [
     pkg: 'schedule',
     title: 'Host scheduled messages',
     mode: 'core',
-    note: 'Stores tasks independently of Session activation and queues due messages in the original Session.',
+    note: 'Stores tasks independently of Session activation and queues due messages in each task\'s target Session.',
   },
   {
     key: 'goals',

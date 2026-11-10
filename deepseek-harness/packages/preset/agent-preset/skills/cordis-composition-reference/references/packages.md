@@ -73,11 +73,13 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-brand-official` | no | Official DeepSeek Harness brand occupants for the Web client's sidebar slots |
 | `@deepseek-ai/dsh-client-ui-chat` | no | Chat Conversation target, node definitions, renderers, and details surface |
 | `@deepseek-ai/dsh-client-ui-commands` | no | Client command surface: global directory cache, '/' source, three command UI kinds, popupSelect registry |
+| `@deepseek-ai/dsh-client-ui-context-menu` | no | Typed, plugin-extensible context menus with captured targets and shared Web presentation |
 | `@deepseek-ai/dsh-client-ui-conversation` | no | Target-neutral Conversation assembly, shell, composer, queue, and view navigation |
 | `@deepseek-ai/dsh-client-ui-deliverables` | no | Changed-files card with per-file comparison tabs, delivery cards, and clickable final-response file references for Web |
 | `@deepseek-ai/dsh-client-ui-directory-picker-browse` | no | In-app directory browsing surface: the workspace directory-flow owner rendering the host's listing and creation primitives |
 | `@deepseek-ai/dsh-client-ui-directory-picker-native` | no | Native directory-picker surface: the renderless workspace directory-flow occupant driving the local Desktop or Host OS chooser |
 | `@deepseek-ai/dsh-client-ui-entry-customization` | no | Customize plugin entries in the left sidebar, conversation views, and right sidebar, and quickly create new plugins. |
+| `@deepseek-ai/dsh-client-ui-file-actions` | no | Original-file saving and image clipboard actions for Web and Desktop |
 | `@deepseek-ai/dsh-client-ui-file-drag` | no | Application-owned file drag transfers and localized failure feedback |
 | `@deepseek-ai/dsh-client-ui-goal` | no | Session goal surface: GoalBar docked above the composer, read from the goal session projection |
 | `@deepseek-ai/dsh-client-ui-input-trigger` | no | Input trigger pipeline: '/' and '@' detection, candidate menu, pick routing to registered sources |
@@ -110,7 +112,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-sidebar` | no | Sidebar plugin: session multi-level tree, search, grouping, state dots |
 | `@deepseek-ai/dsh-client-ui-sidebar-browser` | no | Sandboxed Web browser tabs for the right Sidebar |
 | `@deepseek-ai/dsh-client-ui-sidebar-documentpreview` | yes | Extensible Sidebar previews for Office documents, spreadsheets, Markdown, code, images, PDF, HTML, and plain text |
-| `@deepseek-ai/dsh-client-ui-sidebar-files` | no | Workspace file tree tab type for the right Sidebar: lazy directory listing over the workspaceFiles Remote namespace, opening files into the Sidebar |
+| `@deepseek-ai/dsh-client-ui-sidebar-files` | no | The workspace files page and one workspace directory tree per pane beside docked and floating file previews, listed lazily over the workspaceFiles Remote namespace |
 | `@deepseek-ai/dsh-client-ui-sidebar-right` | no | Right Sidebar: the docking surface's session-bound state, its panel and header expand control, and the navigation service over it |
 | `@deepseek-ai/dsh-client-ui-sidebar-terminal` | no | Interactive shell tabs for the right Sidebar |
 | `@deepseek-ai/dsh-client-ui-skill` | no | Web skill references and the dedicated skill tool row |
@@ -203,12 +205,10 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-experimental-claude-code-mods` | yes | Experimental bridge: load Claude Code mods (hooks modules) and run their hook chains on DeepSeek Harness extension points |
 | `@deepseek-ai/dsh-experimental-client-ui-agent-team` | no | Web Agent Teams roster, task board, and teammate navigation |
 | `@deepseek-ai/dsh-experimental-client-ui-claude-code-mods` | no | Web band above the prompt for Claude Code mods: draws each session's mod tree and sends button presses back to the bridge |
-| `@deepseek-ai/dsh-experimental-client-ui-co-canvas` | no | Web tab for watching, marking, and taking over the shared co-canvas browser |
 | `@deepseek-ai/dsh-experimental-client-ui-cot-translation` | yes | Optional machine translation of expanded reasoning, preserving original Session text |
 | `@deepseek-ai/dsh-experimental-client-ui-forge` | yes | Sidebar panel for a Session's change requests, with a worktree option for new Sessions and its Host Remote |
 | `@deepseek-ai/dsh-experimental-client-ui-stats` | no | Per-turn and per-step context, timing, cache, and tool-cost table contributed as an experimental conversation View |
 | `@deepseek-ai/dsh-experimental-client-ui-voice-input` | no | Record speech and insert editable text into the conversation draft |
-| `@deepseek-ai/dsh-experimental-co-canvas` | yes | Experimental shared browser that the user watches live, marks, and takes over while the agent works |
 | `@deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp` | yes | Experimental computer use through an installed Cua Driver MCP executable |
 | `@deepseek-ai/dsh-experimental-computer-use-cua-driver-native` | no | Experimental computer-use provider embedding the Cua Driver native npm SDK |
 | `@deepseek-ai/dsh-experimental-cua-macos` | yes | macOS native provider for shared Computer Use application and window objects |
@@ -222,8 +222,6 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-experimental-speech-to-text-sensevoice` | yes | Local SenseVoice ONNX transcription with a managed sherpa-onnx process |
 | `@deepseek-ai/dsh-experimental-subagent-oar` | yes | Experimental one-shot subagents through OAR runtimes |
 | `@deepseek-ai/dsh-experimental-tool-agent-team` | yes | Scoped model-facing Agent Teams tools over ctx.agentTeams |
-| `@deepseek-ai/dsh-experimental-tool-read-audio` | yes | Model-facing read_audio tool: timestamped transcripts of audio and video files through the speech seam, with silence-aware segmentation and a time index for long recordings |
-| `@deepseek-ai/dsh-experimental-tool-read-video` | yes | Model-facing read_video tool: scene-change keyframes and speech of a video merged into one timestamped timeline, read coarse to fine |
 | `@deepseek-ai/dsh-experimental-tool-subagent-oar` | yes | Delegate standalone tasks to configured external subagent providers |
 | `@deepseek-ai/dsh-experimental-tool-worktree` | no | Model tool that creates and enters a new Git worktree |
 | `@deepseek-ai/dsh-experimental-translator` | yes | Machine translation with reusable Session results |
@@ -340,19 +338,6 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-mcp-client` | yes | MCP client bridge: connects to MCP servers and registers their tools on ctx.tools |
 | `@deepseek-ai/dsh-mcp-resources` | no | Scoped MCP resource discovery and reading through shared model tools |
 
-## memory
-
-| Package | Config | Description |
-|---|---|---|
-| `@deepseek-ai/dsh-memory` | yes | Cross-Session long-term memory: a size-capped MEMORY.md the agent curates, FTS5 episodic recall over past Sessions, and a post-turn reflect pass, built on system-prompt context, tools, and agent/turn-stopping |
-
-## multimodal
-
-| Package | Config | Description |
-|---|---|---|
-| `@deepseek-ai/dsh-tool-read-document` | yes | Model-facing read_document tool: PDF and Office files read coarse to fine, with scanned pages and figures rendered to images for image-capable models |
-| `@deepseek-ai/dsh-vision-bridge` | yes | ask_image tool: a model on a text-only route asks an image-capable model about an image and receives only the text answer |
-
 ## plan
 
 | Package | Config | Description |
@@ -384,8 +369,8 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 
 | Package | Config | Description |
 |---|---|---|
-| `@deepseek-ai/dsh-schedule` | yes | Host-wide durable reminders with shared management and original-Session delivery |
-| `@deepseek-ai/dsh-tool-schedule` | no | Model-facing reminder management tools (schedule_create, schedule_list, schedule_update, schedule_delete) over the Host ctx.schedule service |
+| `@deepseek-ai/dsh-schedule` | yes | Host-wide durable reminders with shared management and delivery to existing or new Sessions |
+| `@deepseek-ai/dsh-tool-schedule` | no | Model-facing scheduled task tools (schedule_create, schedule_list, schedule_view, schedule_edit) over the Host ctx.schedule service |
 
 ## sdk
 

@@ -7,8 +7,7 @@
  */
 
 import { globSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
-import { tmpdir } from 'node:os'
+import { basename, dirname, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import type { ToolSchema } from '@deepseek-ai/dsh-llm'
@@ -58,18 +57,12 @@ import * as ToolCordis from '@deepseek-ai/dsh-tool-cordis'
 import * as ToolPresent from '@deepseek-ai/dsh-tool-present'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import * as ToolFsSearch from '@deepseek-ai/dsh-tool-fs-search'
-import * as ToolReadDocument from '@deepseek-ai/dsh-tool-read-document'
-import * as ToolReadAudio from '@deepseek-ai/dsh-experimental-tool-read-audio'
-import * as ToolReadVideo from '@deepseek-ai/dsh-experimental-tool-read-video'
-import * as VisionBridge from '@deepseek-ai/dsh-vision-bridge'
-import { askUserToMarkTool } from '@deepseek-ai/dsh-experimental-co-canvas'
-import * as Memory from '@deepseek-ai/dsh-memory'
 import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
 import TerminalSessionService from '@deepseek-ai/dsh-terminal'
 import * as ToolPty from '@deepseek-ai/dsh-tool-terminal'
 import * as ToolGoal from '@deepseek-ai/dsh-tool-goal'
 import * as ToolSchedule from '@deepseek-ai/dsh-tool-schedule'
-import type ScheduleService from '@deepseek-ai/dsh-schedule'
+import ScheduleService from '@deepseek-ai/dsh-schedule'
 import Lsp from '@deepseek-ai/dsh-lsp'
 import * as ToolLsp from '@deepseek-ai/dsh-tool-lsp'
 import * as ToolSkill from '@deepseek-ai/dsh-tool-skill'
@@ -409,15 +402,15 @@ const TOOL_PACKAGES: ToolPackage[] = [
     dir: 'tool-fs',
     source: 'packages/fs/tool-fs/src/index.ts',
     requires: ['ctx.workingDirectory', 'ctx.tools', 'ctx.fs', 'ctx.systemPrompt', 'ctx.attachments (image-tool registration)', 'ctx.llm + an image-capable route (image-tool execution)'],
-    writes: ['tool/call', 'fs/write-intent or fs/edit-intent for mutations', 'fs/observed after read presence/absence or successful file operation', 'durable attachment (read_image)', 'tool/result'],
+    writes: ['tool/call', 'fs/write-intent, fs/edit-intent, or fs/delete-intent for mutations', 'fs/observed after read presence/absence or successful file operation', 'durable attachment (read_image)', 'tool/result'],
     async mount(ctx) {
       // The catalog seam marker opts into
       // the attachments-conditional image schema without attachment I/O.
       await ctx.plugin(CatalogAttachmentStore)
-      await ctx.plugin(ToolFs)
+      await ctx.plugin(ToolFs, { applyPatch: true })
     },
     note:
-      'The read-before-write/edit policy is added by `@deepseek-ai/dsh-fs-observation-policy` (an `fs/*` event-gate plugin, no schema change); a deployment that loads these tools is expected to also load it. The image tool is not registered without `ctx.attachments`; its schema is route-independent, and execution refuses unless the exact routed model declares image input.',
+      'The read-before-write/edit policy is added by `@deepseek-ai/dsh-fs-observation-policy` (an `fs/*` event-gate plugin, no schema change); the shipped compositions leave its row disabled, so mutations are unconditional unless a deployment enables it. The image tool is not registered without `ctx.attachments`; its schema is route-independent, and execution refuses unless the exact routed model declares image input. `apply_patch` registers only with `applyPatch: true`; the catalog sets it so the schema is documented. `dsh-base` and the Web `standard` preset enable it; the Web `ptc` and `cordis` presets and the PTC overlay state `applyPatch: false`.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-fs-search',
@@ -436,79 +429,6 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'glob and grep are unconditional discovery tools that spawn the packaged ripgrep binary (`@vscode/ripgrep`) through ctx.subprocess as ordinary foreground calls (never background jobs) — no host `rg` install and no shell layer. The catalog uses `sampleOverCapGlobResults: true`; deployments must choose that behavior explicitly. Capped results save the complete formatted list through the optional ctx.spillStore backend; returned locators are follow-up-readable/searchable when the backend exposes local paths in co-located deployments.',
-  },
-  {
-    pkg: '@deepseek-ai/dsh-tool-read-document',
-    dir: 'tool-read-document',
-    source: 'packages/multimodal/tool-read-document/src/index.ts',
-    requires: ['ctx.tools', 'ctx.fs', 'ctx.subprocess', 'ctx.attachments + an image-capable route (page images)', 'poppler and LibreOffice on the host'],
-    writes: ['tool/call', 'durable attachment (page images)', 'tool/result'],
-    async mount(ctx) {
-      await ctx.plugin(LocalSubprocessRuntime)
-      await ctx.plugin(ToolReadDocument)
-    },
-    note: 'Without `pages` a short document returns whole and a long one returns a per-page outline. Page images are returned only for pages without a text layer (or every page in `image` mode) and only when an attachment store is mounted and the routed model declares image input; otherwise each such page carries a note.',
-  },
-  {
-    pkg: '@deepseek-ai/dsh-experimental-tool-read-audio',
-    dir: 'tool-read-audio',
-    source: 'packages/experimental/tool-read-audio/src/index.ts',
-    requires: ['ctx.tools', 'ctx.fs', 'ctx.subprocess', 'ctx.speechToText (at call time)', 'ffmpeg on the host'],
-    writes: ['tool/call', 'tool/result'],
-    async mount(ctx) {
-      await ctx.plugin(LocalSubprocessRuntime)
-      await ctx.plugin(ToolReadAudio)
-    },
-    note: 'Timestamps come from silence-aware segmentation: each segment is transcribed separately through the speech seam. A transcript over `maxTranscriptChars` returns a time index instead, and `start`/`end` select a window from the cached whole-file transcript.',
-  },
-  {
-    pkg: '@deepseek-ai/dsh-experimental-tool-read-video',
-    dir: 'tool-read-video',
-    source: 'packages/experimental/tool-read-video/src/index.ts',
-    requires: ['ctx.tools', 'ctx.fs', 'ctx.subprocess', 'ctx.attachments + an image-capable route (frames)', 'ctx.speechToText (speech, at call time)', 'ffmpeg on the host'],
-    writes: ['tool/call', 'durable attachment (frames)', 'tool/result'],
-    async mount(ctx) {
-      await ctx.plugin(LocalSubprocessRuntime)
-      await ctx.plugin(ToolReadVideo)
-    },
-    note: 'Frames are the largest visual changes ranked by scene score (or uniformly spaced when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span.',
-  },
-  {
-    pkg: '@deepseek-ai/dsh-vision-bridge',
-    dir: 'vision-bridge',
-    source: 'packages/multimodal/vision-bridge/src/index.ts',
-    requires: ['ctx.tools', 'ctx.fs', 'ctx.llm', 'ctx.attachments', 'a configured image-capable model'],
-    writes: ['tool/call', 'durable attachment (the asked image)', 'tool/result'],
-    async mount(ctx) {
-      await ctx.plugin(CatalogAttachmentStore)
-      await ctx.plugin(LlmRuntime)
-      await ctx.plugin(VisionBridge)
-    },
-    note: 'The image and question go to the configured image-capable model in an auxiliary request; only the text answer returns, so a text-only route can use images without image blocks entering its history.',
-  },
-  {
-    pkg: '@deepseek-ai/dsh-experimental-co-canvas',
-    dir: 'co-canvas',
-    source: 'packages/experimental/co-canvas/src/index.ts',
-    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.typert', 'a Chromium the Host can launch', 'the co-canvas Web tab'],
-    writes: ['tool/call', 'tool/result', 'user marks attached to later tool results'],
-    // Only the tool is mounted: the service would launch the shared browser.
-    mount(ctx) {
-      ctx.tools.register(askUserToMarkTool(() => Promise.resolve({ text: '', images: [] })))
-      return Promise.resolve()
-    },
-    note: 'The question appears beside the live page in the co-canvas tab; the result lists the marks drawn before the user sends them, each grounded to the element under it. Marks drawn without a question arrive after the next tool result.',
-  },
-  {
-    pkg: '@deepseek-ai/dsh-memory',
-    dir: 'memory',
-    source: 'packages/memory/memory/src/index.ts',
-    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.llm (reflect pass)'],
-    writes: ['tool/call', 'tool/result', 'MEMORY.md and episodic.db under the configured root'],
-    async mount(ctx) {
-      await ctx.plugin(Memory, { root: join(tmpdir(), 'dsh-tool-catalog-memory') })
-    },
-    note: 'MEMORY.md is also placed in every request as runtime context. After each turn the plugin stores the turn in episodic memory and, with `reflect` on, files durable facts it extracts with one auxiliary request on the agent\'s route.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-terminal',
@@ -541,20 +461,21 @@ const TOOL_PACKAGES: ToolPackage[] = [
     pkg: '@deepseek-ai/dsh-tool-schedule',
     dir: 'tool-schedule',
     source: 'packages/schedule/tool-schedule/src/index.ts',
-    requires: ['ctx.tools', 'ctx.schedule'],
+    requires: ['ctx.tools', 'ctx.schedule', 'ctx.systemPrompt'],
     writes: ['tool/call', 'Schedule storage domain create, update, or delete', 'tool/result'],
     async mount(ctx) {
-      // Schema harvest never executes a tool, so the Host service is a
-      // declaration-only stub.
-      ctx.provide('schedule', {} as ScheduleService)
+      // Schema harvest never executes a tool, so the Host service is a stub that answers only the read of the
+      // default delivery limits, which the target description names when above the minimum.
+      ctx.provide('schedule', {
+        deliveryLimits: () => ({ newSessionIntervalSeconds: ScheduleService.Config({}).newSessionIntervalSeconds }),
+      } as ScheduleService)
       await ctx.plugin(ToolSchedule)
     },
     note:
-      'A preset or Agent scope mounts this package; the preset decides which agents receive the four '
-      + 'management tools. Each call acts on the calling Agent\'s Session. '
-      + 'Accepts after_seconds, explicit absolute at, bounded fixed-rate every_seconds, daily and weekly '
-      + 'local times in an explicit IANA zone, and cron as a five-field expression. '
-      + 'Management uses the Host storage domain; due messages resume the original Session.',
+      'A preset or Agent scope mounts this package and decides which agents receive its tools. '
+      + 'Management reads and writes Host tasks by id across Sessions. '
+      + 'Tasks store an RFC 5545 recurrence and an existing, first-created-and-reused, or per-run-new Session target. '
+      + 'Delegated subagents cannot call these tools.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-lsp',
@@ -755,7 +676,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       })
       await ctx.plugin(ToolWorktree)
     },
-    note: 'Explicit experimental composition only. Creates a new branch and checkout from a pinned local commit under existing write permissions, then changes the Session directory. Leaving retains the branch and checkout.',
+    note: 'Enabled through the Change requests & worktrees bundle on Web and Desktop; other profiles can select the standalone bundle. Creates a new branch and checkout from a pinned local commit under existing write permissions, then changes the Session directory. Leaving retains the branch and checkout.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-workflow',

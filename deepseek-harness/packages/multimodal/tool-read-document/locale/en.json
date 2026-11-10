@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Document reader",
-    "description": "Lets the agent read PDF and Office documents, with scanned pages shown as images."
-  }
-}

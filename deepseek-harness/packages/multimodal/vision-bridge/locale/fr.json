@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Pont de vision",
-    "description": "Permet à un modèle texte seul d'interroger un modèle de vision sur des images."
-  }
-}

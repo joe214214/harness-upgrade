@@ -731,7 +731,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-compaction-basic`
 
 - `inject`: `llm` · `tokenMeter` · `sessions`
-- `source`: [`packages/compaction/compaction-basic/src/types.ts:40`](../packages/compaction/compaction-basic/src/types.ts)
+- `source`: [`packages/compaction/compaction-basic/src/types.ts:46`](../packages/compaction/compaction-basic/src/types.ts)
 
 ```ts config-catalog
 /** Basic compaction configuration with an optional exact-target policy table. */
@@ -1084,51 +1084,6 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-client-ui-forge -->
 
-<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-co-canvas -->
-<a id="deepseek-aidsh-experimental-co-canvas"></a>
-
-## `@deepseek-ai/dsh-experimental-co-canvas`
-
-- `inject`: `tools` · `systemPrompt` · `typert`
-- `source`: [`packages/experimental/co-canvas/src/index.ts:57`](../packages/experimental/co-canvas/src/index.ts)
-
-```ts config-catalog
-/** Deployment settings of the shared browser and of mark delivery. */
-export interface Config {
-  /** CDP port the agent's browser tools attach to. */
-  debugPort: number
-  /** Run the browser without a window; the Web panel shows it either way. */
-  headless: boolean
-  /** Chromium executable; omission uses `channel` or Playwright's browser. */
-  executablePath?: string | undefined
-  /** Installed browser channel, e.g. `chrome` or `msedge`. */
-  channel?: string | undefined
-  /** Browser profile directory. */
-  userDataDir: string
-  /** Page opened at launch. */
-  startUrl: string
-  /** Viewport width in CSS pixels. */
-  viewportWidth: number
-  /** Viewport height in CSS pixels. */
-  viewportHeight: number
-  /** JPEG quality of live frames. */
-  frameQuality: number
-  /** Inject the marking toolbar into every page, for marking directly in the browser window. */
-  pageToolbar: boolean
-  /** Regular expression matching the agent's browser tool names; matching calls wait while the user holds control. */
-  gatedTools: string
-  /** Most marks listed in one delivery. */
-  maxMarksPerMessage: number
-  /** Most cropped screenshots attached to one delivery on image-capable routes; zero disables them. */
-  maxCropsPerMessage: number
-  /** Context pixels around a cropped mark. */
-  cropMargin: number
-  /** How long ask_user_to_mark waits for an answer. */
-  askTimeoutMs: number
-}
-```
-<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-co-canvas -->
-
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp -->
 <a id="deepseek-aidsh-experimental-computer-use-cua-driver-mcp"></a>
 
@@ -1160,11 +1115,14 @@ export interface Config {
 
 - `inject`: `computerUse` · `tools` · `systemPrompt` · `subprocess` · `agents`
 - `refs`: [`CuaConfig`](../packages/experimental/cua/src/index.ts)
-- `source`: [`packages/experimental/cua-macos/src/index.ts:16`](../packages/experimental/cua-macos/src/index.ts)
+- `source`: [`packages/experimental/cua-macos/src/index.ts:18`](../packages/experimental/cua-macos/src/index.ts)
 
 ```ts config-catalog
 /** Native preparation, operation bounds, and profile-local application grants. */
-export type Config = CuaConfig
+export interface Config extends CuaConfig {
+  /** Interval in milliseconds between permission and position checks while the native guide is open. */
+  permissionPollIntervalMs: number
+}
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-cua-macos -->
 
@@ -1173,7 +1131,7 @@ export type Config = CuaConfig
 
 ## `@deepseek-ai/dsh-experimental-forge`
 
-- `source`: [`packages/experimental/forge/src/types.ts:205`](../packages/experimental/forge/src/types.ts)
+- `source`: [`packages/experimental/forge/src/types.ts:232`](../packages/experimental/forge/src/types.ts)
 
 ```ts config-catalog
 /** Poll cadence and fetch deadline for watched change requests. */
@@ -1207,7 +1165,7 @@ export interface Config {
   hosts?: string[]
   /** Deadline in milliseconds for one `gh` invocation. */
   timeoutMs?: number
-  /** Maximum captured bytes per `gh` output stream. */
+  /** Maximum captured bytes per `gh` output stream and combined JSON bytes of one complete check read. */
   maxOutputBytes?: number
 }
 ```
@@ -1498,79 +1456,6 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-agent-team -->
 
-<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-read-audio -->
-<a id="deepseek-aidsh-experimental-tool-read-audio"></a>
-
-## `@deepseek-ai/dsh-experimental-tool-read-audio`
-
-- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
-- `source`: [`packages/experimental/tool-read-audio/src/index.ts:36`](../packages/experimental/tool-read-audio/src/index.ts)
-
-```ts config-catalog
-/** Plugin config; every field has a validated default. */
-export interface Config {
-  /** Longest transcription segment in seconds. */
-  maxSegmentSeconds?: number
-  /** A segment ends at the first pause after this many seconds. */
-  minSegmentSeconds?: number
-  /** silencedetect noise floor. */
-  silenceNoise?: string
-  /** Shortest pause counted as silence, in seconds. */
-  silenceSeconds?: number
-  /** Longest file accepted, in seconds. */
-  maxDurationSeconds?: number
-  /** Transcript characters returned before switching to a time index. */
-  maxTranscriptChars?: number
-  /** Length of one entry of the time index, in seconds. */
-  indexBlockSeconds?: number
-  /** Deadline for each ffmpeg command. */
-  commandTimeoutMs?: number
-  /** Start speech provider preparation (e.g. the first model download) when it is not ready. */
-  autoPrepare?: boolean
-  /** Deadline for that preparation. */
-  prepareTimeoutMs?: number
-  /** Directory for cached transcripts. */
-  cacheDir?: string
-}
-```
-<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-read-audio -->
-
-<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-read-video -->
-<a id="deepseek-aidsh-experimental-tool-read-video"></a>
-
-## `@deepseek-ai/dsh-experimental-tool-read-video`
-
-- `inject`: `tools` · `fs` · `subprocess`
-- `source`: [`packages/experimental/tool-read-video/src/index.ts:48`](../packages/experimental/tool-read-video/src/index.ts)
-
-```ts config-catalog
-/** Plugin config; every field has a validated default. */
-export interface Config {
-  /** Frames returned by one call. */
-  maxFramesPerCall?: number
-  /** Frame selection: largest visual changes, or evenly spaced as a baseline. */
-  sampling?: Sampling
-  /** Scene scores below this are encoder noise (0–1). */
-  minSceneScore?: number
-  /** Minimum spacing between selected frames, in seconds. */
-  minFrameGapSeconds?: number
-  /** Frames wider than this are scaled down. */
-  frameMaxWidth?: number
-  /** Longest file accepted, in seconds. */
-  maxDurationSeconds?: number
-  /** Transcript characters included in one timeline before speech is summarized. */
-  maxTranscriptChars?: number
-  /** Deadline for each ffmpeg command. */
-  commandTimeoutMs?: number
-  /** Directory for cached transcripts (shared with read_audio). */
-  cacheDir?: string
-}
-
-/** How frames are chosen inside a window. */
-export type Sampling = 'scene' | 'uniform'
-```
-<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-read-video -->
-
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-tool-subagent-oar -->
 <a id="deepseek-aidsh-experimental-tool-subagent-oar"></a>
 
@@ -1684,7 +1569,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-fs-local`
 
-- `source`: [`packages/fs/fs-local/src/index.ts:46`](../packages/fs/fs-local/src/index.ts)
+- `source`: [`packages/fs/fs-local/src/index.ts:51`](../packages/fs/fs-local/src/index.ts)
 
 ```ts config-catalog
 /** Configuration for the local filesystem backend. */
@@ -2080,7 +1965,7 @@ export interface Config extends ProtocolConfig, ModelListingConfig {
 
 - `inject`: `llm`
 - `refs`: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`) · `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/llm/llm-pi-ai/src/config.ts:222`](../packages/llm/llm-pi-ai/src/config.ts)
+- `source`: [`packages/llm/llm-pi-ai/src/config.ts:251`](../packages/llm/llm-pi-ai/src/config.ts)
 
 ```ts config-catalog
 /** Plugin configuration: the provider routes this instance owns. */
@@ -2176,6 +2061,18 @@ export interface PiAiProviderProfile {
    * requests instead of being rejected by a request-size cap.
    */
   maxRequestImageBytes?: number
+  /**
+   * Maximum retained image occurrences per request. A request carrying more
+   * fails with `IMAGE_OFFLOAD_REQUIRED` naming how many of the oldest
+   * occurrences to offload.
+   */
+  maxRequestImages?: number
+  /**
+   * Oldest occurrences offloaded per count overflow (default 10, capped at
+   * {@link maxRequestImages}); an explicit value must not exceed it. Larger
+   * steps rewrite the request prefix less often.
+   */
+  imageOffloadCountQuantum?: number
   /** Total-pixel budget for each deterministic inline request version. */
   requestImagePixelBudget?: number
   /**
@@ -2565,35 +2462,6 @@ export interface ReconnectConfig {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-mcp-client -->
-
-<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-memory -->
-<a id="deepseek-aidsh-memory"></a>
-
-## `@deepseek-ai/dsh-memory`
-
-- `inject`: `tools` · `systemPrompt`
-- `source`: [`packages/memory/memory/src/index.ts:49`](../packages/memory/memory/src/index.ts)
-
-```ts config-catalog
-/** Plugin config; every field has a validated default. */
-export interface Config {
-  /** Directory holding MEMORY.md and episodic.db. */
-  root?: string
-  /** MEMORY.md byte cap. */
-  capBytes?: number
-  /** Run the reflect pass after each turn. */
-  reflect?: boolean
-  /** Output token cap of one reflect request. */
-  reflectMaxTokens?: number
-  /** Deadline of one reflect request. */
-  reflectTimeoutMs?: number
-  /** Hits returned by one recall. */
-  recallLimit?: number
-  /** Clip length for ordinary tool results stored in episodic memory. */
-  maxToolChars?: number
-}
-```
-<!-- END GENERATED config-catalog:@deepseek-ai/dsh-memory -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-message-feedback -->
 <a id="deepseek-aidsh-message-feedback"></a>
@@ -3079,7 +2947,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-schedule`
 
 - `inject`: `agents` · `sessions` · `storageDomain` · `sessionPersistence`
-- `source`: [`packages/schedule/schedule/src/index.ts:83`](../packages/schedule/schedule/src/index.ts)
+- `source`: [`packages/schedule/schedule/src/index.ts:80`](../packages/schedule/schedule/src/index.ts)
 
 ```ts config-catalog
 /** Configuration for the Host Schedule domain. */
@@ -3094,6 +2962,11 @@ export interface Config {
    * cap and the window wins, and the newest records survive.
    */
   deliveryHistoryRecords?: number
+  /**
+   * Shortest spacing, in seconds, from the occurrence of one delivery to the next delivery of one task whose target
+   * creates a Session at every delivery; omission defaults to 60. Timed and manual deliveries both wait for it.
+   */
+  newSessionIntervalSeconds?: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-schedule -->
@@ -3146,7 +3019,7 @@ export interface JsonRpcConfig {
 
 - `inject`: `deepseekLlmApiExtensions` · `sessions`
 - `refs`: `Volatile` (`@deepseek-ai/cordis`)
-- `source`: [`packages/session/session-log-deepseek/src/index.ts:39`](../packages/session/session-log-deepseek/src/index.ts)
+- `source`: [`packages/session/session-log-deepseek/src/index.ts:47`](../packages/session/session-log-deepseek/src/index.ts)
 
 ```ts config-catalog
 /** Session-log request contribution configuration. */
@@ -3917,7 +3790,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:269`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:265`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
@@ -4151,7 +4024,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-fs`
 
 - `inject`: `tools` · `fs` · `systemPrompt` · `workingDirectory`
-- `source`: [`packages/fs/tool-fs/src/index.ts:26`](../packages/fs/tool-fs/src/index.ts)
+- `source`: [`packages/fs/tool-fs/src/index.ts:27`](../packages/fs/tool-fs/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config (all optional — `Config` supplies the defaults). */
@@ -4164,6 +4037,8 @@ export interface Config {
   write?: boolean
   /** Register `edit` and its guidance. Defaults to true. */
   edit?: boolean
+  /** Register `apply_patch` and its guidance beside `edit`. Defaults to false; shipped compositions set it on their `tool-fs` rows. */
+  applyPatch?: boolean
   /** Default and maximum number of lines returned by one `read` call. */
   readLimit?: number
   /** Maximum characters returned for a single line before truncation. */
@@ -4386,37 +4261,6 @@ export interface Config {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-ralph -->
-
-<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-read-document -->
-<a id="deepseek-aidsh-tool-read-document"></a>
-
-## `@deepseek-ai/dsh-tool-read-document`
-
-- `inject`: `tools` · `fs` · `subprocess` · `systemPrompt`
-- `source`: [`packages/multimodal/tool-read-document/src/index.ts:45`](../packages/multimodal/tool-read-document/src/index.ts)
-
-```ts config-catalog
-/** Plugin config; every field has a validated default. */
-export interface Config {
-  /** Most pages one call may select. */
-  maxPagesPerCall?: number
-  /** Most page images one call may return. */
-  maxImagesPerCall?: number
-  /** A page with fewer text characters than this is treated as having no text layer. */
-  textLayerMinChars?: number
-  /** Render resolution for page images. */
-  renderDpi?: number
-  /** A document whose whole text is at most this long is returned whole when `pages` is omitted. */
-  wholeTextMaxChars?: number
-  /** Per-page text cap in characters. */
-  maxPageChars?: number
-  /** Deadline for each poppler or LibreOffice command. */
-  commandTimeoutMs?: number
-  /** Directory for cached text extraction results. */
-  cacheDir?: string
-}
-```
-<!-- END GENERATED config-catalog:@deepseek-ai/dsh-tool-read-document -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-tool-session-query -->
 <a id="deepseek-aidsh-tool-session-query"></a>
@@ -4704,29 +4548,6 @@ export interface Config {
 export type ApprovalPolicy = 'ask' | 'never'
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-user-approval -->
-
-<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-vision-bridge -->
-<a id="deepseek-aidsh-vision-bridge"></a>
-
-## `@deepseek-ai/dsh-vision-bridge`
-
-- `inject`: `tools` · `fs` · `llm` · `attachments` · `systemPrompt`
-- `source`: [`packages/multimodal/vision-bridge/src/index.ts:34`](../packages/multimodal/vision-bridge/src/index.ts)
-
-```ts config-catalog
-/** Plugin config; every field has a validated default. */
-export interface Config {
-  /** Provider of the image-capable model; empty uses the calling agent's provider. */
-  provider?: string
-  /** Image-capable model that answers. */
-  model?: string
-  /** Output token cap of one answer. */
-  maxTokens?: number
-  /** Deadline of one answer. */
-  timeoutMs?: number
-}
-```
-<!-- END GENERATED config-catalog:@deepseek-ai/dsh-vision-bridge -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-web -->
 <a id="deepseek-aidsh-web"></a>
@@ -5035,6 +4856,7 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-brand-official` | — | [`packages/client/ui-brand-official/src/index.ts`](../packages/client/ui-brand-official/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-chat` | — | [`packages/client/ui-chat/src/index.ts`](../packages/client/ui-chat/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-commands` | — | [`packages/client/ui-commands/src/index.ts`](../packages/client/ui-commands/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-context-menu` | — | [`packages/client/ui-context-menu/src/index.ts`](../packages/client/ui-context-menu/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-conversation` | — | [`packages/client/ui-conversation/src/index.ts`](../packages/client/ui-conversation/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-cordis` | — | [`packages/extensions/ui-cordis/src/index.ts`](../packages/extensions/ui-cordis/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-creation-recommendations` | — | [`packages/experimental/client-ui-creation-recommendations/src/index.ts`](../packages/experimental/client-ui-creation-recommendations/src/index.ts) |
@@ -5042,6 +4864,7 @@ export interface Config {
 | `@deepseek-ai/dsh-client-ui-directory-picker-browse` | — | [`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-directory-picker-native` | — | [`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-entry-customization` | — | [`packages/client/ui-entry-customization/src/index.ts`](../packages/client/ui-entry-customization/src/index.ts) |
+| `@deepseek-ai/dsh-client-ui-file-actions` | — | [`packages/client/ui-file-actions/src/index.ts`](../packages/client/ui-file-actions/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-file-drag` | — | [`packages/client/ui-file-drag/src/index.ts`](../packages/client/ui-file-drag/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-goal` | — | [`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts) |
 | `@deepseek-ai/dsh-client-ui-input-trigger` | — | [`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts) |
@@ -5095,7 +4918,6 @@ export interface Config {
 | `@deepseek-ai/dsh-experimental-auto-review` | `approval` · `llm` · `permissionPresets` · `sessions` · `tools` · `workingDirectory` | [`packages/experimental/auto-review/src/index.ts`](../packages/experimental/auto-review/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-agent-team` | — | [`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-claude-code-mods` | — | [`packages/experimental/client-ui-claude-code-mods/src/index.ts`](../packages/experimental/client-ui-claude-code-mods/src/index.ts) |
-| `@deepseek-ai/dsh-experimental-client-ui-co-canvas` | — | [`packages/experimental/client-ui-co-canvas/src/index.ts`](../packages/experimental/client-ui-co-canvas/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-stats` | — | [`packages/experimental/client-ui-stats/src/index.ts`](../packages/experimental/client-ui-stats/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-voice-input` | — | [`packages/experimental/client-ui-voice-input/src/index.ts`](../packages/experimental/client-ui-voice-input/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-computer-use-cua-driver-native` | `computerUse` · `tools` · `systemPrompt` | [`packages/experimental/computer-use-cua-driver-native/src/index.ts`](../packages/experimental/computer-use-cua-driver-native/src/index.ts) |
@@ -5129,7 +4951,7 @@ export interface Config {
 | `@deepseek-ai/dsh-tool-call-timeout-policy` | `tools` | [`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts) |
 | `@deepseek-ai/dsh-tool-cordis` | `tools` · `cordisInspect` | [`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts) |
 | `@deepseek-ai/dsh-tool-executor-native` | `tools` | [`packages/core/tool-executor-native/src/index.ts`](../packages/core/tool-executor-native/src/index.ts) |
-| `@deepseek-ai/dsh-tool-schedule` | `tools` | [`packages/schedule/tool-schedule/src/index.ts`](../packages/schedule/tool-schedule/src/index.ts) |
+| `@deepseek-ai/dsh-tool-schedule` | `tools` · `systemPrompt` | [`packages/schedule/tool-schedule/src/index.ts`](../packages/schedule/tool-schedule/src/index.ts) |
 | `@deepseek-ai/dsh-tool-subagent-control` | `tools` · `subagents` · `agents` | [`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts) |
 | `@deepseek-ai/dsh-tool-working-directory` | `tools` · `workingDirectory` | [`packages/session/tool-working-directory/src/index.ts`](../packages/session/tool-working-directory/src/index.ts) |
 | `@deepseek-ai/dsh-tools` | `systemPrompt` | [`packages/core/tools/src/index.ts`](../packages/core/tools/src/index.ts) |
@@ -5202,6 +5024,7 @@ export interface Config {
 | `@deepseek-ai/dsh-experimental-voice-input-bundle` | — | [`packages/experimental/voice-input-bundle/src/index.ts`](../packages/experimental/voice-input-bundle/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-webworker-packer` | — | [`packages/experimental/webworker-packer/src/index.ts`](../packages/experimental/webworker-packer/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-webworker-runtime` | — | [`packages/experimental/webworker-runtime/src/index.ts`](../packages/experimental/webworker-runtime/src/index.ts) |
+| `@deepseek-ai/dsh-fs-patch` | — | [`packages/fs/fs-patch/src/index.ts`](../packages/fs/fs-patch/src/index.ts) |
 | `@deepseek-ai/dsh-home-paths` | — | [`packages/util/home-paths/src/index.ts`](../packages/util/home-paths/src/index.ts) |
 | `@deepseek-ai/dsh-hook-protocol` | — | [`packages/experimental/hook-protocol/src/index.ts`](../packages/experimental/hook-protocol/src/index.ts) |
 | `@deepseek-ai/dsh-http-proxy` | — | [`packages/util/http-proxy/src/index.ts`](../packages/util/http-proxy/src/index.ts) |
@@ -5210,7 +5033,6 @@ export interface Config {
 | `@deepseek-ai/dsh-llm-deepseek` | — | [`packages/llm/llm-deepseek/src/index.ts`](../packages/llm/llm-deepseek/src/index.ts) |
 | `@deepseek-ai/dsh-llm-mock-server` | — | [`packages/test-support/llm-mock-server/src/index.ts`](../packages/test-support/llm-mock-server/src/index.ts) |
 | `@deepseek-ai/dsh-loader-smoke` | — | [`packages/test-support/loader-smoke/src/index.ts`](../packages/test-support/loader-smoke/src/index.ts) |
-| `@deepseek-ai/dsh-media-core` | — | [`packages/multimodal/media-core/src/index.ts`](../packages/multimodal/media-core/src/index.ts) |
 | `@deepseek-ai/dsh-native-command` | — | [`packages/util/native-command/src/index.ts`](../packages/util/native-command/src/index.ts) |
 | `@deepseek-ai/dsh-official-bundles` | — | [`packages/util/official-bundles/src/index.ts`](../packages/util/official-bundles/src/index.ts) |
 | `@deepseek-ai/dsh-output-retention` | — | [`packages/util/output-retention/src/index.ts`](../packages/util/output-retention/src/index.ts) |
