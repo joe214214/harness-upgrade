@@ -12,7 +12,9 @@
 | Work in a browser the user watches live, marks, and can take over | `dsh-experimental-co-canvas` + Web tab | `ask_user_to_mark` |
 | (shared) command runner, cache, windows, image commits | `dsh-media-core` | — |
 
-[`deepseek-harness/`](deepseek-harness) is the complete upgraded harness: the official `0.2.2-alpha.2` release imported unmodified in one commit, with every change of this project as separate commits on top (197 files, +12,654 / −210 lines, including regenerated catalogs). `git log -- deepseek-harness` shows exactly what was added.
+[`deepseek-harness/`](deepseek-harness) is the complete upgraded harness: the latest official release, `0.2.2-rc.1`, imported unmodified in one commit (byte-identical to upstream's tag), with every change of this project as separate commits on top — 159 source files, +9,223 / −20 lines, plus regenerated catalogs and docs. `git diff <import commit> HEAD -- deepseek-harness` shows exactly what was added.
+
+**A superset of upstream, not a fork that drifts.** Everything in the official release is kept as is; this project only adds packages and registers them where upstream expects new packages to be registered. Upstream's own checks run on the combined tree: the full build and `build:check`, all 43 documentation gates, and upstream's complete unit-test suite (52,744 tests). In this cloud container 16 upstream test files fail identically on the untouched release (sandboxing, root user, IPv6, SSH and GitHub CLI access), so they are environmental; every other test passes.
 
 ## Try it
 
@@ -102,7 +104,7 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 - **`document.open()` erases every listener**, shadow trees included, so a re-attached toolbar looked alive but was dead; it is now rebuilt whole.
 - **Stale actions are the real hazard.** Delivering a correction after the agent's next action is too late if that action is the wrong click. A browser call chosen before the user's latest input is refused with the marks instead of run.
 - **Benchmarks leak.** An early memory test "passed" because the agent globbed outside its workspace and read the harness's own logs. Answers now stay in memory until all runs finish.
-- **Upstream's bar, not ours.** 69 package tests; dsh's 43 documentation gates and `build:check` pass (bilingual READMEs with Model Experience sections, generated tool/config catalogs, an acknowledged persistence-type change, locale metadata in 8 languages).
+- **Upstream's bar, not ours.** 72 package tests; dsh's 43 documentation gates and `build:check` pass (bilingual READMEs with Model Experience sections, generated tool/config catalogs, an acknowledged persistence-type change, locale metadata in 8 languages).
 
 ## Status
 
@@ -117,7 +119,7 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 ## Repository layout
 
 ```
-deepseek-harness/  the upgraded harness: official 0.2.2-alpha.2 plus this project's commits
+deepseek-harness/  the upgraded harness: official 0.2.2-rc.1 plus this project's commits
 install/           setup.ps1 (Windows), setup.sh, the dsh-mm launcher and plugin overlay
 demos/             demo projects, recordings, fixtures, and run.sh
 eval/              video benchmark (Python orchestrator, Playwright recorder) and results
