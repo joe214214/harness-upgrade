@@ -228,7 +228,21 @@ export default class CoCanvas extends TypertRemoteService {
       this.question?.settle()
       await this.browser.close()
     }
-    await this.browser.start()
+    // A failed or stalled launch must be visible on the console: the agent only sees a refused connection.
+    // Operator lines go to stderr with a tag, as the DeepSeek provider's do.
+    const log = (message: string): void => { console.error('[co-canvas]', message) }
+    const { executablePath, channel, debugPort, userDataDir } = this.config
+    const launch = `${executablePath ?? channel ?? 'Playwright Chromium'}, port ${debugPort}, profile ${userDataDir}`
+    const slow = setTimeout(() => { log(`the browser has not started after 30 s (${launch})`) }, 30_000)
+    try {
+      await this.browser.start()
+    } catch (error) {
+      log(`could not start the browser (${launch}): ${String(error)}`)
+      throw error
+    } finally {
+      clearTimeout(slow)
+    }
+    log(`browser ready; browser tools attach at ${this.browser.endpoint}`)
     yield this.browser.subscribe(() => { this.changed() })
   }
 
