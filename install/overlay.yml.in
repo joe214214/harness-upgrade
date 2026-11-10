@@ -1,6 +1,6 @@
 # Adds the multimodal and memory packages to a DSH profile (passed with --patch).
-# setup.sh / setup.ps1 substitute @DSH@ (the harness), @DATA@ (memory, models, browser profile)
-# and @BROWSER@ (the co-canvas browser choice).
+# setup.sh / setup.ps1 fill in the placeholders for the harness path, the data folder (memory, models,
+# browser profile) and the co-canvas browser choice; the browser placeholder occupies a line of its own.
 - insert:
     - id: tool-read-document
       name: '@DSH@/packages/multimodal/tool-read-document/src/index.ts'
