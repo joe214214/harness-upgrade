@@ -19,7 +19,7 @@ export const zh = {
   pause: '暂停', resume: '继续', take: '接管', handBack: '交还给 agent',
   ask: 'Agent 请你标注：', answer: '发送标注作为回答',
   pending: '等待送达 agent 的标注', remove: '移除', noElement: '未找到元素',
-  waiting: '正在连接浏览器…', view: '共享浏览器画面',
+  waiting: '正在连接浏览器…', failed: '浏览器启动失败：', view: '共享浏览器画面',
 } satisfies Record<string, string>
 
 /** English copy. */
@@ -31,7 +31,7 @@ export const en = {
   pause: 'Pause', resume: 'Resume', take: 'Take over', handBack: 'Hand back',
   ask: 'The agent asks you to mark:', answer: 'Send marks as answer',
   pending: 'Marks waiting for the agent', remove: 'Remove', noElement: 'no element found',
-  waiting: 'Connecting to the browser…', view: 'Shared browser view',
+  waiting: 'Connecting to the browser…', failed: 'The browser failed to start:', view: 'Shared browser view',
 } satisfies Record<keyof typeof zh, string>
 
 /** Japanese copy. */
@@ -43,7 +43,7 @@ export const ja = {
   pause: '一時停止', resume: '再開', take: '引き継ぐ', handBack: 'エージェントに戻す',
   ask: 'エージェントからの依頼：', answer: '印を回答として送信',
   pending: 'エージェントへの送信待ちの印', remove: '削除', noElement: '要素が見つかりません',
-  waiting: 'ブラウザに接続しています…', view: '共有ブラウザの画面',
+  waiting: 'ブラウザに接続しています…', failed: 'ブラウザを起動できませんでした：', view: '共有ブラウザの画面',
 } satisfies Record<keyof typeof zh, string>
 
 /** Spanish copy. */
@@ -55,7 +55,7 @@ export const es = {
   pause: 'Pausar', resume: 'Reanudar', take: 'Tomar el control', handBack: 'Devolver',
   ask: 'El agente te pide que marques:', answer: 'Enviar marcas como respuesta',
   pending: 'Marcas pendientes para el agente', remove: 'Quitar', noElement: 'ningún elemento',
-  waiting: 'Conectando con el navegador…', view: 'Vista del navegador compartido',
+  waiting: 'Conectando con el navegador…', failed: 'No se pudo iniciar el navegador:', view: 'Vista del navegador compartido',
 } satisfies Record<keyof typeof zh, string>
 
 /** French copy. */
@@ -67,7 +67,7 @@ export const fr = {
   pause: 'Pause', resume: 'Reprendre', take: 'Prendre la main', handBack: 'Rendre la main',
   ask: 'L\'agent vous demande d\'annoter :', answer: 'Envoyer les annotations comme réponse',
   pending: 'Annotations en attente pour l\'agent', remove: 'Retirer', noElement: 'aucun élément',
-  waiting: 'Connexion au navigateur…', view: 'Vue du navigateur partagé',
+  waiting: 'Connexion au navigateur…', failed: 'Le navigateur n\'a pas pu démarrer :', view: 'Vue du navigateur partagé',
 } satisfies Record<keyof typeof zh, string>
 
 /** German copy. */
@@ -79,7 +79,7 @@ export const de = {
   pause: 'Pausieren', resume: 'Fortsetzen', take: 'Übernehmen', handBack: 'Zurückgeben',
   ask: 'Der Agent bittet um eine Markierung:', answer: 'Markierungen als Antwort senden',
   pending: 'Markierungen für den Agenten', remove: 'Entfernen', noElement: 'kein Element gefunden',
-  waiting: 'Verbindung zum Browser…', view: 'Ansicht des gemeinsamen Browsers',
+  waiting: 'Verbindung zum Browser…', failed: 'Der Browser konnte nicht starten:', view: 'Ansicht des gemeinsamen Browsers',
 } satisfies Record<keyof typeof zh, string>
 
 /** Russian copy. */
@@ -91,7 +91,7 @@ export const ru = {
   pause: 'Пауза', resume: 'Продолжить', take: 'Взять управление', handBack: 'Вернуть агенту',
   ask: 'Агент просит отметить:', answer: 'Отправить отметки как ответ',
   pending: 'Отметки ждут агента', remove: 'Удалить', noElement: 'элемент не найден',
-  waiting: 'Подключение к браузеру…', view: 'Вид общего браузера',
+  waiting: 'Подключение к браузеру…', failed: 'Не удалось запустить браузер:', view: 'Вид общего браузера',
 } satisfies Record<keyof typeof zh, string>
 
 /** Portuguese copy. */
@@ -103,5 +103,5 @@ export const pt = {
   pause: 'Pausar', resume: 'Retomar', take: 'Assumir', handBack: 'Devolver',
   ask: 'O agente pede que você marque:', answer: 'Enviar marcas como resposta',
   pending: 'Marcas aguardando o agente', remove: 'Remover', noElement: 'nenhum elemento',
-  waiting: 'Conectando ao navegador…', view: 'Visão do navegador compartilhado',
+  waiting: 'Conectando ao navegador…', failed: 'Não foi possível iniciar o navegador:', view: 'Visão do navegador compartilhado',
 } satisfies Record<keyof typeof zh, string>

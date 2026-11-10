@@ -5852,7 +5852,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CanvasState',
-    declaration: 'export interface CanvasState {\n    readonly connected: boolean;\n    readonly url: string;\n    readonly title: string;\n    readonly control: CanvasControl;\n    readonly question: CanvasQuestion | null;\n    readonly pending: readonly CanvasMark[];\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n}',
+    declaration: 'export interface CanvasState {\n    readonly connected: boolean;\n    readonly failure: string | null;\n    readonly url: string;\n    readonly title: string;\n    readonly control: CanvasControl;\n    readonly question: CanvasQuestion | null;\n    readonly pending: readonly CanvasMark[];\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n}',
   },
   {
     name: 'ChangeRequestCheck',

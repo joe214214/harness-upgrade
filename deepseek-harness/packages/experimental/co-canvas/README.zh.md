@@ -87,7 +87,7 @@ kind: "package-reference"
 
 ### 送达与控制权
 
-`tools/post-execute` 监听器把未送达的标注，以及上次送达后的控制权交还，作为一条附加用户消息附在 agent 下一次工具调用的结果上；agent 循环会将它与结果一起记录。`tools/pre-execute` 监听器在控制权回到 agent 之前，挂起名称匹配 `gatedTools` 的调用；如果 agent 选定这样的调用之后用户标注了页面或持有过控制权，该调用不会执行，而是带着标注被拒绝，因此过时的操作不会作用到页面上。用户输入经 Playwright 重放，只有用户持有控制权时才被接受。
+`tools/post-execute` 监听器把未送达的标注，以及上次送达后的控制权交还，作为一条附加用户消息附在 agent 下一次工具调用的结果上；agent 循环会将它与结果一起记录。`tools/pre-execute` 监听器在控制权回到 agent 之前，挂起名称匹配 `gatedTools` 的调用；如果 agent 选定这样的调用之后用户标注了页面或亲自操作过页面，该调用不会执行，而是带着标注被拒绝，因此过时的操作不会作用到页面上；如果用户只是暂停后继续，调用照常执行，交还说明随其结果送达。如果浏览器启动失败，监听器会带着启动错误拒绝这些调用，该错误同时输出到控制台并显示在协同画布标签页中。用户输入经 Playwright 重放，只有用户持有控制权时才被接受。
 
 ### 源码地图
 
@@ -167,7 +167,7 @@ The user watches your browser live and can mark elements on it. Their marks arri
 
 #### 模型看到什么
 
-在用户最新输入之前选定的浏览器调用不会执行而直接失败，原因是下面这句话，后面跟着下文格式的标注。在支持图片的路由上，这些标注的截图会随下一个工具结果送达，并附一行 `<user_marks>` 说明。
+在用户最新标注之前、或在用户亲自操作页面之前选定的浏览器调用不会执行而直接失败，原因是下面这句话，后面跟着下文格式的标注。在支持图片的路由上，这些标注的截图会随下一个工具结果送达，并附一行 `<user_marks>` 说明。
 
 ##### 原因原文
 
@@ -178,6 +178,26 @@ This browser action was not run: the user acted on the page after you chose it. 
 #### Token 影响
 
 只在用户于 agent 选定与调用之间操作时出现：一句话，另加每个标注约一行。
+
+#### KV Cache 影响
+
+只追加；该失败就是这次调用的工具结果。
+
+### 浏览器未启动
+
+#### 模型看到什么
+
+共享浏览器未能启动时，每个受控的浏览器调用都不会执行而直接失败，原因是下面这句话，后面跟着启动错误。
+
+##### 原因原文
+
+```markdown
+The shared browser failed to start, so browser tools cannot run. Do not start a browser yourself; tell the user it failed to start and show this error:
+```
+
+#### Token 影响
+
+只在启动失败后出现：每次浏览器调用一句话加错误信息。
 
 #### KV Cache 影响
 

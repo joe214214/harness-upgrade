@@ -87,7 +87,7 @@ The focus point of a mark is the centre of a box, the head of an arrow, or the p
 
 ### Delivery and control
 
-A `tools/post-execute` listener attaches undelivered marks, and any handback since the last delivery, to the result of the agent's next tool call as one additional user message; the agent loop logs it with the result. A `tools/pre-execute` listener holds calls whose name matches `gatedTools` until control returns to the agent; if the user marked the page or held control after the agent chose such a call, the call is refused with the marks instead of run, so a stale action never reaches the page. User input is replayed through Playwright and refused unless the user holds control.
+A `tools/post-execute` listener attaches undelivered marks, and any handback since the last delivery, to the result of the agent's next tool call as one additional user message; the agent loop logs it with the result. A `tools/pre-execute` listener holds calls whose name matches `gatedTools` until control returns to the agent; if the user marked the page or operated it after the agent chose such a call, the call is refused with the marks instead of run, so a stale action never reaches the page; after a bare pause the call runs and the handback follows its result. If the browser failed to start, the listener refuses these calls with the launch error, which is also logged to the console and shown in the co-canvas tab. User input is replayed through Playwright and refused unless the user holds control.
 
 ### Source map
 
@@ -167,7 +167,7 @@ Append-only; the result follows the reusable request prefix.
 
 #### What the model sees
 
-A browser call chosen before the user's latest input fails without running, with this reason followed by the marks in the format below. On image-capable routes their crops follow with the next tool result, under a one-line `<user_marks>` note.
+A browser call chosen before the user's latest marks, or before the user operated the page, fails without running, with this reason followed by the marks in the format below. On image-capable routes their crops follow with the next tool result, under a one-line `<user_marks>` note.
 
 ##### Verbatim reason
 
@@ -178,6 +178,26 @@ This browser action was not run: the user acted on the page after you chose it. 
 #### Token effect
 
 Only when the user acts between the agent's choice and the call: one sentence plus about one line per mark.
+
+#### KV Cache effect
+
+Append-only; the failure is the call's tool result.
+
+### Browser not started
+
+#### What the model sees
+
+While the shared browser could not start, every gated browser call fails without running, with this reason followed by the launch error.
+
+##### Verbatim reason
+
+```markdown
+The shared browser failed to start, so browser tools cannot run. Do not start a browser yourself; tell the user it failed to start and show this error:
+```
+
+#### Token effect
+
+Only after a failed launch: one sentence plus the error per browser call.
 
 #### KV Cache effect
 

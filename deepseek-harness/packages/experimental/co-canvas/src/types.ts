@@ -67,6 +67,8 @@ export interface CanvasQuestion {
 /** Live state of the shared browser and the collaboration around it. */
 export interface CanvasState {
   readonly connected: boolean
+  /** Why the shared browser could not start; null while it runs or is starting. */
+  readonly failure: string | null
   readonly url: string
   readonly title: string
   readonly control: CanvasControl

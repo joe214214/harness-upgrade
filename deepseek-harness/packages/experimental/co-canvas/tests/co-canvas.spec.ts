@@ -18,7 +18,7 @@ import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { chromium } from 'playwright-core'
-import { describe, expect, it, onTestFinished } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import CoCanvas, { describeTarget, marksMessage } from '../src/index.ts'
 import type { CanvasFrame, CanvasMark, CanvasState } from '../src/types.ts'
 import type { Page } from 'playwright-core'
@@ -143,7 +143,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     expect(text(await call('read'))).toBe('')
   }, 60_000)
 
-  it('holds browser tools while paused, then refuses the stale action with the handback', async () => {
+  it('holds browser tools while paused, then runs them and reports the pause with the result', async () => {
     const { canvas, clicks, call } = await setup()
     canvas.setControl('paused')
     const bare = call('browser_click')
@@ -153,12 +153,47 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     expect(clicks).toHaveLength(0)
     canvas.setControl('agent')
     const [first, second] = await Promise.all([bare, prefixed])
-    expect([first.isError, second.isError].filter(Boolean)).toHaveLength(1)
-    const refused = first.isError ? first : second
-    const refusal = refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')
-    expect(refusal).toContain('was not run')
-    expect(refusal).toContain('paused you and resumed')
-    expect(clicks).toHaveLength(1)
+    expect([first.isError, second.isError]).toEqual([false, false])
+    expect(clicks).toHaveLength(2)
+    expect([text(first), text(second)].join('\n')).toContain('paused you and resumed')
+  }, 60_000)
+
+  it('refuses a browser action chosen before the user operated the page', async () => {
+    const { canvas, clicks, call } = await setup()
+    canvas.setControl('human')
+    const pending = call('browser_click')
+    canvas.setControl('agent')
+    const refused = await pending
+    expect(refused.isError).toBe(true)
+    expect(refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain('operated the browser themselves')
+    expect(clicks).toHaveLength(0)
+  }, 60_000)
+
+  it('refuses browser tools with the launch error when the browser cannot start', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-co-canvas-'))
+    const ctx = new Context()
+    onTestFinished(async () => {
+      await ctx.fiber.dispose()
+      await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    })
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(NativeToolExecutor)
+    await ctx.plugin(TypertRegistry)
+    ctx.tools.register(defineTool({
+      name: 'browser_click', description: 'test browser_click', parameters: {},
+      output: { schema: { type: 'object', additionalProperties: false, properties: {} }, render: () => [{ type: 'text', text: 'clicked' }] },
+      execute: () => Promise.resolve({}),
+    }))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    onTestFinished(() => { error.mockRestore() })
+    await ctx.plugin(CoCanvas, { executablePath: join(dir, 'missing-browser'), userDataDir: dir, debugPort: await freePort() })
+    expect(error).toHaveBeenCalledWith('[co-canvas]', expect.stringContaining('could not start the browser'))
+    const refused = await executeToolFixture(ctx, { signal: new AbortController().signal, callId: ToolCallId('c1'), name: 'browser_click', arguments: {} })
+    expect(refused.isError).toBe(true)
+    const reason = refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')
+    expect(reason).toContain('failed to start')
+    expect(reason).toContain('missing-browser')
   }, 60_000)
 
   it('refuses a browser action chosen before a new mark and runs the next one', async () => {

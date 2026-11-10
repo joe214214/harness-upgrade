@@ -121,7 +121,7 @@ export function CanvasBody({
     <div ref={surface} className={css.surface} data-human={human} tabIndex={0} aria-label={t('view')}
       onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onWheel={onWheel} onKeyDown={onKeyDown}>
       {frame === null
-        ? <div className={css.waiting}>{t('waiting')}</div>
+        ? <div className={css.waiting}>{state?.failure == null ? t('waiting') : `${t('failed')} ${state.failure}`}</div>
         : <>
           <img className={css.frame} src={`data:image/jpeg;base64,${frame.data}`} alt="" draggable={false} />
           <svg className={css.overlay} viewBox={`0 0 ${frame.width} ${frame.height}`} preserveAspectRatio="none">

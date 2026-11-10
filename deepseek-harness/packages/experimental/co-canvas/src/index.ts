@@ -90,6 +90,9 @@ export interface Config {
 /** Model-facing reason for a browser action that was chosen before the user's latest input. */
 export const STALE_ACTION = 'This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.'
 
+/** Start of the refusal of a browser action while the shared browser is down; the launch error follows. */
+export const BROWSER_DOWN = 'The shared browser failed to start, so browser tools cannot run. Do not start a browser yourself; tell the user it failed to start and show this error:'
+
 /** Text of a delivery that only brings the crops of marks a refusal already described. */
 export const CARRIED_CROPS = '<user_marks>\nScreenshots of the marks described in your refused browser action, each with the mark drawn in red.\n</user_marks>'
 
@@ -173,6 +176,9 @@ export default class CoCanvas extends TypertRemoteService {
   /** Crops of marks already described in a refusal, delivered with the next tool result. */
   private carried: PendingMark[] = []
   private readonly listeners = new Set<() => void>()
+  /** Settles when the browser launch ends: undefined once it runs, else the launch error. */
+  private launch: PromiseWithResolvers<string | undefined> | undefined
+  private failure: string | undefined
 
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'coCanvas', { namespace: 'coCanvas' })
@@ -193,8 +199,12 @@ export default class CoCanvas extends TypertRemoteService {
     const gated = new RegExp(config.gatedTools, 'u')
     ctx.on('tools/pre-execute', async (exec, next) => {
       if (!gated.test(exec.name)) return next()
+      const down = await this.launchFailure(exec.signal)
+      if (down !== undefined) return { kind: 'deny', reason: `${BROWSER_DOWN}\n${down}` }
       if (this.control !== 'agent') await this.untilAgentControl(exec.signal)
-      // The agent chose this action before the user's latest input, so it is not run.
+      // An action chosen before the user's latest marks, or before the user operated the page, is not run.
+      // A bare pause changes nothing on the page, so the action runs and the handback follows its result.
+      if (this.pending.length === 0 && this.handback !== 'human') return next()
       const taken = this.takePending()
       if (taken === undefined) return next()
       const marks = marksMessage(taken.pending.map(p => p.mark), taken.handback, this.config.maxMarksPerMessage)
@@ -228,17 +238,24 @@ export default class CoCanvas extends TypertRemoteService {
       this.question?.settle()
       await this.browser.close()
     }
-    // A failed or stalled launch must be visible on the console: the agent only sees a refused connection.
+    // A failed or stalled launch must be visible on the console as well as to the agent.
     // Operator lines go to stderr with a tag, as the DeepSeek provider's do.
     const log = (message: string): void => { console.error('[co-canvas]', message) }
     const { executablePath, channel, debugPort, userDataDir } = this.config
     const launch = `${executablePath ?? channel ?? 'Playwright Chromium'}, port ${debugPort}, profile ${userDataDir}`
     const slow = setTimeout(() => { log(`the browser has not started after 30 s (${launch})`) }, 30_000)
+    this.launch = Promise.withResolvers<string | undefined>()
     try {
       await this.browser.start()
+      this.launch.resolve(undefined)
     } catch (error) {
+      // The service stays up so its gate can refuse browser tools with this error;
+      // disposing it would leave the agent's tools to fail with a bare refused connection.
       log(`could not start the browser (${launch}): ${String(error)}`)
-      throw error
+      this.failure = `could not start ${launch}: ${String(error)}`
+      this.launch.resolve(this.failure)
+      this.changed()
+      return
     } finally {
       clearTimeout(slow)
     }
@@ -367,6 +384,7 @@ export default class CoCanvas extends TypertRemoteService {
     const page = await this.browser.describe()
     return {
       connected: this.browser.page !== undefined,
+      failure: this.failure ?? null,
       ...page,
       control: this.control,
       question: this.question === undefined ? null : { id: this.question.id, text: this.question.text },
@@ -378,6 +396,19 @@ export default class CoCanvas extends TypertRemoteService {
   private changed(): void {
     for (const listener of this.listeners) listener()
     this.browser.pushToolbarState(url => this.toolbarState(url))
+  }
+
+  /**
+   * Wait for the browser launch.
+   * @param signal - The waiting tool call's abort signal.
+   * @returns the launch error, or undefined when the browser runs or no launch has begun.
+   */
+  private launchFailure(signal: AbortSignal): Promise<string | undefined> {
+    if (this.launch === undefined) return Promise.resolve(undefined)
+    const { promise, reject } = Promise.withResolvers<undefined>()
+    const abort = (): void => { reject(signal.reason) }
+    signal.addEventListener('abort', abort, { once: true })
+    return Promise.race([this.launch.promise, promise]).finally(() => { signal.removeEventListener('abort', abort) })
   }
 
   private untilAgentControl(signal: AbortSignal): Promise<void> {

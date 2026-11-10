@@ -33,8 +33,8 @@
   en: 81f03a06a4b54679
   zh: c479cf6346c22bd3
 /deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/delivery-and-control:
-  en: e614a5d2907b2526
-  zh: 6d128b32fa1b8528
+  en: 9d429ab52516b2d3
+  zh: 9f263beb3ce66b84
 /deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/source-map:
   en: 580f27cb91b27bf5
   zh: e94f4c9c3ba3fb45
@@ -87,8 +87,8 @@
   en: 0bae1e6c1062d0b2
   zh: 15898508e4defc2f
 /deepseek-ai-dsh-experimental-co-canvas/model-experience/refused-browser-action/what-the-model-sees:
-  en: 4d38e42fe4e53f46
-  zh: ea53a6e940e1035b
+  en: ce0f6aac58d6824c
+  zh: bd658d1893503251
 /deepseek-ai-dsh-experimental-co-canvas/model-experience/refused-browser-action/what-the-model-sees/verbatim-reason:
   en: 58460a540164fcb1
   zh: 8cebb06448d29926
@@ -96,6 +96,21 @@
   en: c1c3c79edb2dd3bc
   zh: b76854c33c4966a0
 /deepseek-ai-dsh-experimental-co-canvas/model-experience/refused-browser-action/kv-cache-effect:
+  en: 1a78f5f6c9ad4b62
+  zh: 4ebafcdca956e87a
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/browser-not-started:
+  en: fdbaa8e1e013c4ec
+  zh: e9cf3d7645ba9c34
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/browser-not-started/what-the-model-sees:
+  en: 87f6df886596c3e8
+  zh: fc88e74966e87099
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/browser-not-started/what-the-model-sees/verbatim-reason:
+  en: 58460a540164fcb1
+  zh: 8cebb06448d29926
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/browser-not-started/token-effect:
+  en: e6acb77ce0bfe416
+  zh: 549e01913dd474ce
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/browser-not-started/kv-cache-effect:
   en: 1a78f5f6c9ad4b62
   zh: 4ebafcdca956e87a
 /deepseek-ai-dsh-experimental-co-canvas/model-experience/delivered-marks:
