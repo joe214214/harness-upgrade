@@ -67,7 +67,7 @@ The cap is deliberate: when a write would exceed it, the write fails with an ins
 
 ### Extension points
 
-- `ctx.systemPrompt.context` renders MEMORY.md, without source tags, as runtime context on every request; the provider reads the file each time, so a write is visible on the next request.
+- `ctx.systemPrompt.context` renders MEMORY.md, without source tags, as runtime context on every request; the provider reads the file each time, so a write is visible on the next request. Facts of the `project` and `decisions` sections appear only in Sessions whose working directory matches the Session that saved them, looked up in the episodic store; facts of unrecorded Sessions appear everywhere.
 - `ctx.tools` registers `memory_read`, `memory_write`, `memory_replace`, `memory_rewrite`, and `recall`.
 - `agent/turn-stopping` derives the Session's messages, keeps those not yet stored, projects them into turns (system prompts and runtime context dropped, ordinary tool results clipped), appends them to SQLite, and runs the reflect pass.
 
@@ -108,7 +108,7 @@ MEMORY.md is written atomically (temporary file, then rename). The episodic stor
 
 #### What the model sees
 
-A runtime-context entry made of the fixed guidance below followed by `<memory size="N/CAP bytes">` and the MEMORY.md sections, or `<memory>(empty)</memory>`.
+A runtime-context entry made of the fixed guidance below followed by `<memory size="N/CAP bytes">` and the MEMORY.md sections, or `<memory>(empty)</memory>`. Project and decision facts saved in another working directory are left out.
 
 ##### Verbatim guidance
 

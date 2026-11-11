@@ -126,13 +126,35 @@ export class LongTermMemory {
 
   /**
    * Render MEMORY.md as model context.
-   * @returns the memory without source tags, wrapped with its size; empty when there is none.
+   * @param visible - whether a fact is shown, from its section and the Session in its source tag; all are shown by default.
+   * @returns the shown facts without source tags, wrapped with the file's size; empty when none is shown.
    */
-  renderForPrompt(): string {
+  renderForPrompt(visible: (section: string, source: string | undefined) => boolean = () => true): string {
     const text = this.read().trim()
     if (!text) return ''
-    const body = text.split('\n').map(line => line.replace(SOURCE_TAG, '')).join('\n')
-    return `<memory size="${this.size()}/${this.capBytes} bytes">\n${body}\n</memory>`
+    // Facts are kept or dropped one by one; a heading is kept only when one of its facts is.
+    const kept: string[] = []
+    let heading: string | undefined
+    let section = ''
+    for (const line of text.split('\n')) {
+      const title = /^##\s+(.+)$/u.exec(line)
+      if (title !== null) {
+        section = title[1]?.trim() ?? ''
+        heading = line
+        continue
+      }
+      const source = /<!--\s*(.*?)\s*-->\s*$/u.exec(line)?.[1]
+      if (line.startsWith('- ') && !visible(section, source === '' ? undefined : source)) continue
+      if (line.trim() === '') continue
+      if (heading !== undefined) {
+        if (kept.length > 0) kept.push('')
+        kept.push(heading)
+        heading = undefined
+      }
+      kept.push(line.replace(SOURCE_TAG, ''))
+    }
+    if (kept.length === 0) return ''
+    return `<memory size="${this.size()}/${this.capBytes} bytes">\n${kept.join('\n')}\n</memory>`
   }
 
   private write(text: string): void {

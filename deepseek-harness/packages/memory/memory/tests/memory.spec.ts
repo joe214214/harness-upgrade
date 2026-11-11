@@ -45,6 +45,27 @@ describe('LongTermMemory', () => {
   })
 })
 
+describe('project scope', () => {
+  it('shows project facts only in the project of the Session that saved them', () => {
+    const m = new LongTermMemory(join(root, 'MEMORY.md'), 8000)
+    m.append('user', 'Replies in Chinese', 'session-a')
+    m.append('project', 'Shop totals live in cart.js', 'session-a')
+    m.append('project', 'Spec header is 16 bytes', 'session-b')
+    m.append('decisions', 'Postgres 16 only', 'session-b')
+    const e = new EpisodicMemory(join(root, 'episodic.db'))
+    onTestFinished(() => { e.close() })
+    e.append('session-a', '/work/shop', [{ role: 'user', text: 'hi' }])
+    e.append('session-b', '/work/spec', [{ role: 'user', text: 'hi' }])
+    const inShop = m.renderForPrompt((section, source) => !Memory.PROJECT_SECTIONS.has(section) || source === undefined || e.cwdOf(source) === '/work/shop')
+    expect(inShop).toContain('- Replies in Chinese')
+    expect(inShop).toContain('- Shop totals live in cart.js')
+    expect(inShop).not.toContain('16 bytes')
+    expect(inShop).not.toContain('## decisions')
+    expect(e.cwdOf('session-b')).toBe('/work/spec')
+    expect(e.cwdOf('unknown')).toBeUndefined()
+  })
+})
+
 describe('EpisodicMemory', () => {
   it('searches across Sessions, continues indexes, and excludes the caller', () => {
     const e = new EpisodicMemory(join(root, 'episodic.db'))

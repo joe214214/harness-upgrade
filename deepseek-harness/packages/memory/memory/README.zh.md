@@ -67,7 +67,7 @@ kind: "package-reference"
 
 ### 扩展点
 
-- `ctx.systemPrompt.context` 在每次请求中把去掉来源标注的 MEMORY.md 渲染为运行时上下文；提供函数每次都读取文件，所以写入在下一次请求即可见。
+- `ctx.systemPrompt.context` 在每次请求中把去掉来源标注的 MEMORY.md 渲染为运行时上下文；提供函数每次都读取文件，所以写入在下一次请求即可见。`project` 和 `decisions` 分区的条目，只出现在工作目录与保存它的 Session 相同的 Session 中（从情景存储中查询）；没有记录所属 Session 的条目在所有地方都会出现。
 - `ctx.tools` 注册 `memory_read`、`memory_write`、`memory_replace`、`memory_rewrite` 与 `recall`。
 - `agent/turn-stopping` 派生 Session 的消息，取出尚未保存的部分投影为轮次（丢弃系统提示与运行时上下文，截断普通工具结果），写入 SQLite，并运行 reflect。
 
@@ -108,7 +108,7 @@ MEMORY.md 原子写入（先写临时文件再重命名）。情景库使用 `no
 
 #### 模型看到什么
 
-一条运行时上下文：下面的固定指引，后接 `<memory size="N/CAP bytes">` 与 MEMORY.md 的各节，或 `<memory>(empty)</memory>`。
+一条运行时上下文：下面的固定指引，后接 `<memory size="N/CAP bytes">` 与 MEMORY.md 的各节，或 `<memory>(empty)</memory>`。在其他工作目录中保存的项目条目与决策条目不包括在内。
 
 ##### 指引原文
 

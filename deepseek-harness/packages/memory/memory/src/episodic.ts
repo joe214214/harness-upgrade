@@ -101,6 +101,16 @@ export class EpisodicMemory {
   }
 
   /**
+   * Working directory recorded for a Session.
+   * @param sessionId - Session id.
+   * @returns the directory, or undefined for a Session this memory has not recorded.
+   */
+  cwdOf(sessionId: string): string | undefined {
+    const row = this.db.prepare('SELECT cwd FROM sessions WHERE id = ?').get(sessionId) as { cwd?: unknown } | undefined
+    return typeof row?.cwd === 'string' && row.cwd !== '' ? row.cwd : undefined
+  }
+
+  /**
    * Count the Sessions that have stored turns.
    * @returns the number of stored Sessions.
    */

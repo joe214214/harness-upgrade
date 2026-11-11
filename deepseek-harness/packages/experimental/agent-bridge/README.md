@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-agent-bridge` lets DeepSeek Harness work with the sessions and memory of Claude Code, Codex, and Gemini CLI on the same machine. The agent can open another agent's session in a conversation and keep following it: each message that agent adds arrives as relayed context. A conversation can be shared live as a native session of each agent, resumable there, and what they add is relayed back. Memory flows both ways: their memory files are offered with provenance, and DeepSeek Harness's facts are written into theirs.
+`dsh-experimental-agent-bridge` lets DeepSeek Harness work with the sessions and memory of Claude Code, Codex, and Gemini CLI on the same machine. The agent can open another agent's session in a conversation and keep following it: each message that agent adds arrives as relayed context. A conversation can be shared live as a native session of each agent, resumable there, and what they add is relayed back. Memory flows both ways: their memory files are offered with each file's agent and path, and DeepSeek Harness's facts are written into theirs.
 
 ## Table of Contents
 
@@ -76,7 +76,7 @@ Readers turn each agent's files into one transcript of user, assistant, and tool
 
 ### Memory
 
-Inbound sources are each agent's user-level instruction file, Claude Code's per-project memory directory, Codex's memory summary, and Gemini CLI's project `GEMINI.md` and memory directory; project `AGENTS.md` and `CLAUDE.md` are left to DeepSeek Harness's own instruction loading. Outbound, the facts of `memoryFile` are written into a marked block of `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, and `~/.gemini/GEMINI.md`, and into a Codex memory extension under `~/.codex/memories/extensions/dsh_agent_bridge`. The block is replaced in place, and inbound reading strips it, so facts never loop back.
+Inbound sources are each agent's user-level instruction file, Claude Code's per-project memory directory, Codex's memory summary, and Gemini CLI's project `GEMINI.md` and memory directory; project `AGENTS.md` and `CLAUDE.md` are left to DeepSeek Harness's own instruction loading. Outbound, the facts of `memoryFile` are shared by scope. User-level facts go into a marked block of `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, and `~/.gemini/GEMINI.md`. Facts of the `project` and `decisions` sections belong to the working directory of the Session that saved them, read from memory's `episodic.db`; they go into that project's Claude Code and Gemini CLI memory `MEMORY.md`, never into user-level files, and are left out when their Session is unknown. Codex receives both through a memory extension under `~/.codex/memories/extensions/dsh_agent_bridge`, each project with a `scope.json`. Blocks are replaced in place, blocks no fact belongs to any more are removed, and inbound reading strips them, so facts never loop back.
 
 ### Source map
 
@@ -202,6 +202,7 @@ Runtime context outside the cached system prompt; a change in those files change
 - **Text, not native history** — external messages reach the model as relayed context, and shared sessions carry DeepSeek Harness tool calls as notes, not as native tool records of the other agent.
 - **Codex sharing writes a Claude Code transcript** — Codex imports through its Claude Code importer, so a Codex share also appears in Claude Code's session list.
 - **Claude Code resume** — Claude Code and Gemini CLI files are written in their current formats; Gemini CLI lists them and Codex's Claude Code importer accepts them, but resuming in Claude Code was not exercised with a signed-in Claude Code.
+- **Scope from the saving Session** — a project fact is placed by the working directory of the Session that saved it; a fact that applies to several projects is shared with the first only.
 - **Local files only** — sessions of these agents on other machines or in their cloud products are not reached.
 
 <a id="dev-note"></a>

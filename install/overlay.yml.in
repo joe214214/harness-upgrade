@@ -34,6 +34,8 @@
       config:
         userDataDir: '@DATA@/co-canvas-profile'
         desktop: true
+        # Computer-use tools that duplicate the shared browser's or that the agent does not need; about 11K fewer tokens per request.
+        hiddenTools: '^cua_driver_native__(browser_\w+|get_browser_state|start_recording|stop_recording|get_recording_state|replay_trajectory|install_ffmpeg|set_agent_cursor_\w+|get_agent_cursor_state|health_report|get_config|set_config|start_session|escalate_session|get_session|list_sessions|get_session_state|end_session|mouse_button_down|mouse_button_up|mouse_drag|parallel_mouse_drag|page)$'
 @BROWSER@
     - id: ui-co-canvas
       name: '@DSH@/packages/experimental/client-ui-co-canvas/src/index.ts'

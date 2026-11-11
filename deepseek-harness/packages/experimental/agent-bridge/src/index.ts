@@ -8,7 +8,7 @@
  * - Share: a DeepSeek Harness Session is written live as a native Claude Code
  *   transcript and Gemini CLI chat, and imported into Codex through Codex's own
  *   importer; whatever the other agent then adds is relayed back.
- * - Memory: the other agents' memory is offered to the model with provenance,
+ * - Memory: the other agents' memory is offered to the model with the agent and path of each file,
  *   and DeepSeek Harness's MEMORY.md is written into theirs.
  * @module @deepseek-ai/dsh-experimental-agent-bridge
  */
@@ -30,9 +30,10 @@ import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typer
 import { importIntoCodex } from './codex.ts'
 import { agentBridgeTools } from './tools.ts'
 import {
-  factsBlock, memoryContext, memorySources, memoryTargets, parseMemoryFacts, readSource, writeBlock, writeCodexExtension,
+  memoryContext, memoryFiles, memorySources, parseMemoryFacts, planMemory, readSource, removeCodexExtension, sessionDirectories, writeBlock,
+  writeCodexExtension,
 } from './memory.ts'
-import { PARSERS, codexThreadNames, sessionFiles, summarize } from './sources.ts'
+import { PARSERS, codexFiles, codexThreadNames, sessionFiles, summarize } from './sources.ts'
 import type { AgentHomes } from './sources.ts'
 import { AGENT_NAMES, changeSince, clip, fingerprint, renderMessages, toolCallNote, toolResultNote } from './transcript.ts'
 import type { BridgeMessage } from './transcript.ts'
@@ -45,7 +46,8 @@ export type { BridgeMessage, ParsedSession } from './transcript.ts'
 export { OWN_MARKER, claudeProjectKey, parseClaude, parseCodex, parseGemini } from './sources.ts'
 export type { AgentHomes } from './sources.ts'
 export { appendClaude, appendGemini, claudeExport, geminiProjectDir, stableUuid } from './writers.ts'
-export { BLOCK_END, BLOCK_START, factsBlock, memorySources, parseMemoryFacts, stripBlock } from './memory.ts'
+export { BLOCK_END, BLOCK_START, PROJECT_SECTIONS, factsBlock, memoryFiles, memorySources, parseMemoryFacts, planMemory, stripBlock } from './memory.ts'
+export type { Fact, MemoryPlan } from './memory.ts'
 export { importIntoCodex, importOutcome } from './codex.ts'
 export { agentBridgeTools } from './tools.ts'
 export type { BridgeToolOps } from './tools.ts'
@@ -138,6 +140,8 @@ interface Persisted {
   exports: ExportRecord[]
   /** Fingerprints of messages written by exports, per Session, so followers skip them. */
   own: Record<string, string[]>
+  /** Files holding a memory block the bridge wrote, so stale blocks can be removed. */
+  memoryPaths: string[]
 }
 
 /** Resolve each agent's data directory from config and the environment. */
@@ -176,9 +180,10 @@ export default class AgentBridge extends TypertRemoteService {
 
   /** Data directories of Claude Code, Codex, and Gemini CLI that the bridge reads and writes. */
   readonly homes: AgentHomes
-  private state: Persisted = { follows: [], exports: [], own: {} }
+  private state: Persisted = { follows: [], exports: [], own: {}, memoryPaths: [] }
   private readonly summaries = new Map<string, { stamp: string; info: ExternalSessionInfo }>()
   private memoryStamp = ''
+  private memoryPlan = ''
   private memoryExports: MemoryExportState[] = []
   private readonly listeners = new Set<() => void>()
   private busy: Promise<void> = Promise.resolve()
@@ -368,7 +373,9 @@ export default class AgentBridge extends TypertRemoteService {
       const stamp = fileStamp(path)
       let cached = this.summaries.get(path)
       if (cached?.stamp !== stamp) {
-        cached = { stamp, info: summarize(agent, path, names) }
+        const info = summarize(agent, path, names)
+        if (info === undefined) continue
+        cached = { stamp, info }
         this.summaries.set(path, cached)
       }
       out.push(cached.info)
@@ -473,7 +480,9 @@ export default class AgentBridge extends TypertRemoteService {
         follow.status = 'following'
         follow.error = null
       } catch (error) {
+        // Retried when the file changes again, not on every poll.
         follow.error = String(error)
+        follow.stamp = stamp
       }
       dirty = true
     }
@@ -610,7 +619,8 @@ export default class AgentBridge extends TypertRemoteService {
   private shareMemory(): void {
     const file = this.config.memoryFile
     if (file === '') return
-    const stamp = `${fileStamp(file)}|${this.config.shareMemoryWith.join(',')}`
+    const episodic = join(dirname(file), 'episodic.db')
+    const stamp = `${fileStamp(file)}|${fileStamp(episodic)}|${this.config.shareMemoryWith.join(',')}`
     if (stamp === this.memoryStamp) return
     this.memoryStamp = stamp
     let facts: ReturnType<typeof parseMemoryFacts> = []
@@ -620,18 +630,43 @@ export default class AgentBridge extends TypertRemoteService {
       // No memory saved yet: any earlier block is removed below.
       void error
     }
-    const targets = memoryTargets(this.homes)
+    const plan = planMemory(facts, sessionDirectories(episodic))
+    // The episodic database changes every turn; the files change only when the plan does.
+    const signature = JSON.stringify([plan.user, [...plan.projects], this.config.shareMemoryWith])
+    if (signature === this.memoryPlan) return
+    this.memoryPlan = signature
+    const enabled = new Set(this.config.shareMemoryWith)
+    const files = memoryFiles(this.homes, plan, enabled, cwd => geminiProjectDir(this.homes.gemini, cwd))
+    const previous = new Set(this.state.memoryPaths)
+    const written: string[] = []
+    const counted = plan.user.length + [...plan.projects.values()].reduce((n, f) => n + f.length, 0)
     this.memoryExports = AGENTS.map((agent): MemoryExportState => {
-      const enabled = this.config.shareMemoryWith.includes(agent)
+      if (!enabled.has(agent)) return { agent, paths: [], facts: 0, status: 'disabled', detail: null, updatedAt: Date.now() }
       try {
-        const paths = [targets[agent]]
-        writeBlock(targets[agent], enabled && facts.length > 0 ? factsBlock(facts) : null)
-        if (agent === 'codex' && enabled && facts.length > 0) paths.push(...writeCodexExtension(this.homes.codex, facts))
-        return { agent, paths, facts: enabled ? facts.length : 0, status: enabled ? 'synced' : 'disabled', detail: null, updatedAt: Date.now() }
+        const paths: string[] = []
+        for (const [path, block] of files[agent]) {
+          writeBlock(path, block)
+          paths.push(path)
+        }
+        if (agent === 'codex') paths.push(...writeCodexExtension(this.homes.codex, plan))
+        written.push(...files[agent].keys())
+        return { agent, paths, facts: counted, status: 'synced', detail: null, updatedAt: Date.now() }
       } catch (error) {
-        return { agent, paths: [targets[agent]], facts: 0, status: 'error', detail: String(error), updatedAt: Date.now() }
+        return { agent, paths: [], facts: 0, status: 'error', detail: String(error), updatedAt: Date.now() }
       }
     })
+    // Blocks written earlier where no fact belongs any more, or for an agent no longer shared with, are removed.
+    for (const path of previous) {
+      if (written.includes(path)) continue
+      try {
+        writeBlock(path, null)
+      } catch (error) {
+        this.ctx.logger('agent-bridge').warn(`agent-bridge: could not remove the memory block from ${path}: ${String(error)}`)
+      }
+    }
+    if (!enabled.has('codex')) removeCodexExtension(this.homes.codex)
+    this.state.memoryPaths = written
+    this.save()
     this.changed()
   }
 
@@ -663,7 +698,9 @@ export default class AgentBridge extends TypertRemoteService {
   private async load(): Promise<void> {
     try {
       const parsed = JSON.parse(await readFile(this.statePath(), 'utf8')) as Partial<Persisted>
-      this.state = { follows: parsed.follows ?? [], exports: parsed.exports ?? [], own: parsed.own ?? {} }
+      this.state = {
+        follows: parsed.follows ?? [], exports: parsed.exports ?? [], own: parsed.own ?? {}, memoryPaths: parsed.memoryPaths ?? [],
+      }
     } catch (error) {
       // First run, or an unreadable file: the bridge starts with nothing followed or shared.
       void error
@@ -693,7 +730,7 @@ function fileStamp(path: string): string {
 
 /** The rollout file of a Codex thread. */
 function codexRollout(codexHome: string, threadId: string): string | null {
-  return sessionFiles({ claude: '', codex: codexHome, gemini: '' }).find(f => f.path.includes(threadId))?.path ?? null
+  return codexFiles(codexHome).find(path => path.includes(threadId)) ?? null
 }
 
 /**

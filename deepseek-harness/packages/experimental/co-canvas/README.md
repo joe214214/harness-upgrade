@@ -64,6 +64,7 @@ Mount it with the co-canvas tab and a browser-use provider in attach mode that p
 | `desktopFrameIntervalMs` | `1000` | Pause between live desktop frames |
 | `desktopMaxFrameEdge` | `1600` | Longest edge of a live desktop frame in pixels |
 | `gatedDesktopTools` | Cua Driver action tools | Regular expression for the agent's desktop action tools; matching calls wait while the user holds control, like `gatedTools` |
+| `hiddenTools` | empty | Regular expression for global tools withdrawn from every agent through the tool registry's per-agent restriction, such as computer-use tools that duplicate the shared browser's; empty hides nothing |
 
 -----
 
@@ -75,7 +76,7 @@ Mount it with the co-canvas tab and a browser-use provider in attach mode that p
 
 ### One browser, two controllers
 
-The service launches a persistent Chromium context with a remote-debugging port. The agent's browser tools connect to that port; the service keeps its own Playwright handle on the same context. The active page is the most recently opened page that is still open, so the live view follows the tabs the agent opens.
+The service launches a persistent Chromium context with a remote-debugging port. The agent's browser tools connect to that port; the service keeps its own Playwright handle on the same context. The active page is the most recently opened page that is still open, so the live view follows the tabs the agent opens. When the debugging port is already taken, for example by another DeepSeek Harness window, the launch fails at once with that reason instead of waiting for the browser's launch timeout.
 
 ### Live view
 

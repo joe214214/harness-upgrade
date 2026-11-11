@@ -17,6 +17,7 @@ import type { UserMessage } from '@deepseek-ai/dsh-session'
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
+import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import AgentBridge, { BLOCK_START, claudeProjectKey } from '../src/index.ts'
 
@@ -115,7 +116,7 @@ describe('agent bridge', () => {
     expect(text(await f.call('external_sessions', { agent: 'claude' }))).toContain('(shared from DeepSeek Harness)')
   })
 
-  it('writes DeepSeek Harness memory into each agent and offers theirs back with provenance', async () => {
+  it('writes DeepSeek Harness memory into each agent and offers theirs back with the agent and path of each file', async () => {
     const f = await setup()
     writeFileSync(join(f.root, 'MEMORY.md'), '## Project conventions\n- Postgres 16 only  <!-- s1 -->\n')
     await f.until(() => existsSync(join(f.homes.gemini, 'GEMINI.md')))
@@ -131,6 +132,29 @@ describe('agent bridge', () => {
     const listed = text(await f.call('external_memory', {}))
     expect(listed).toBe(`Claude Code project memory: ${join(memoryDir, 'MEMORY.md')}`)
     expect(text(await f.call('external_memory', { path: join(memoryDir, 'MEMORY.md') }))).toBe('- API base path is /v2/relay')
+  })
+
+  it('shares project facts only with that project, and removes them when they leave DeepSeek Harness memory', async () => {
+    const f = await setup()
+    const db = new DatabaseSync(join(f.root, 'episodic.db'))
+    db.exec('CREATE TABLE sessions (id TEXT PRIMARY KEY, cwd TEXT, started_at REAL)')
+    db.prepare('INSERT INTO sessions VALUES (?, ?, 0)').run('s-shop', f.cwd)
+    db.close()
+    writeFileSync(join(f.root, 'MEMORY.md'), '## user\n- Prefers pnpm  <!-- s-other -->\n## project\n- cart.js totals the cart  <!-- s-shop -->\n')
+    const claudeProject = join(f.homes.claude, 'projects', claudeProjectKey(f.cwd), 'memory', 'MEMORY.md')
+    await f.until(() => existsSync(claudeProject))
+    expect(readFileSync(claudeProject, 'utf8')).toContain('## Project memory shared from DeepSeek Harness')
+    expect(readFileSync(claudeProject, 'utf8')).toContain('- cart.js totals the cart')
+    expect(readFileSync(join(f.homes.claude, 'CLAUDE.md'), 'utf8')).toContain('- Prefers pnpm')
+    expect(readFileSync(join(f.homes.claude, 'CLAUDE.md'), 'utf8')).not.toContain('cart.js')
+    expect(readFileSync(join(f.homes.codex, 'AGENTS.md'), 'utf8')).not.toContain('cart.js')
+    const geminiProject = JSON.parse(readFileSync(join(f.homes.gemini, 'projects.json'), 'utf8')) as { projects: Record<string, string> }
+    expect(readFileSync(join(f.homes.gemini, 'tmp', geminiProject.projects[f.cwd]!, 'memory', 'MEMORY.md'), 'utf8')).toContain('- cart.js totals the cart')
+    const extension = join(f.homes.codex, 'memories', 'extensions', 'dsh_agent_bridge', 'resources', claudeProjectKey(f.cwd))
+    expect(JSON.parse(readFileSync(join(extension, 'scope.json'), 'utf8'))).toEqual({ cwd: f.cwd })
+    writeFileSync(join(f.root, 'MEMORY.md'), '## user\n- Prefers pnpm  <!-- s-other -->\n')
+    await f.until(() => !readFileSync(claudeProject, 'utf8').includes('cart.js'))
+    expect(existsSync(extension)).toBe(false)
   })
 
   it.skipIf(process.env.CODEX_BIN === undefined)('imports the conversation into the real Codex and extends the same thread after the next turn', async () => {

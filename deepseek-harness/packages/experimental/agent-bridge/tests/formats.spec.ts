@@ -9,9 +9,10 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   BLOCK_END, BLOCK_START, appendClaude, appendGemini, changeSince, claudeExport, claudeProjectKey, factsBlock, geminiProjectDir,
-  memorySources, parseClaude, parseCodex, parseGemini, parseMemoryFacts, renderMessages, stripBlock,
+  memorySources, parseClaude, parseCodex, parseGemini, parseMemoryFacts, planMemory, renderMessages, stripBlock,
 } from '../src/index.ts'
 import { writeBlock, writeCodexExtension } from '../src/memory.ts'
+import { summarize } from '../src/sources.ts'
 
 const dirs: string[] = []
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }) })
@@ -142,6 +143,16 @@ describe('Gemini CLI chats', () => {
   })
 })
 
+describe('listing', () => {
+  it('skips a session file deleted after its directory was read, and tells exports from the head of the file', () => {
+    const home = temp()
+    expect(summarize('claude', join(home, 'gone.jsonl'), new Map())).toBeUndefined()
+    const target = claudeExport(home, '/w', 'dsh-2')
+    appendClaude(target, '/w', 'DeepSeek: x', [{ key: 'm1', role: 'user', text: 'Hi' }], null)
+    expect(summarize('claude', target.path, new Map())).toMatchObject({ id: 'dsh-2', title: 'DeepSeek: x', exported: true })
+  })
+})
+
 describe('transcript changes', () => {
   const m = (key: string): { key: string; role: 'user'; text: string } => ({ key, role: 'user', text: key })
   it('returns the new suffix, and counts delivered messages a rewind removed', () => {
@@ -157,9 +168,16 @@ describe('transcript changes', () => {
 })
 
 describe('memory', () => {
+  it('keeps project facts in their project and leaves out project facts of unknown Sessions', () => {
+    const facts = parseMemoryFacts('## user\n- Prefers pnpm  <!-- s1 -->\n## project\n- cart.js totals the cart  <!-- s2 -->\n- orphan fact  <!-- s9 -->\n')
+    const plan = planMemory(facts, new Map([['s1', '/a'], ['s2', '/work/shop']]))
+    expect(plan.user.map(f => f.text)).toEqual(['Prefers pnpm'])
+    expect([...plan.projects]).toEqual([['/work/shop', [{ section: 'project', text: 'cart.js totals the cart', source: 's2' }]]])
+  })
+
   it('reads DeepSeek Harness facts without source tags and writes them as a replaceable block', () => {
     const facts = parseMemoryFacts('## User preferences\n- Reply in Chinese  <!-- session-1 -->\n\n## Project conventions\n- Postgres 16 only\n')
-    expect(facts).toEqual([{ section: 'User preferences', text: 'Reply in Chinese' }, { section: 'Project conventions', text: 'Postgres 16 only' }])
+    expect(facts).toEqual([{ section: 'User preferences', text: 'Reply in Chinese', source: 'session-1' }, { section: 'Project conventions', text: 'Postgres 16 only' }])
     const dir = temp()
     const file = join(dir, 'CLAUDE.md')
     writeFileSync(file, '# My rules\n- tabs\n')
@@ -185,7 +203,7 @@ describe('memory', () => {
     writeFileSync(join(homes.gemini, 'GEMINI.md'), '## Gemini Added Memories\n- likes tabs\n')
     mkdirSync(homes.codex, { recursive: true })
     writeFileSync(join(homes.codex, 'AGENTS.md'), factsBlock([{ section: 'x', text: 'own fact' }]))
-    const paths = writeCodexExtension(homes.codex, [{ section: 'x', text: 'own fact' }])
+    const paths = writeCodexExtension(homes.codex, { user: [{ section: 'x', text: 'own fact' }], projects: new Map() })
     expect(readFileSync(paths[1]!, 'utf8')).toContain('- own fact')
     const sources = memorySources(homes, '/work/shop')
     expect(sources.map(s => [s.agent, s.scope, s.kind])).toEqual([['claude', 'project', 'memory'], ['gemini', 'user', 'instructions']])

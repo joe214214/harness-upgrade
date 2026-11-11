@@ -5,7 +5,7 @@
  * @module @deepseek-ai/dsh-experimental-agent-bridge/sources
  */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, openSync, readSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { zstdDecompressSync } from 'node:zlib'
 import { plainText, toolCallNote, toolResultNote } from './transcript.ts'
@@ -223,7 +223,12 @@ export function codexThreadNames(home: string): Map<string, string> {
   return names
 }
 
-function codexFiles(home: string): string[] {
+/**
+ * Codex rollout files.
+ * @param home - Codex's data directory (`CODEX_HOME`).
+ * @returns rollout paths, plain or compressed.
+ */
+export function codexFiles(home: string): string[] {
   const found: string[] = []
   const walk = (dir: string, depth: number): void => {
     for (const entry of dirEntries(dir)) {
@@ -380,13 +385,21 @@ export function sessionFiles(homes: AgentHomes): { agent: ExternalAgent; path: s
  * @param codexNames - Codex thread names, used as Codex titles.
  * @returns the listing entry; an unreadable file is listed by its file name.
  */
-export function summarize(agent: ExternalAgent, path: string, codexNames: ReadonlyMap<string, string>): ExternalSessionInfo {
-  const stat = statSync(path)
+export function summarize(agent: ExternalAgent, path: string, codexNames: ReadonlyMap<string, string>): ExternalSessionInfo | undefined {
+  let stat
+  try {
+    stat = statSync(path)
+  } catch (error) {
+    // Deleted after the directory was read.
+    void error
+    return undefined
+  }
   let parsed: ParsedSession | undefined
   let exported = false
   try {
     parsed = PARSERS[agent](path, true)
-    exported = readText(path).includes(`"${OWN_MARKER}":true`)
+    // The bridge marks every record it writes, so the head of the file tells.
+    exported = path.endsWith('.zst') ? false : readHead(path).includes(`"${OWN_MARKER}":true`)
   } catch (error) {
     // An unreadable file is still listed, by name, so the user can see it exists.
     void error
@@ -395,6 +408,16 @@ export function summarize(agent: ExternalAgent, path: string, codexNames: Readon
   const title = (agent === 'codex' ? codexNames.get(id) : undefined) ?? parsed?.title ?? basename(path)
   const oneLine = title.replace(/\s+/gu, ' ').trim()
   return { agent, id, path, cwd: parsed?.cwd ?? null, title: oneLine.length > 100 ? `${oneLine.slice(0, 99)}…` : oneLine, updatedAt: stat.mtimeMs, exported }
+}
+
+function readHead(path: string): string {
+  const fd = openSync(path, 'r')
+  try {
+    const buffer = Buffer.alloc(65_536)
+    return buffer.subarray(0, readSync(fd, buffer, 0, buffer.length, 0)).toString('utf8')
+  } finally {
+    closeSync(fd)
+  }
 }
 
 function firstPrompt(messages: readonly BridgeMessage[]): string | null {

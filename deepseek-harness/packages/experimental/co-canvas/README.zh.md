@@ -64,6 +64,7 @@ kind: "package-reference"
 | `desktopFrameIntervalMs` | `1000` | 两帧桌面实时画面之间的间隔 |
 | `desktopMaxFrameEdge` | `1600` | 桌面实时画面最长边的像素数 |
 | `gatedDesktopTools` | Cua Driver 的操作类工具 | 匹配 agent 桌面操作工具名称的正则表达式；与 `gatedTools` 一样，用户持有控制权时匹配的调用会等待 |
+| `hiddenTools` | 空 | 匹配要对每个 agent 隐藏的全局工具的正则表达式，通过工具注册表的按 agent 限制实现，例如与共享浏览器重复的 computer use 工具；为空则不隐藏 |
 
 -----
 
@@ -75,7 +76,7 @@ kind: "package-reference"
 
 ### 一个浏览器，两个控制方
 
-服务启动一个带远程调试端口的持久 Chromium 上下文。agent 的浏览器工具连接这个端口；服务在同一上下文上保留自己的 Playwright 句柄。活动页是最近打开且仍未关闭的页面，因此实时画面会跟随 agent 打开的标签页。
+服务启动一个带远程调试端口的持久 Chromium 上下文。agent 的浏览器工具连接这个端口；服务在同一上下文上保留自己的 Playwright 句柄。活动页是最近打开且仍未关闭的页面，因此实时画面会跟随 agent 打开的标签页。调试端口已被占用时（例如被另一个 DeepSeek Harness 窗口占用），启动会立即失败并说明原因，而不是等到浏览器的启动超时。
 
 ### 实时画面
 

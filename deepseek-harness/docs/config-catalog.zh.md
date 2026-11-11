@@ -883,7 +883,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-experimental-agent-bridge`
 
 - `inject`: `tools` · `systemPrompt` · `typert`
-- `source`: [`packages/experimental/agent-bridge/src/index.ts:73`](../packages/experimental/agent-bridge/src/index.ts)
+- `source`: [`packages/experimental/agent-bridge/src/index.ts:75`](../packages/experimental/agent-bridge/src/index.ts)
 
 ```ts config-catalog
 /** Deployment settings: where each agent keeps its data, budgets, and what to share. */
@@ -1177,6 +1177,11 @@ export interface Config {
   desktopMaxFrameEdge: number
   /** Regular expression matching the agent's desktop action tool names; matching calls wait while the user holds control. */
   gatedDesktopTools: string
+  /**
+   * Regular expression for global tools hidden from every agent, such as the computer-use provider's
+   * duplicate browser tools; empty hides nothing.
+   */
+  hiddenTools: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-co-canvas -->

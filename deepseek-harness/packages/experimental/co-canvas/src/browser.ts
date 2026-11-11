@@ -6,6 +6,7 @@
  * @module @deepseek-ai/dsh-experimental-co-canvas/browser
  */
 
+import { connect } from 'node:net'
 import { chromium } from 'playwright-core'
 import type { BrowserContext, CDPSession, Page } from 'playwright-core'
 import { OVERLAY_BINDING, OVERLAY_SOURCE, OVERLAY_TAG, OVERLAY_WORLD } from './overlay.ts'
@@ -117,6 +118,20 @@ export function parseToolbarMessage(payload: string): OverlayMessage | undefined
   }
 }
 
+/**
+ * Whether something already accepts connections on a local TCP port.
+ * @param port - port on 127.0.0.1.
+ * @returns true when a connection succeeds within a second.
+ */
+export function portInUse(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = connect({ host: '127.0.0.1', port })
+    socket.setTimeout(1000, () => { socket.destroy(); resolve(false) })
+    socket.once('connect', () => { socket.destroy(); resolve(true) })
+    socket.once('error', () => { resolve(false) })
+  })
+}
+
 /** Owner of the shared browser process and its live view. */
 export class SharedBrowser {
   private context: BrowserContext | undefined
@@ -134,7 +149,12 @@ export class SharedBrowser {
 
   /** Launch the browser and open the start page. */
   async start(): Promise<void> {
-    const { executablePath, channel } = this.options
+    const { executablePath, channel, debugPort } = this.options
+    // A taken port makes the browser wait for its launch timeout without saying why.
+    if (await portInUse(debugPort)) {
+      throw new Error(`port ${debugPort} is already in use, most likely by another DeepSeek Harness window or a browser started with remote debugging; `
+        + 'close it, or give co-canvas and the browser tools another port')
+    }
     const context = await chromium.launchPersistentContext(this.options.userDataDir, {
       headless: this.options.headless,
       viewport: this.options.viewport,

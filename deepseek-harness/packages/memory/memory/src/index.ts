@@ -75,6 +75,9 @@ export const Config: z<Config> = z.object({
 
 type ResolvedConfig = Required<Config>
 
+/** Sections whose facts belong to the project of the Session that saved them. */
+export const PROJECT_SECTIONS: ReadonlySet<string> = new Set(['project', 'decisions'])
+
 const GUIDE = `You have a long-term memory that persists across sessions.
 - Facts in <memory> were saved in earlier sessions; rely on them.
 - When the user states a durable preference, convention or decision, save it with memory_write.
@@ -139,7 +142,16 @@ export function apply(ctx: Context, config: Config): void {
     name: 'memory',
     order: ctx.systemPrompt.getContextOrder('LONG_TERM_MEMORY'),
     interpolate: false,
-    text: () => `${GUIDE}\n\n${longterm.renderForPrompt() || '<memory>(empty)</memory>'}`,
+    // Project facts are shown only in the project whose Session saved them; facts of unknown Sessions are shown everywhere.
+    text: ({ agent }) => {
+      const cwd = agent?.session.header.cwd
+      const visible = (section: string, source: string | undefined): boolean => {
+        if (!PROJECT_SECTIONS.has(section) || source === undefined || cwd === undefined) return true
+        const saved = episodic.cwdOf(source)
+        return saved === undefined || saved === cwd
+      }
+      return `${GUIDE}\n\n${longterm.renderForPrompt(visible) || '<memory>(empty)</memory>'}`
+    },
   })
 
   ctx.tools.register(defineTool({

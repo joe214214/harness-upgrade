@@ -76,7 +76,7 @@ kind: "package-reference"
 
 ### 记忆
 
-读取的来源是每个 Agent 的用户级指令文件、Claude Code 按项目保存的记忆目录、Codex 的记忆摘要，以及 Gemini CLI 的项目 `GEMINI.md` 和记忆目录；项目里的 `AGENTS.md` 和 `CLAUDE.md` 交给 DeepSeek Harness 自己的指令加载。写出时，`memoryFile` 里的条目写入 `~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md` 和 `~/.gemini/GEMINI.md` 中一个带标记的区块，并写入 `~/.codex/memories/extensions/dsh_agent_bridge` 下的 Codex 记忆扩展。区块原地替换，读取时会去掉它，因此条目不会循环回来。
+读取的来源是每个 Agent 的用户级指令文件、Claude Code 按项目保存的记忆目录、Codex 的记忆摘要，以及 Gemini CLI 的项目 `GEMINI.md` 和记忆目录；项目里的 `AGENTS.md` 和 `CLAUDE.md` 交给 DeepSeek Harness 自己的指令加载。写出时，`memoryFile` 里的条目按范围共享。用户级条目写入 `~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md` 和 `~/.gemini/GEMINI.md` 中一个带标记的区块。`project` 和 `decisions` 分区的条目属于保存它们的那个 Session 的工作目录（从记忆的 `episodic.db` 读取）；它们写入该项目在 Claude Code 和 Gemini CLI 中的记忆 `MEMORY.md`，绝不写进用户级文件；找不到所属 Session 的条目不共享。Codex 通过 `~/.codex/memories/extensions/dsh_agent_bridge` 下的记忆扩展同时接收两者，每个项目带一个 `scope.json`。区块原地替换，不再对应任何条目的区块会被移除，读取时也会去掉它们，因此条目不会循环回来。
 
 ### 源码地图
 
@@ -202,6 +202,7 @@ Memory and user-level instructions saved by other coding agents on this machine.
 - **文字而非原生历史** — 外部消息以转发上下文的形式送达模型；共享出去的会话把 DeepSeek Harness 的工具调用写成说明，而不是对方 Agent 的原生工具记录。
 - **同步到 Codex 会写出一份 Claude Code 对话记录** — Codex 通过它的 Claude Code 导入器导入，所以同步到 Codex 的会话也会出现在 Claude Code 的会话列表中。
 - **Claude Code 的继续** — Claude Code 和 Gemini CLI 的文件按它们当前的格式写出；Gemini CLI 能列出它们，Codex 的 Claude Code 导入器也接受它们，但没有用已登录的 Claude Code 实测过继续对话。
+- **范围取自保存它的 Session** — 项目条目按保存它的那个 Session 的工作目录归属；适用于多个项目的条目只共享给第一个。
 - **仅限本地文件** — 这些 Agent 在其他机器上或其云端产品中的会话无法读取。
 
 <a id="dev-note"></a>

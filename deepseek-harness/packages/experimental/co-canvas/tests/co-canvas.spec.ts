@@ -17,13 +17,14 @@ import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { emitAgentEvent } from '@deepseek-ai/dsh-agent'
+import { mountAgentLoopTestDependencies, mountAgentLoopTestHarness } from '@deepseek-ai/dsh-agent-loop-testkit'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { chromium } from 'playwright-core'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import CoCanvas, { DISCUSS_HOLD, DISCUSS_LINE, describeTarget, marksMessage } from '../src/index.ts'
+import CoCanvas, { DISCUSS_HOLD, DISCUSS_LINE, SharedBrowser, describeTarget, marksMessage } from '../src/index.ts'
 import type { CanvasFrame, CanvasMark, CanvasState } from '../src/types.ts'
 import type { Page } from 'playwright-core'
 
@@ -194,6 +195,21 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     expect(refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain('operated the browser or desktop themselves')
     expect(clicks).toHaveLength(0)
   }, 60_000)
+
+  it('fails fast with the reason when the debugging port is already taken', async () => {
+    const server = createServer()
+    const port = await freePort()
+    await new Promise<void>((resolve) => { server.listen(port, '127.0.0.1', resolve) })
+    onTestFinished(() => new Promise<void>((resolve) => { server.close(() => { resolve() }) }))
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-co-canvas-'))
+    onTestFinished(() => rm(dir, { recursive: true, force: true }))
+    const started = Date.now()
+    const browser = new SharedBrowser({
+      userDataDir: dir, debugPort: port, headless: true, ...executablePath === undefined ? {} : { executablePath }, viewport: { width: 600, height: 400 }, startUrl: 'about:blank', frameQuality: 60, pageToolbar: false,
+    })
+    await expect(browser.start()).rejects.toThrow(`port ${port} is already in use`)
+    expect(Date.now() - started).toBeLessThan(5000)
+  }, 30_000)
 
   it('refuses browser tools with the launch error when the browser cannot start', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-co-canvas-'))
@@ -375,5 +391,34 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     const { canvas } = await setup()
     await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 } })
     await expect(canvas.discuss()).rejects.toThrow('Start a conversation')
+  }, 60_000)
+})
+
+describe.skipIf(executablePath === undefined)('hidden tools', () => {
+  it('withdraws matching global tools from every agent through the tool registry', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-co-canvas-'))
+    const ctx = new Context()
+    onTestFinished(async () => {
+      await ctx.fiber.dispose()
+      await rm(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+    })
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(TypertRegistry)
+    const plain = (name: string) => defineTool({
+      name, description: `test ${name}`, parameters: {},
+      output: { schema: { type: 'object', additionalProperties: false, properties: {} }, render: () => [{ type: 'text', text: name }] },
+      execute: () => Promise.resolve({}),
+    })
+    for (const name of ['cua_driver_native__click', 'cua_driver_native__browser_navigate', 'cua_driver_native__start_recording']) ctx.tools.register(plain(name))
+    await ctx.plugin(CoCanvas, {
+      executablePath, userDataDir: dir, debugPort: await freePort(), hiddenTools: '^cua_driver_native__(browser_\\w+|start_recording)$',
+    })
+    const harness = await mountAgentLoopTestHarness(ctx)
+    const agent = await harness.create(SessionId('session-hidden-tools'))
+    const visible = ctx.tools.schemas(agent).map(t => t.name)
+    expect(visible).toContain('cua_driver_native__click')
+    expect(visible).not.toContain('cua_driver_native__browser_navigate')
+    expect(visible).not.toContain('cua_driver_native__start_recording')
+    expect(ctx.tools.schemas().map(t => t.name)).toContain('cua_driver_native__browser_navigate')
   }, 60_000)
 })

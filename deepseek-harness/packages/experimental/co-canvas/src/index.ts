@@ -38,7 +38,7 @@ export { SharedDesktop, markSvg, openCuaDriver, windowAt } from './desktop.ts'
 export type { DesktopCapture, DesktopDriver, DesktopShot, DesktopToolResult, SharedDesktopOptions } from './desktop.ts'
 export { SCREEN_MARKER_BINDING, markOnScreen, parseScreenMarks } from './screen-marker.ts'
 export type { ScreenMarkResult, ScreenMarkerOptions } from './screen-marker.ts'
-export { SharedBrowser, parseToolbarMessage } from './browser.ts'
+export { SharedBrowser, parseToolbarMessage, portInUse } from './browser.ts'
 export type { Capture, SharedBrowserOptions } from './browser.ts'
 export { OVERLAY_SOURCE } from './overlay.ts'
 export type { OverlayMessage, OverlayState } from './overlay.ts'
@@ -101,6 +101,11 @@ export interface Config {
   desktopMaxFrameEdge: number
   /** Regular expression matching the agent's desktop action tool names; matching calls wait while the user holds control. */
   gatedDesktopTools: string
+  /**
+   * Regular expression for global tools hidden from every agent, such as the computer-use provider's
+   * duplicate browser tools; empty hides nothing.
+   */
+  hiddenTools: string
 }
 
 /** Model-facing reason for a browser or desktop action that was chosen before the user's latest input. */
@@ -193,6 +198,7 @@ export default class CoCanvas extends TypertRemoteService {
     desktopFrameIntervalMs: z.natural().min(100).default(1000),
     desktopMaxFrameEdge: z.natural().min(320).default(1600),
     gatedDesktopTools: z.string().min(1).default(DESKTOP_ACTIONS),
+    hiddenTools: z.string().default(''),
   })
 
   /** The shared Chromium the agent's browser tools attach to. */
@@ -263,6 +269,16 @@ export default class CoCanvas extends TypertRemoteService {
       return { kind: 'deny', reason: `${STALE_ACTION}\n${marks}` }
     })
     // The user's own reply ends a discussion: the agent may act on what they said.
+    // Hidden tools are withdrawn per agent through the tool registry's own restriction, so their
+    // definitions leave every request; the restriction ends with the agent.
+    if (config.hiddenTools !== '') {
+      const hidden = new RegExp(config.hiddenTools, 'u')
+      ctx.on('agent/created', ({ agent }) => {
+        const deny = ctx.tools.definitions().map(d => d.name).filter(name => hidden.test(name))
+        if (deny.length > 0) agent.ctx.tools.restrict({ deny })
+        return undefined
+      })
+    }
     ctx.on('agent/inbox/inserted', ({ agent, message }) => {
       if (message.source.kind !== 'user') return
       this.agent = agent
