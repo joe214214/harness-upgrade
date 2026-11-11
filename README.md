@@ -1,6 +1,6 @@
 # harness-upgrade — multimodal input, long-term memory and human-in-the-loop browser and computer use for DeepSeek Harness
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) is DeepSeek's open-source, all-plugin agent runtime. Out of the box its agents read text and single images; its own docs list PDF, audio and video as deferred and ship no built-in memory, and its browser and computer-use agents work alone. This project adds all three as **nine native dsh packages**, built only on dsh's documented extension points — no change to the agent loop — and held to dsh's own engineering gates.
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) is DeepSeek's open-source, all-plugin agent runtime. Out of the box its agents read text and single images; its own docs list PDF, audio and video as deferred and ship no built-in memory, and its browser and computer-use agents work alone. This project adds all three as **eight native dsh packages**, built only on dsh's documented extension points — no change to the agent loop — and held to dsh's own engineering gates.
 
 | What an agent can now do | Package | Tool |
 |---|---|---|
