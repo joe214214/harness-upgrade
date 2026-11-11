@@ -40,10 +40,10 @@ export const STORED_IMAGE_SCHEMA = {
  * `read_image`, media tools degrade to text instead of refusing, so an
  * unresolvable route answers false.
  * @param ctx - context with the optional `llm` service.
- * @param exec - the tool execution supplying the calling agent.
+ * @param exec - the calling agent and cancellation signal, usually a tool execution.
  * @returns true only when the routed model lists `image` among its input modalities.
  */
-export async function routeAcceptsImages(ctx: Context, exec: ToolExecution): Promise<boolean> {
+export async function routeAcceptsImages(ctx: Context, exec: Pick<ToolExecution, 'agent' | 'signal'>): Promise<boolean> {
   const routed = exec.agent?.session.requestHeader()?.config
   const provider = routed?.provider ?? exec.agent?.options.provider
   const model = routed?.model ?? exec.agent?.options.model

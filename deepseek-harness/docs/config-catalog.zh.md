@@ -1090,7 +1090,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-experimental-co-canvas`
 
 - `inject`: `tools` · `systemPrompt` · `typert`
-- `source`: [`packages/experimental/co-canvas/src/index.ts:57`](../packages/experimental/co-canvas/src/index.ts)
+- `source`: [`packages/experimental/co-canvas/src/index.ts:65`](../packages/experimental/co-canvas/src/index.ts)
 
 ```ts config-catalog
 /** Deployment settings of the shared browser and of mark delivery. */
@@ -1125,6 +1125,14 @@ export interface Config {
   cropMargin: number
   /** How long ask_user_to_mark waits for an answer. */
   askTimeoutMs: number
+  /** Offer the primary display as a second surface: live view, marks, and marking on the real screen. */
+  desktop: boolean
+  /** Pause between live desktop frames. */
+  desktopFrameIntervalMs: number
+  /** Longest edge of a live desktop frame in pixels; larger screens are scaled down. */
+  desktopMaxFrameEdge: number
+  /** Regular expression matching the agent's desktop action tool names; matching calls wait while the user holds control. */
+  gatedDesktopTools: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-co-canvas -->

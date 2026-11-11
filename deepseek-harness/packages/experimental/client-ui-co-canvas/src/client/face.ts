@@ -7,12 +7,17 @@ export interface CanvasInjected {
   readonly hooks: {
     readonly canvas: HostObservable<CanvasState | null>
     readonly frame: HostObservable<CanvasFrame | null>
+    readonly desktopFrame: HostObservable<CanvasFrame | null>
   }
   readonly mark: (input: MarkInput) => Promise<CanvasMark>
   readonly removeMark: (id: string) => Promise<void>
   readonly setControl: (control: CanvasControl) => Promise<void>
   readonly input: (input: CanvasInput) => Promise<void>
   readonly answer: (questionId: string) => Promise<void>
+  /** Send the undelivered marks to the agent to discuss before it continues. */
+  readonly discuss: () => Promise<void>
+  /** After a delay, freeze the screen full screen and mark on it. */
+  readonly markScreen: (delayMs: number) => Promise<unknown>
 }
 
 declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {

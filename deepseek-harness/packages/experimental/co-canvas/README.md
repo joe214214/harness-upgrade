@@ -1,5 +1,5 @@
 ---
-description: "Experimental co-canvas: a shared browser the user watches live, marks, and takes over while the agent works, with marks grounded to page elements and delivered with the agent's next tool result, for users and maintainers composing human-in-the-loop browser use."
+description: "Experimental co-canvas: a shared browser and desktop the user watches live, marks, discusses, and takes over while the agent works, with marks grounded to page elements or desktop windows and delivered with the agent's next tool result or as a message to discuss, for users and maintainers composing human-in-the-loop browser and computer use."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-co-canvas` lets the user work in the same browser as the agent. It launches one Chromium that the agent's browser tools attach to; the user marks pages directly in that browser window through an injected toolbar, or in the live view of the [co-canvas tab](../client-ui-co-canvas/README.md). The user boxes or points at an element, with an optional note; each mark is resolved to the element underneath (role, text, selector, and which look-alike it is) and reaches the agent with its next tool result. The user can pause the agent or take over. The agent can ask for a mark with `ask_user_to_mark`.
+`dsh-experimental-co-canvas` lets the user work beside the agent in a shared browser and, with `desktop`, on the desktop. The user watches both live, marks them with a box, arrow or point and a note, and pauses the agent or takes over. Browser marks resolve to the element underneath; desktop marks name the window. Marks reach the agent with its next tool result, or, with **Ask the agent first**, as a message it answers before acting. **Mark on screen** freezes the real screen for direct marking. The agent can ask for a mark with `ask_user_to_mark`.
 
 ## Table of Contents
 
@@ -60,6 +60,10 @@ Mount it with the co-canvas tab and a browser-use provider in attach mode that p
 | `maxCropsPerMessage` | `3` | Most cropped screenshots per delivery on image-capable routes; `0` disables them |
 | `cropMargin` | `120` | Context pixels around a cropped mark |
 | `askTimeoutMs` | `300000` | How long `ask_user_to_mark` waits |
+| `desktop` | `false` | Offer the primary display as a second surface; pair it with a computer-use provider such as [Cua Driver native](../computer-use-cua-driver-native/README.md) |
+| `desktopFrameIntervalMs` | `1000` | Pause between live desktop frames |
+| `desktopMaxFrameEdge` | `1600` | Longest edge of a live desktop frame in pixels |
+| `gatedDesktopTools` | Cua Driver action tools | Regular expression for the agent's desktop action tools; matching calls wait while the user holds control, like `gatedTools` |
 
 -----
 
@@ -87,7 +91,15 @@ The focus point of a mark is the centre of a box, the head of an arrow, or the p
 
 ### Delivery and control
 
-A `tools/post-execute` listener attaches undelivered marks, and any handback since the last delivery, to the result of the agent's next tool call as one additional user message; the agent loop logs it with the result. A `tools/pre-execute` listener holds calls whose name matches `gatedTools` until control returns to the agent; if the user marked the page or operated it after the agent chose such a call, the call is refused with the marks instead of run, so a stale action never reaches the page; after a bare pause the call runs and the handback follows its result. If the browser failed to start, the listener refuses these calls with the launch error, which is also logged to the console and shown in the co-canvas tab. User input is replayed through Playwright and refused unless the user holds control.
+A `tools/post-execute` listener attaches undelivered marks, and any handback since the last delivery, to the result of the agent's next tool call as one additional user message; the agent loop logs it with the result. A `tools/pre-execute` listener holds calls whose name matches `gatedTools` or `gatedDesktopTools` until control returns to the agent; if the user marked the screen or operated it after the agent chose such a call, the call is refused with the marks instead of run, so a stale action never reaches the page; after a bare pause the call runs and the handback follows its result. If the browser failed to start, the listener refuses these calls with the launch error, which is also logged to the console and shown in the co-canvas tab. User input is replayed through Playwright and refused unless the user holds control.
+
+### Desktop surface
+
+With `desktop`, the service opens its own same-process Cua Driver runtime, separate from the computer-use provider's. `desktopFrames` streams JPEG frames of `get_desktop_state` screenshots, sized in screen points and scaled with sharp to `desktopMaxFrameEdge`. A desktop mark is grounded with `list_windows`: the frontmost visible window containing the focus point gives the title, application, pid, and window id, and the crop is cut from the screenshot the mark was drawn on. **Mark on screen** waits a few seconds, takes a screenshot, and shows it in a full-screen browser window with its own toolbar; the user draws marks with notes and chooses to send them, discuss them first, or cancel. The marker window always opens visibly, even beside a headless shared browser. The Web tab cannot replay input on the desktop: there the user takes over with the real mouse and keyboard, and the agent waits.
+
+### Discussing marks
+
+`discuss` takes the undelivered marks, pauses the agent, and steers its Session with one user message (source `dsh-co-canvas`, a `notice` with a one-line summary) that lists the marks and asks for a reply in text; crops follow on image-capable routes. While the discussion lasts, every gated browser or desktop call is refused at once instead of waiting, so a call already held by a pause returns and the agent can answer. The user's next own message in the Session, or Resume, ends the discussion without a handback note. Discussions go to the agent that most recently ran a tool or received a user message, or else the most recently loaded root conversation.
 
 ### Source map
 
@@ -97,6 +109,8 @@ A `tools/post-execute` listener attaches undelivered marks, and any handback sin
 | [`src/browser.ts`](src/browser.ts) | Browser launch, active page, screencast, toolbar wiring, hit testing, crops, input |
 | [`src/overlay.ts`](src/overlay.ts) | The in-page toolbar and its messages |
 | [`src/marks.ts`](src/marks.ts) | Model-facing mark text |
+| [`src/desktop.ts`](src/desktop.ts) | Desktop screenshots, live frames, window grounding, crops |
+| [`src/screen-marker.ts`](src/screen-marker.ts) | Full-screen marking on a frozen screenshot |
 | [`src/types.ts`](src/types.ts) | Types shared with the Web tab |
 
 </details>
@@ -124,7 +138,7 @@ One paragraph in the system prompt, present only while `ask_user_to_mark` is vis
 ##### Verbatim guidance
 
 ```markdown
-The user watches your browser live and can mark elements on it. Their marks arrive in <user_marks> after a tool result; they take priority over your plan. While the user holds control, your browser actions wait until it is handed back; a browser action chosen before the user's latest input is not run.
+The user watches your browser and desktop live and can mark things on them. Their marks arrive in <user_marks> after a tool result or as a message; they take priority over your plan. While the user holds control, your browser and desktop actions wait until it is handed back; an action chosen before the user's latest input is not run. When the user sends marks to discuss, answer in text before acting.
 ```
 
 #### Token effect
@@ -172,7 +186,7 @@ A browser call chosen before the user's latest marks, or before the user operate
 ##### Verbatim reason
 
 ```markdown
-This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.
+This action was not run: the user acted on the screen after you chose it. Re-plan from their input below.
 ```
 
 #### Token effect
@@ -202,6 +216,36 @@ Only after a failed launch: one sentence plus the error per browser call.
 #### KV Cache effect
 
 Append-only; the failure is the call's tool result.
+
+### Marks to discuss
+
+#### What the model sees
+
+When the user sends marks to discuss, one user message arrives at the next step boundary, or starts a turn when the agent is idle; image-capable routes also receive up to `maxCropsPerMessage` crops. Until the user replies or resumes, every gated browser or desktop call fails without running, with the verbatim reason below.
+
+##### Example message
+
+```markdown
+<user_marks>
+The user marked the desktop (coordinates in screen points):
+1. box at (910, 389), 668×62 on the desktop (screen points): window "To-do (4)" (pid 8111, window_id 4194307), at (344, 340) inside it — note: "Is this a duplicate of the other Pay rent? Check with me first"
+The user wants to talk about these marks before you continue. Reply in text: answer their notes or confirm what you understood. Do not operate the browser or the desktop until the user replies.
+</user_marks>
+```
+
+##### Verbatim reason for a held action
+
+```markdown
+This action was not run: the user wants to discuss their marks with you first. Reply to them in text and do not operate the browser or the desktop until they reply.
+```
+
+#### Token effect
+
+Only when the user asks: about one line per mark plus two sentences, and the image cost of each crop; one sentence per refused call.
+
+#### KV Cache effect
+
+Append-only; the message enters the Session history like any user message.
 
 ### Delivered marks
 
@@ -235,6 +279,10 @@ Append-only; the message follows the tool result it is attached to.
 - **Host-only browser** — the browser runs on the Host machine; remote execution environments are not supported.
 - **Top frame only** — the toolbar and hit testing cover the main document, not iframes.
 - **Visible to screenshots** — the agent's own page screenshots include the toolbar in a corner of the viewport.
+
+- **Desktop: primary display only** — live frames, marks, and the marker cover the primary display; windows on other displays are not grounded.
+- **Desktop: verified on Linux (X11)** — the Cua Driver runtime ships Windows and macOS binaries, but the desktop surface and the full-screen marker were exercised end to end only on Linux; window grounding depends on what `list_windows` reports on each platform.
+- **Desktop: one runtime per surface** — the desktop surface reads the screen through its own Cua Driver runtime beside the computer-use provider's.
 
 <a id="dev-note"></a>
 ### Dev Note

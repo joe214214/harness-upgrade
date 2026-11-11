@@ -1000,6 +1000,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   CanvasMark: 'packages/experimental/co-canvas/README.md',
   CanvasState: 'packages/experimental/co-canvas/README.md',
   MarkInput: 'packages/experimental/co-canvas/README.md',
+  ScreenMarkOutcome: 'packages/experimental/co-canvas/README.md',
   ProductEvent: 'Desktop event fields are owned by packages/client/product-analytics/README.md and src/events.ts',
   ConnectionFetchHandler: 'shared Fetch dispatch is owned by packages/client/connection/src/rpc.ts',
   ConnectionRequestRejection: 'transport rejection status is owned by packages/client/connection/src/rpc.ts',

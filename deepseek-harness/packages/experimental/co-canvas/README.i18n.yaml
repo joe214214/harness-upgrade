@@ -3,20 +3,20 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/co-canvas/README.md
 /:
-  en: b5c459028d1bd1b7
-  zh: bf00895184a4c2a9
+  en: b89addee1f716c66
+  zh: ea224109a23af4ec
 /deepseek-ai-dsh-experimental-co-canvas:
   en: a1f47bbb55d4e26a
   zh: bd368f021242a901
 /deepseek-ai-dsh-experimental-co-canvas/summary:
-  en: 15d7b0b06568c51f
-  zh: c0e568cf4ffa6977
+  en: dfe636b0d5e576ac
+  zh: 0f13813fe55be54d
 /deepseek-ai-dsh-experimental-co-canvas/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
 /deepseek-ai-dsh-experimental-co-canvas/use-this-package:
-  en: e7ce7d0bf83739c9
-  zh: a3762ef187635984
+  en: 5ed9848f34172c0d
+  zh: a527c2eac0f3ca1a
 /deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation:
   en: a8ea90f5f789672c
   zh: 4ed0861911abaf5d
@@ -33,11 +33,17 @@
   en: 81f03a06a4b54679
   zh: c479cf6346c22bd3
 /deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/delivery-and-control:
-  en: 9d429ab52516b2d3
-  zh: 9f263beb3ce66b84
+  en: 6ace1abf08b0b297
+  zh: 1fcc5436c5bd6f27
+/deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/desktop-surface:
+  en: 99b638b0c3f8db61
+  zh: 3524904a2e1ab08c
+/deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/discussing-marks:
+  en: 63ccb2f17efe9073
+  zh: 886ea5a4037cf789
 /deepseek-ai-dsh-experimental-co-canvas/understand-the-implementation/source-map:
-  en: 580f27cb91b27bf5
-  zh: e94f4c9c3ba3fb45
+  en: 955d327b377a4682
+  zh: 6a43af8a529a377f
 /deepseek-ai-dsh-experimental-co-canvas/further-exploration:
   en: ac3c50ab35940b21
   zh: 9ef1a832b78b46f4
@@ -113,6 +119,24 @@
 /deepseek-ai-dsh-experimental-co-canvas/model-experience/browser-not-started/kv-cache-effect:
   en: 1a78f5f6c9ad4b62
   zh: 4ebafcdca956e87a
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/marks-to-discuss:
+  en: beec3ddaaec46d1c
+  zh: c67632cb148176d2
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/marks-to-discuss/what-the-model-sees:
+  en: a1b5e3de1bd21b8c
+  zh: 8a06852bf930fa19
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/marks-to-discuss/what-the-model-sees/example-message:
+  en: 1605d989ab26e06b
+  zh: 63b4063ce9267b30
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/marks-to-discuss/what-the-model-sees/verbatim-reason-for-a-held-action:
+  en: 3185716dc6957245
+  zh: 6b6b016be4bbbf09
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/marks-to-discuss/token-effect:
+  en: de104f892e0870cc
+  zh: 6218d5f5f3825eaa
+/deepseek-ai-dsh-experimental-co-canvas/model-experience/marks-to-discuss/kv-cache-effect:
+  en: cc7557656a55118e
+  zh: 540cbd031b45c428
 /deepseek-ai-dsh-experimental-co-canvas/model-experience/delivered-marks:
   en: 814296402f4197b1
   zh: 5101c0a898070a6a
@@ -129,8 +153,8 @@
   en: aa6384b12232a60a
   zh: e0d55000e3173f3e
 /deepseek-ai-dsh-experimental-co-canvas/known-limitations-and-deferred-work:
-  en: 0c6750e99cf974a5
-  zh: 02f057ffb7707b9c
+  en: bcac72e71efa3fe4
+  zh: 91cc817d156f7cc2
 /deepseek-ai-dsh-experimental-co-canvas/known-limitations-and-deferred-work/dev-note:
   en: e67f633dc6fe7773
   zh: 9c6918ce849f6c93

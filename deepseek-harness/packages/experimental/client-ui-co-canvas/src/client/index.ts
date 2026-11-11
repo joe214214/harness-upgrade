@@ -32,15 +32,18 @@ function registerUi(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en, ja, es, fr, de, ru, pt }), 'co-canvas: copy')
   const state = liveStream<CanvasState>(ctx, 'Co-canvas state', signal => ctx.remote.coCanvas.follow(signal))
   const frames = liveStream<CanvasFrame>(ctx, 'Co-canvas frames', signal => ctx.remote.coCanvas.frames(signal))
-  ctx.effect(() => async () => { await Promise.all([state.dispose(), frames.dispose()]) }, 'co-canvas: streams')
+  const desktopFrames = liveStream<CanvasFrame>(ctx, 'Co-canvas desktop frames', signal => ctx.remote.coCanvas.desktopFrames(signal))
+  ctx.effect(() => async () => { await Promise.all([state.dispose(), frames.dispose(), desktopFrames.dispose()]) }, 'co-canvas: streams')
   const remote = ctx.remote.coCanvas
   const injected: CanvasInjected = {
-    hooks: { canvas: state.store, frame: frames.store },
+    hooks: { canvas: state.store, frame: frames.store, desktopFrame: desktopFrames.store },
     mark: input => unwrap(remote.mark(input)),
     removeMark: id => unwrap(remote.removeMark(id)),
     setControl: control => unwrap(remote.setControl(control)),
     input: input => unwrap(remote.input(input)),
     answer: id => unwrap(remote.answer(id)),
+    discuss: () => unwrap(remote.discuss()),
+    markScreen: delayMs => unwrap(remote.markScreen(delayMs)),
   }
   ctx.effect(() => ctx.sidebarRightTabs.register({
     id: CO_CANVAS_ID, kind: 'co-canvas', title: () => t('title'),

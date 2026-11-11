@@ -691,6 +691,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [],
       },
       {
+        signature: 'readonly desktop: SharedDesktop | undefined',
+        description: 'The primary display, when Config.desktop is on.',
+        parameters: [],
+      },
+      {
         signature: '@Remote({ mode: \'stream\' }) async* follow(signal: AbortSignal): AsyncIterable<CanvasState>',
         description: 'Follow the browser and collaboration state.',
         parameters: [{ name: 'signal', description: 'Client observation lifetime.' }],
@@ -701,6 +706,26 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Stream JPEG frames of the active page.',
         parameters: [{ name: 'signal', description: 'Client observation lifetime.' }],
         returns: 'frames; slow readers receive only the newest.',
+      },
+      {
+        signature: '@Remote({ mode: \'stream\' }) desktopFrames(signal: AbortSignal): AsyncIterable<CanvasFrame>',
+        description: 'Stream JPEG frames of the primary display.',
+        parameters: [{ name: 'signal', description: 'Client observation lifetime.' }],
+        returns: 'frames sized in screen points, one per configured interval.',
+        throws: ['RemoteError when the desktop surface is disabled.'],
+      },
+      {
+        signature: '@Remote async discuss(): Promise<void>',
+        description: 'Send the undelivered marks to the agent to discuss before it continues. The agent\'s browser and desktop actions are refused until the user replies in the conversation or resumes.',
+        parameters: [],
+        throws: ['RemoteError when no agent has used co-canvas or received a message yet.'],
+      },
+      {
+        signature: '@Remote async markScreen(delayMs: number): Promise<ScreenMarkOutcome>',
+        description: 'Mark the real screen: after a delay, show a frozen screenshot full screen and collect marks on it.',
+        parameters: [{ name: 'delayMs', description: 'time to bring the screen to mark to the front.' }],
+        returns: 'what the user chose and how many marks were recorded.',
+        throws: ['RemoteError when the desktop surface is disabled.'],
       },
       {
         signature: '@Remote mark(input: MarkInput): Promise<CanvasMark>',
@@ -5840,7 +5865,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CanvasMark',
-    declaration: 'export interface CanvasMark extends MarkInput {\n    readonly id: string;\n    readonly url: string;\n    readonly title: string;\n    readonly at: number;\n    readonly target?: MarkTarget;\n}',
+    declaration: 'export interface CanvasMark extends MarkInput {\n    readonly surface: CanvasSurface;\n    readonly id: string;\n    readonly url: string;\n    readonly title: string;\n    readonly at: number;\n    readonly target?: MarkTarget;\n    readonly window?: DesktopWindow;\n}',
   },
   {
     name: 'CanvasQuestion',
@@ -5852,7 +5877,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CanvasState',
-    declaration: 'export interface CanvasState {\n    readonly connected: boolean;\n    readonly failure: string | null;\n    readonly url: string;\n    readonly title: string;\n    readonly control: CanvasControl;\n    readonly question: CanvasQuestion | null;\n    readonly pending: readonly CanvasMark[];\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n}',
+    declaration: 'export interface CanvasState {\n    readonly connected: boolean;\n    readonly failure: string | null;\n    readonly url: string;\n    readonly title: string;\n    readonly control: CanvasControl;\n    readonly discussing: boolean;\n    readonly desktop: boolean;\n    readonly question: CanvasQuestion | null;\n    readonly pending: readonly CanvasMark[];\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n}',
+  },
+  {
+    name: 'CanvasSurface',
+    declaration: 'export type CanvasSurface = \'browser\' | \'desktop\';',
   },
   {
     name: 'ChangeRequestCheck',
@@ -6273,6 +6302,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'DeliveryRetentionBounds',
     declaration: 'export interface DeliveryRetentionBounds {\n    readonly days: number;\n    readonly records: number;\n}',
+  },
+  {
+    name: 'DesktopCapture',
+    declaration: 'export interface DesktopCapture {\n    readonly window?: DesktopWindow;\n    readonly crop?: Buffer;\n}',
+  },
+  {
+    name: 'DesktopDriver',
+    declaration: 'export interface DesktopDriver {\n    callTool(name: string, argumentsJson: string): Promise<DesktopToolResult>;\n    shutdown(): Promise<void>;\n}',
+  },
+  {
+    name: 'DesktopShot',
+    declaration: 'export interface DesktopShot {\n    readonly png: Buffer;\n    readonly pixelWidth: number;\n    readonly pixelHeight: number;\n    readonly width: number;\n    readonly height: number;\n}',
+  },
+  {
+    name: 'DesktopToolResult',
+    declaration: 'export interface DesktopToolResult {\n    readonly text: string;\n    readonly images: readonly {\n        readonly mimeType: string;\n        readonly dataBase64: string;\n    }[];\n    readonly structuredJson?: string | undefined;\n    readonly isError: boolean;\n}',
+  },
+  {
+    name: 'DesktopWindow',
+    declaration: 'export interface DesktopWindow {\n    readonly app: string;\n    readonly title: string;\n    readonly pid?: number;\n    readonly windowId?: string;\n    readonly bounds: CanvasRect;\n}',
   },
   {
     name: 'DeveloperMessage',
@@ -7196,7 +7245,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'MarkInput',
-    declaration: 'export interface MarkInput {\n    readonly shape: MarkShape;\n    readonly rect: CanvasRect;\n    readonly note?: string;\n}',
+    declaration: 'export interface MarkInput {\n    readonly surface?: CanvasSurface;\n    readonly shape: MarkShape;\n    readonly rect: CanvasRect;\n    readonly note?: string;\n}',
   },
   {
     name: 'MarkShape',
@@ -7448,11 +7497,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'OverlayMessage',
-    declaration: 'export type OverlayMessage = {\n    readonly type: \'hello\';\n} | {\n    readonly type: \'mark\';\n    readonly shape: \'box\' | \'point\';\n    readonly rect: {\n        x: number;\n        y: number;\n        width: number;\n        height: number;\n    };\n    readonly note: string;\n} | {\n    readonly type: \'control\';\n    readonly control: \'agent\' | \'paused\';\n} | {\n    readonly type: \'answer\';\n    readonly questionId: string;\n};',
+    declaration: 'export type OverlayMessage = {\n    readonly type: \'hello\';\n} | {\n    readonly type: \'mark\';\n    readonly shape: \'box\' | \'point\';\n    readonly rect: {\n        x: number;\n        y: number;\n        width: number;\n        height: number;\n    };\n    readonly note: string;\n} | {\n    readonly type: \'control\';\n    readonly control: \'agent\' | \'paused\';\n} | {\n    readonly type: \'answer\';\n    readonly questionId: string;\n} | {\n    readonly type: \'discuss\';\n};',
   },
   {
     name: 'OverlayState',
-    declaration: 'export interface OverlayState {\n    readonly control: \'agent\' | \'paused\' | \'human\';\n    readonly question: {\n        readonly id: string;\n        readonly text: string;\n    } | null;\n    readonly marks: readonly {\n        readonly shape: string;\n        readonly rect: {\n            x: number;\n            y: number;\n            width: number;\n            height: number;\n        };\n    }[];\n    readonly url: string;\n}',
+    declaration: 'export interface OverlayState {\n    readonly control: \'agent\' | \'paused\' | \'human\';\n    readonly discussing: boolean;\n    readonly pending: number;\n    readonly question: {\n        readonly id: string;\n        readonly text: string;\n    } | null;\n    readonly marks: readonly {\n        readonly shape: string;\n        readonly rect: {\n            x: number;\n            y: number;\n            width: number;\n            height: number;\n        };\n    }[];\n    readonly url: string;\n}',
   },
   {
     name: 'OwnerIdentityRequest',
@@ -8239,6 +8288,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ScopeKey = object;',
   },
   {
+    name: 'ScreenMarkOutcome',
+    declaration: 'export interface ScreenMarkOutcome {\n    readonly action: \'send\' | \'discuss\' | \'cancel\';\n    readonly marks: number;\n}',
+  },
+  {
     name: 'SearchFileMatches',
     declaration: 'export interface SearchFileMatches {\n    path: string;\n    matches: SearchLineMatch[];\n}',
   },
@@ -9001,6 +9054,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SharedBrowserOptions',
     declaration: 'export interface SharedBrowserOptions {\n    readonly userDataDir: string;\n    readonly debugPort: number;\n    readonly headless: boolean;\n    readonly executablePath?: string;\n    readonly channel?: string;\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n    readonly startUrl: string;\n    readonly frameQuality: number;\n    readonly pageToolbar: boolean;\n}',
+  },
+  {
+    name: 'SharedDesktop',
+    declaration: 'export class SharedDesktop {\n    constructor(private readonly options: SharedDesktopOptions);\n    async screenshot(): Promise<DesktopShot>;\n    async *frames(signal: AbortSignal): AsyncIterable<CanvasFrame>;\n    async capture(shape: MarkShape, rect: CanvasRect, focus: {\n        x: number;\n        y: number;\n    }, margin: number | undefined, shot?: DesktopShot): Promise<DesktopCapture>;\n    async close(): Promise<void>;\n}',
+  },
+  {
+    name: 'SharedDesktopOptions',
+    declaration: 'export interface SharedDesktopOptions {\n    readonly frameIntervalMs: number;\n    readonly frameQuality: number;\n    readonly maxFrameEdge: number;\n    readonly openDriver: () => Promise<DesktopDriver>;\n}',
   },
   {
     name: 'ShellExecRequest',

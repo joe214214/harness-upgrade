@@ -87,6 +87,29 @@ Owner of the shared browser and of the user's marks and control.
 @Remote({ mode: 'stream' }) frames(signal: AbortSignal): AsyncIterable<CanvasFrame>
 
 /**
+ * Stream JPEG frames of the primary display.
+ * @param signal - Client observation lifetime.
+ * @returns frames sized in screen points, one per configured interval.
+ * @throws RemoteError when the desktop surface is disabled.
+ */
+@Remote({ mode: 'stream' }) desktopFrames(signal: AbortSignal): AsyncIterable<CanvasFrame>
+
+/**
+ * Send the undelivered marks to the agent to discuss before it continues. The agent's
+ * browser and desktop actions are refused until the user replies in the conversation or resumes.
+ * @throws RemoteError when no agent has used co-canvas or received a message yet.
+ */
+@Remote async discuss(): Promise<void>
+
+/**
+ * Mark the real screen: after a delay, show a frozen screenshot full screen and collect marks on it.
+ * @param delayMs - time to bring the screen to mark to the front.
+ * @returns what the user chose and how many marks were recorded.
+ * @throws RemoteError when the desktop surface is disabled.
+ */
+@Remote async markScreen(delayMs: number): Promise<ScreenMarkOutcome>
+
+/**
  * Record one mark, grounded to the element under its focus point.
  * @param input - shape, rectangle in page CSS pixels, optional note.
  * @returns the recorded mark.

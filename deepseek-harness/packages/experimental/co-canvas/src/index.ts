@@ -13,23 +13,31 @@ import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { boundContextSummary, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, ContextFormed } from '@deepseek-ai/dsh-llm'
 import { STORED_IMAGE_SCHEMA, imageBlock, routeAcceptsImages } from '@deepseek-ai/dsh-media-core'
 import type { StoredImage } from '@deepseek-ai/dsh-media-core'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolDefinition, ToolExecution } from '@deepseek-ai/dsh-tools'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { SharedBrowser } from './browser.ts'
+import { SharedDesktop, openCuaDriver } from './desktop.ts'
+import type { DesktopShot } from './desktop.ts'
+import { markOnScreen } from './screen-marker.ts'
 import type { Page } from 'playwright-core'
 import type { OverlayMessage, OverlayState } from './overlay.ts'
 import { marksMessage } from './marks.ts'
-import type { CanvasControl, CanvasFrame, CanvasInput, CanvasMark, CanvasQuestion, CanvasState, MarkInput } from './types.ts'
+import type { CanvasControl, CanvasFrame, CanvasInput, CanvasMark, CanvasQuestion, CanvasState, MarkInput, ScreenMarkOutcome } from './types.ts'
 
 export type * from './types.ts'
-export { describeMark, describeTarget, marksMessage } from './marks.ts'
+export { DISCUSS_LINE, describeMark, describeTarget, describeWindow, marksMessage } from './marks.ts'
+export { SharedDesktop, markSvg, openCuaDriver, windowAt } from './desktop.ts'
+export type { DesktopCapture, DesktopDriver, DesktopShot, DesktopToolResult, SharedDesktopOptions } from './desktop.ts'
+export { SCREEN_MARKER_BINDING, markOnScreen, parseScreenMarks } from './screen-marker.ts'
+export type { ScreenMarkResult, ScreenMarkerOptions } from './screen-marker.ts'
 export { SharedBrowser, parseToolbarMessage } from './browser.ts'
 export type { Capture, SharedBrowserOptions } from './browser.ts'
 export { OVERLAY_SOURCE } from './overlay.ts'
@@ -85,10 +93,18 @@ export interface Config {
   cropMargin: number
   /** How long ask_user_to_mark waits for an answer. */
   askTimeoutMs: number
+  /** Offer the primary display as a second surface: live view, marks, and marking on the real screen. */
+  desktop: boolean
+  /** Pause between live desktop frames. */
+  desktopFrameIntervalMs: number
+  /** Longest edge of a live desktop frame in pixels; larger screens are scaled down. */
+  desktopMaxFrameEdge: number
+  /** Regular expression matching the agent's desktop action tool names; matching calls wait while the user holds control. */
+  gatedDesktopTools: string
 }
 
-/** Model-facing reason for a browser action that was chosen before the user's latest input. */
-export const STALE_ACTION = 'This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.'
+/** Model-facing reason for a browser or desktop action that was chosen before the user's latest input. */
+export const STALE_ACTION = 'This action was not run: the user acted on the screen after you chose it. Re-plan from their input below.'
 
 /** Start of the refusal of a browser action while the shared browser is down; the launch error follows. */
 export const BROWSER_DOWN = 'The shared browser failed to start, so browser tools cannot run. Do not start a browser yourself; tell the user it failed to start and show this error:'
@@ -101,6 +117,15 @@ export interface AskResult {
   readonly text: string
   readonly images: StoredImage[]
 }
+
+/** Default {@link Config.gatedDesktopTools}: Cua Driver tools that change the desktop, from either provider. */
+export const DESKTOP_ACTIONS = '^(cua_driver_native__|mcp__cua-driver-mcp__)(click|double_click|right_click|drag|mouse_button_down|mouse_drag|mouse_button_up'
+  + '|parallel_mouse_drag|type_text|press_key|hotkey|set_value|scroll|launch_app|kill_app|bring_to_front|set_window_frame|invoke_menu|move_cursor'
+  + '|clipboard_write|replay_trajectory)$'
+
+/** Model-facing reason for a browser or desktop action refused while the user discusses marks. */
+export const DISCUSS_HOLD = 'This action was not run: the user wants to discuss their marks with you first. '
+  + 'Reply to them in text and do not operate the browser or the desktop until they reply.'
 
 const optionalString = z.union([z.string().min(1), z.const(undefined)])
 
@@ -164,6 +189,10 @@ export default class CoCanvas extends TypertRemoteService {
     maxCropsPerMessage: z.natural().default(3),
     cropMargin: z.natural().default(120),
     askTimeoutMs: z.natural().min(1000).default(300_000),
+    desktop: z.boolean().default(false),
+    desktopFrameIntervalMs: z.natural().min(100).default(1000),
+    desktopMaxFrameEdge: z.natural().min(320).default(1600),
+    gatedDesktopTools: z.string().min(1).default(DESKTOP_ACTIONS),
   })
 
   /** The shared Chromium the agent's browser tools attach to. */
@@ -179,6 +208,13 @@ export default class CoCanvas extends TypertRemoteService {
   /** Settles when the browser launch ends: undefined once it runs, else the launch error. */
   private launch: PromiseWithResolvers<string | undefined> | undefined
   private failure: string | undefined
+  /** The primary display, when {@link Config.desktop} is on. */
+  readonly desktop: SharedDesktop | undefined
+  /** The user sent marks to discuss; gated actions are refused until the user replies or resumes. */
+  private discussing = false
+  /** Agent that most recently ran a tool or received a user message; discussions go to it. */
+  private agent: Agent | undefined
+  private screenMarking = false
 
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'coCanvas', { namespace: 'coCanvas' })
@@ -194,16 +230,30 @@ export default class CoCanvas extends TypertRemoteService {
       pageToolbar: config.pageToolbar,
     })
     this.browser.onToolbar = (page, message) => { void this.onToolbarMessage(page, message) }
+    this.desktop = config.desktop
+      ? new SharedDesktop({
+        frameIntervalMs: config.desktopFrameIntervalMs,
+        frameQuality: config.frameQuality,
+        maxFrameEdge: config.desktopMaxFrameEdge,
+        openDriver: openCuaDriver,
+      })
+      : undefined
 
     // MCP tools are registered as `mcp__<server>__<tool>`, so the default also matches a prefixed name.
     const gated = new RegExp(config.gatedTools, 'u')
+    const gatedDesktop = new RegExp(config.gatedDesktopTools, 'u')
     ctx.on('tools/pre-execute', async (exec, next) => {
-      if (!gated.test(exec.name)) return next()
-      const down = await this.launchFailure(exec.signal)
-      if (down !== undefined) return { kind: 'deny', reason: `${BROWSER_DOWN}\n${down}` }
-      if (this.control !== 'agent') await this.untilAgentControl(exec.signal)
-      // An action chosen before the user's latest marks, or before the user operated the page, is not run.
-      // A bare pause changes nothing on the page, so the action runs and the handback follows its result.
+      if (exec.agent !== undefined) this.agent = exec.agent
+      const browserTool = gated.test(exec.name)
+      if (!browserTool && !gatedDesktop.test(exec.name)) return next()
+      if (browserTool) {
+        const down = await this.launchFailure(exec.signal)
+        if (down !== undefined) return { kind: 'deny', reason: `${BROWSER_DOWN}\n${down}` }
+      }
+      if (this.control !== 'agent' && !this.discussing) await this.untilAgentControl(exec.signal)
+      if (this.discussing) return { kind: 'deny', reason: DISCUSS_HOLD }
+      // An action chosen before the user's latest marks, or before the user operated the screen, is not run.
+      // A bare pause changes nothing on the screen, so the action runs and the handback follows its result.
       if (this.pending.length === 0 && this.handback !== 'human') return next()
       const taken = this.takePending()
       if (taken === undefined) return next()
@@ -211,6 +261,15 @@ export default class CoCanvas extends TypertRemoteService {
       // A refusal carries text only; the crops follow with the next tool result.
       this.carried.push(...taken.pending.filter(p => p.crop !== undefined))
       return { kind: 'deny', reason: `${STALE_ACTION}\n${marks}` }
+    })
+    // The user's own reply ends a discussion: the agent may act on what they said.
+    ctx.on('agent/inbox/inserted', ({ agent, message }) => {
+      if (message.source.kind !== 'user') return
+      this.agent = agent
+      if (!this.discussing) return
+      this.discussing = false
+      this.control = 'agent'
+      this.changed()
     })
     ctx.on('tools/post-execute', async (exec, _result, next) => {
       const downstream = await next()
@@ -225,9 +284,9 @@ export default class CoCanvas extends TypertRemoteService {
       interpolate: false,
       text: ({ scope }) => ctx.tools.get('ask_user_to_mark', scope) === undefined
         ? ''
-        : 'The user watches your browser live and can mark elements on it. Their marks arrive in <user_marks> after a tool result; '
-          + 'they take priority over your plan. While the user holds control, your browser actions wait until it is handed back; '
-          + 'a browser action chosen before the user\'s latest input is not run.',
+        : 'The user watches your browser and desktop live and can mark things on them. Their marks arrive in <user_marks> after a tool result '
+          + 'or as a message; they take priority over your plan. While the user holds control, your browser and desktop actions wait until it is handed back; '
+          + 'an action chosen before the user\'s latest input is not run. When the user sends marks to discuss, answer in text before acting.',
     })
 
     ctx.tools.register(askUserToMarkTool((question, exec) => this.ask(question, exec)))
@@ -236,6 +295,7 @@ export default class CoCanvas extends TypertRemoteService {
   async* [Service.init](): AsyncGenerator<() => Promise<void> | void, void, void> {
     yield async () => {
       this.question?.settle()
+      await this.desktop?.close()
       await this.browser.close()
     }
     // A failed or stalled launch must be visible on the console as well as to the agent.
@@ -297,13 +357,76 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   /**
+   * Stream JPEG frames of the primary display.
+   * @param signal - Client observation lifetime.
+   * @returns frames sized in screen points, one per configured interval.
+   * @throws RemoteError when the desktop surface is disabled.
+   */
+  @Remote({ mode: 'stream' })
+  desktopFrames(signal: AbortSignal): AsyncIterable<CanvasFrame> {
+    return this.requireDesktop().frames(signal)
+  }
+
+  /**
+   * Send the undelivered marks to the agent to discuss before it continues. The agent's
+   * browser and desktop actions are refused until the user replies in the conversation or resumes.
+   * @throws RemoteError when no agent has used co-canvas or received a message yet.
+   */
+  @Remote
+  async discuss(): Promise<void> {
+    // Without a tracked agent (e.g. after a restart), the most recently loaded root conversation is the one on screen.
+    const agent = this.agent ?? this.ctx.get('agents')?.roots().at(-1)
+    if (agent === undefined) throw new RemoteError('co-canvas/no-agent', 'Start a conversation with the agent first', {})
+    const taken = this.takePending()
+    if (taken === undefined || taken.pending.length === 0) return
+    this.discussing = true
+    if (this.control === 'agent') this.control = 'paused'
+    this.changed()
+    const text = marksMessage(taken.pending.map(p => p.mark), taken.handback, this.config.maxMarksPerMessage, true)
+    const images = await this.saveCrops(taken.pending, agent, AbortSignal.timeout(30_000))
+    const notes = taken.pending.map(p => p.mark.note).filter(note => note !== undefined && note !== '')
+    const summary = boundContextSummary(`Marks to discuss (${taken.pending.length})${notes.length === 0 ? '' : `: ${notes.join('; ')}`}`)
+    agent.steer(createUserMessage({ content: [{ type: 'text', text }, ...images.map(imageBlock)], source: { kind: 'dsh-co-canvas', form: 'notice', summary } }))
+  }
+
+  /**
+   * Mark the real screen: after a delay, show a frozen screenshot full screen and collect marks on it.
+   * @param delayMs - time to bring the screen to mark to the front.
+   * @returns what the user chose and how many marks were recorded.
+   * @throws RemoteError when the desktop surface is disabled.
+   */
+  @Remote
+  async markScreen(delayMs: number): Promise<ScreenMarkOutcome> {
+    const desktop = this.requireDesktop()
+    if (this.screenMarking) return { action: 'cancel', marks: 0 }
+    this.screenMarking = true
+    try {
+      await new Promise(resolve => setTimeout(resolve, Math.min(Math.max(0, delayMs), 10_000)))
+      const shot = await desktop.screenshot()
+      // The marker is interactive by nature, so it always opens a window, even beside a headless shared browser.
+      const result = await markOnScreen(shot, {
+        headless: false,
+        ...this.config.executablePath === undefined ? {} : { executablePath: this.config.executablePath },
+        ...this.config.channel === undefined ? {} : { channel: this.config.channel },
+      }, AbortSignal.timeout(this.config.askTimeoutMs))
+      if (result.action === 'cancel') return { action: 'cancel', marks: 0 }
+      for (const input of result.marks) await this.recordDesktop({ ...input, surface: 'desktop' }, shot)
+      if (result.action === 'discuss') await this.discuss()
+      else if (this.control === 'paused') this.setControl('agent')
+      return { action: result.action, marks: result.marks.length }
+    } finally {
+      this.screenMarking = false
+    }
+  }
+
+  /**
    * Record one mark, grounded to the element under its focus point.
    * @param input - shape, rectangle in page CSS pixels, optional note.
    * @returns the recorded mark.
    */
   @Remote
   mark(input: MarkInput): Promise<CanvasMark> {
-    return this.record(input, undefined)
+    return input.surface === 'desktop' ? this.recordDesktop(input, undefined) : this.record(input, undefined)
   }
 
   /**
@@ -322,8 +445,12 @@ export default class CoCanvas extends TypertRemoteService {
    */
   @Remote
   setControl(control: CanvasControl): void {
-    if (control === this.control) return
-    if (control === 'agent') this.handback = this.control === 'human' || this.handback === 'human' ? 'human' : 'paused'
+    if (control === this.control && !(control === 'agent' && this.discussing)) return
+    if (control === 'agent') {
+      // Resuming after a discussion needs no handback note: the agent already answered the marks.
+      if (!this.discussing) this.handback = this.control === 'human' || this.handback === 'human' ? 'human' : 'paused'
+      this.discussing = false
+    }
     this.control = control
     this.changed()
   }
@@ -349,13 +476,22 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   private async record(input: MarkInput, page: Page | undefined): Promise<CanvasMark> {
-    const { x, y, width, height } = input.rect
-    const focus = input.shape === 'box' ? { x: x + width / 2, y: y + height / 2 } : input.shape === 'arrow' ? { x: x + width, y: y + height } : { x, y }
     const margin = this.config.maxCropsPerMessage > 0 ? this.config.cropMargin : undefined
-    const { target, crop } = await this.browser.capture(page, input.shape, input.rect, focus, margin)
+    const { target, crop } = await this.browser.capture(page, input.shape, input.rect, focusOf(input), margin)
     const where = await this.browser.describe(page)
     const mark: CanvasMark = {
-      ...input, id: randomUUID(), url: where.url, title: where.title, at: Date.now(), ...target === undefined ? {} : { target },
+      ...input, surface: 'browser', id: randomUUID(), url: where.url, title: where.title, at: Date.now(), ...target === undefined ? {} : { target },
+    }
+    this.pending.push({ mark, crop })
+    this.changed()
+    return mark
+  }
+
+  private async recordDesktop(input: MarkInput, shot: DesktopShot | undefined): Promise<CanvasMark> {
+    const margin = this.config.maxCropsPerMessage > 0 ? this.config.cropMargin : undefined
+    const { window, crop } = await this.requireDesktop().capture(input.shape, input.rect, focusOf(input), margin, shot)
+    const mark: CanvasMark = {
+      ...input, surface: 'desktop', id: randomUUID(), url: '', title: window?.title ?? '', at: Date.now(), ...window === undefined ? {} : { window },
     }
     this.pending.push({ mark, crop })
     this.changed()
@@ -368,14 +504,17 @@ export default class CoCanvas extends TypertRemoteService {
       case 'mark': await this.record({ shape: message.shape, rect: message.rect, ...message.note === '' ? {} : { note: message.note } }, page); return
       case 'control': this.setControl(message.control); return
       case 'answer': this.answer(message.questionId); return
+      case 'discuss': await this.discuss(); return
     }
   }
 
   private toolbarState(url: string): OverlayState {
     return {
       control: this.control,
+      discussing: this.discussing,
+      pending: this.pending.length,
       question: this.question === undefined ? null : { id: this.question.id, text: this.question.text },
-      marks: this.pending.filter(p => p.mark.url === url).map(p => ({ shape: p.mark.shape, rect: p.mark.rect })),
+      marks: this.pending.filter(p => p.mark.surface === 'browser' && p.mark.url === url).map(p => ({ shape: p.mark.shape, rect: p.mark.rect })),
       url,
     }
   }
@@ -387,6 +526,8 @@ export default class CoCanvas extends TypertRemoteService {
       failure: this.failure ?? null,
       ...page,
       control: this.control,
+      discussing: this.discussing,
+      desktop: this.desktop !== undefined,
       question: this.question === undefined ? null : { id: this.question.id, text: this.question.text },
       pending: this.pending.map(p => p.mark),
       viewport: this.browser.viewport(),
@@ -396,6 +537,11 @@ export default class CoCanvas extends TypertRemoteService {
   private changed(): void {
     for (const listener of this.listeners) listener()
     this.browser.pushToolbarState(url => this.toolbarState(url))
+  }
+
+  private requireDesktop(): SharedDesktop {
+    if (this.desktop === undefined) throw new RemoteError('co-canvas/no-desktop', 'The desktop surface is disabled', {})
+    return this.desktop
   }
 
   /**
@@ -411,10 +557,12 @@ export default class CoCanvas extends TypertRemoteService {
     return Promise.race([this.launch.promise, promise]).finally(() => { signal.removeEventListener('abort', abort) })
   }
 
+  /** Wait until the agent holds control or the user starts a discussion. */
   private untilAgentControl(signal: AbortSignal): Promise<void> {
-    if (this.control === 'agent') return Promise.resolve()
+    const released = (): boolean => this.control === 'agent' || this.discussing
+    if (released()) return Promise.resolve()
     const { promise, resolve, reject } = Promise.withResolvers<undefined>()
-    const check = (): void => { if (this.control === 'agent') resolve(undefined) }
+    const check = (): void => { if (released()) resolve(undefined) }
     const abort = (): void => { reject(signal.reason) }
     this.listeners.add(check)
     signal.addEventListener('abort', abort, { once: true })
@@ -446,14 +594,14 @@ export default class CoCanvas extends TypertRemoteService {
     this.changed()
     if (answered.length === 0) return { text: 'The user did not mark anything. Ask in your reply, or continue with your best judgement.', images: [] }
     const marks = marksMessage(answered.map(p => p.mark), undefined, this.config.maxMarksPerMessage)
-    return { text: marks, images: await this.saveCrops(answered, exec) }
+    return { text: marks, images: exec.agent === undefined ? [] : await this.saveCrops(answered, exec.agent, exec.signal) }
   }
 
-  /** Persist the newest crops when the calling route accepts images. */
-  private async saveCrops(marks: readonly PendingMark[], exec: ToolExecution): Promise<StoredImage[]> {
+  /** Persist the newest crops when the agent's route accepts images. */
+  private async saveCrops(marks: readonly PendingMark[], agent: Agent, signal: AbortSignal): Promise<StoredImage[]> {
     const attachments = this.ctx.get('attachments')
     const crops = marks.filter(p => p.crop !== undefined).slice(-this.config.maxCropsPerMessage)
-    if (crops.length === 0 || attachments === undefined || !await routeAcceptsImages(this.ctx, exec)) return []
+    if (crops.length === 0 || attachments === undefined || !await routeAcceptsImages(this.ctx, { agent, signal })) return []
     const saved: StoredImage[] = []
     for (const { mark, crop } of crops) {
       const ref = await attachments.saveImage({ data: crop as Buffer, mediaType: 'image/png', name: `mark ${mark.id.slice(0, 8)}.png` })
@@ -478,9 +626,15 @@ export default class CoCanvas extends TypertRemoteService {
     const text = taken === undefined
       ? CARRIED_CROPS
       : marksMessage(taken.pending.map(p => p.mark), taken.handback, this.config.maxMarksPerMessage)
-    const images = await this.saveCrops([...carried, ...taken?.pending ?? []], exec)
+    const images = exec.agent === undefined ? [] : await this.saveCrops([...carried, ...taken?.pending ?? []], exec.agent, exec.signal)
     if (taken === undefined && images.length === 0) return undefined
     const content: ContentBlock[] = [{ type: 'text', text }, ...images.map(imageBlock)]
     return createUserMessage({ content, source: { kind: 'dsh-co-canvas' } })
   }
+}
+
+/** Point a mark refers to: a box's centre, an arrow's head, or the point itself. */
+function focusOf(input: MarkInput): { x: number; y: number } {
+  const { x, y, width, height } = input.rect
+  return input.shape === 'box' ? { x: x + width / 2, y: y + height / 2 } : input.shape === 'arrow' ? { x: x + width, y: y + height } : { x, y }
 }

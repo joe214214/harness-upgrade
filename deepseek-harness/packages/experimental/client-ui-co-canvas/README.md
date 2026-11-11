@@ -1,5 +1,5 @@
 ---
-description: "The co-canvas Web tab: a live view of the shared browser in the right Sidebar, with box, arrow and point marks, notes, and pause, take-over and hand-back controls, for users and maintainers enabling co-canvas in the Web client."
+description: "The co-canvas Web tab: a live view of the shared browser and desktop in the right Sidebar, with box, arrow and point marks, notes, and pause, take-over and hand-back controls, for users and maintainers enabling co-canvas in the Web client."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This optional browser plugin adds a Co-canvas tab to the right Sidebar. The tab shows the shared browser of [co-canvas](../co-canvas/README.md) live. Drag on the page to draw a box or an arrow, or click to place a point; text typed in the note field is attached to the next mark. Marks are listed, and removable, until the agent receives them. A question from the agent appears above the page with a button that sends the marks as the answer. Pause stops the agent's browser actions; Take over sends clicks, scrolling and typing to the page until Hand back.
+This optional browser plugin adds a Co-canvas tab to the right Sidebar. It shows the shared browser of [co-canvas](../co-canvas/README.md) live, and the desktop when the Host enables it. Drag to draw a box or an arrow, or click to place a point; the note field attaches text to the next mark. Pending marks are listed and removable, and **Ask the agent first** sends them to discuss. Pause stops the agent's actions; Take over gives the browser or desktop to the user until Hand back. **Mark on screen** freezes the real screen for marking.
 
 ## Table of Contents
 
@@ -35,7 +35,7 @@ Mount it next to the co-canvas Host service, as shown in the [co-canvas configur
 <details>
 <summary>Implementation details — click to expand</summary>
 
-The browser entry mounts the generated `coCanvas` Remote and registers the tab type, body and title. The state and frame streams open when a tab subscribes and close after the last tab unmounts, so a closed tab costs no frames. Pointer positions are scaled from the displayed frame to page CSS pixels before they are sent. Source: [`src/client/index.ts`](src/client/index.ts), [`src/client/CanvasBody.tsx`](src/client/CanvasBody.tsx).
+The browser entry mounts the generated `coCanvas` Remote and registers the tab type, body and title. The state and frame streams open when a tab subscribes and close after the last tab unmounts, so a closed tab costs no frames. Pointer positions are scaled from the displayed frame to page CSS pixels, or to screen points on the desktop, before they are sent; each surface streams frames only while it is shown. Source: [`src/client/index.ts`](src/client/index.ts), [`src/client/CanvasBody.tsx`](src/client/CanvasBody.tsx).
 
 </details>
 

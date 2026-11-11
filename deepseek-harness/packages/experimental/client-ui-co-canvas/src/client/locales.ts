@@ -20,6 +20,7 @@ export const zh = {
   ask: 'Agent 请你标注：', answer: '发送标注作为回答',
   pending: '等待送达 agent 的标注', remove: '移除', noElement: '未找到元素',
   waiting: '正在连接浏览器…', failed: '浏览器启动失败：', view: '共享浏览器画面',
+  'surface.label': '画面', 'surface.browser': '浏览器', 'surface.desktop': '桌面', desktopView: '桌面画面', waitingDesktop: '正在读取桌面…', noWindow: '桌面上的位置', markScreen: '在屏幕上框选', markScreenHint: '3 秒后冻结屏幕，在真实屏幕上标注', discuss: '先问 agent', discussHint: '想先和 agent 确认这些标注？它会回复你，不会继续操作。', discussing: '正在和 agent 讨论标注：在对话里回复它，或点“继续”',
 } satisfies Record<string, string>
 
 /** English copy. */
@@ -32,6 +33,7 @@ export const en = {
   ask: 'The agent asks you to mark:', answer: 'Send marks as answer',
   pending: 'Marks waiting for the agent', remove: 'Remove', noElement: 'no element found',
   waiting: 'Connecting to the browser…', failed: 'The browser failed to start:', view: 'Shared browser view',
+  'surface.label': 'View', 'surface.browser': 'Browser', 'surface.desktop': 'Desktop', desktopView: 'Desktop view', waitingDesktop: 'Reading the desktop…', noWindow: 'a place on the desktop', markScreen: 'Mark on screen', markScreenHint: 'Freezes the screen in 3 s so you can mark the real screen', discuss: 'Ask the agent first', discussHint: 'Check these marks with the agent first? It replies without acting.', discussing: 'Discussing your marks: reply in the conversation, or press Resume',
 } satisfies Record<keyof typeof zh, string>
 
 /** Japanese copy. */
@@ -44,6 +46,7 @@ export const ja = {
   ask: 'エージェントからの依頼：', answer: '印を回答として送信',
   pending: 'エージェントへの送信待ちの印', remove: '削除', noElement: '要素が見つかりません',
   waiting: 'ブラウザに接続しています…', failed: 'ブラウザを起動できませんでした：', view: '共有ブラウザの画面',
+  'surface.label': '画面', 'surface.browser': 'ブラウザ', 'surface.desktop': 'デスクトップ', desktopView: 'デスクトップの画面', waitingDesktop: 'デスクトップを読み込んでいます…', noWindow: 'デスクトップ上の位置', markScreen: '画面上で印を付ける', markScreenHint: '3 秒後に画面を固定し、実際の画面に印を付けます', discuss: '先にエージェントに聞く', discussHint: 'これらの印を先にエージェントと確認しますか？操作せずに返信します。', discussing: '印について相談中：会話で返信するか、「再開」を押してください',
 } satisfies Record<keyof typeof zh, string>
 
 /** Spanish copy. */
@@ -56,6 +59,7 @@ export const es = {
   ask: 'El agente te pide que marques:', answer: 'Enviar marcas como respuesta',
   pending: 'Marcas pendientes para el agente', remove: 'Quitar', noElement: 'ningún elemento',
   waiting: 'Conectando con el navegador…', failed: 'No se pudo iniciar el navegador:', view: 'Vista del navegador compartido',
+  'surface.label': 'Vista', 'surface.browser': 'Navegador', 'surface.desktop': 'Escritorio', desktopView: 'Vista del escritorio', waitingDesktop: 'Leyendo el escritorio…', noWindow: 'un lugar del escritorio', markScreen: 'Marcar en la pantalla', markScreenHint: 'Congela la pantalla en 3 s para marcar la pantalla real', discuss: 'Preguntar primero al agente', discussHint: '¿Revisar estas marcas con el agente antes? Responde sin actuar.', discussing: 'Comentando tus marcas: responde en la conversación o pulsa Reanudar',
 } satisfies Record<keyof typeof zh, string>
 
 /** French copy. */
@@ -68,6 +72,7 @@ export const fr = {
   ask: 'L\'agent vous demande d\'annoter :', answer: 'Envoyer les annotations comme réponse',
   pending: 'Annotations en attente pour l\'agent', remove: 'Retirer', noElement: 'aucun élément',
   waiting: 'Connexion au navigateur…', failed: 'Le navigateur n\'a pas pu démarrer :', view: 'Vue du navigateur partagé',
+  'surface.label': 'Vue', 'surface.browser': 'Navigateur', 'surface.desktop': 'Bureau', desktopView: 'Vue du bureau', waitingDesktop: 'Lecture du bureau…', noWindow: 'un endroit du bureau', markScreen: 'Marquer à l\'écran', markScreenHint: 'Fige l\'écran dans 3 s pour marquer l\'écran réel', discuss: 'Demander d\'abord à l\'agent', discussHint: 'Vérifier ces marques avec l\'agent d\'abord ? Il répond sans agir.', discussing: 'Discussion de vos marques : répondez dans la conversation ou appuyez sur Reprendre',
 } satisfies Record<keyof typeof zh, string>
 
 /** German copy. */
@@ -80,6 +85,7 @@ export const de = {
   ask: 'Der Agent bittet um eine Markierung:', answer: 'Markierungen als Antwort senden',
   pending: 'Markierungen für den Agenten', remove: 'Entfernen', noElement: 'kein Element gefunden',
   waiting: 'Verbindung zum Browser…', failed: 'Der Browser konnte nicht starten:', view: 'Ansicht des gemeinsamen Browsers',
+  'surface.label': 'Ansicht', 'surface.browser': 'Browser', 'surface.desktop': 'Desktop', desktopView: 'Desktop-Ansicht', waitingDesktop: 'Desktop wird gelesen…', noWindow: 'eine Stelle auf dem Desktop', markScreen: 'Auf dem Bildschirm markieren', markScreenHint: 'Friert den Bildschirm in 3 s ein, damit Sie den echten Bildschirm markieren', discuss: 'Zuerst den Agenten fragen', discussHint: 'Diese Markierungen zuerst mit dem Agenten klären? Er antwortet, ohne zu handeln.', discussing: 'Markierungen werden besprochen: im Gespräch antworten oder Fortsetzen drücken',
 } satisfies Record<keyof typeof zh, string>
 
 /** Russian copy. */
@@ -92,6 +98,7 @@ export const ru = {
   ask: 'Агент просит отметить:', answer: 'Отправить отметки как ответ',
   pending: 'Отметки ждут агента', remove: 'Удалить', noElement: 'элемент не найден',
   waiting: 'Подключение к браузеру…', failed: 'Не удалось запустить браузер:', view: 'Вид общего браузера',
+  'surface.label': 'Вид', 'surface.browser': 'Браузер', 'surface.desktop': 'Рабочий стол', desktopView: 'Вид рабочего стола', waitingDesktop: 'Чтение рабочего стола…', noWindow: 'место на рабочем столе', markScreen: 'Отметить на экране', markScreenHint: 'Через 3 с экран замрёт, чтобы отметить реальный экран', discuss: 'Сначала спросить агента', discussHint: 'Сначала уточнить эти отметки с агентом? Он ответит, не выполняя действий.', discussing: 'Обсуждение отметок: ответьте в беседе или нажмите «Продолжить»',
 } satisfies Record<keyof typeof zh, string>
 
 /** Portuguese copy. */
@@ -104,4 +111,5 @@ export const pt = {
   ask: 'O agente pede que você marque:', answer: 'Enviar marcas como resposta',
   pending: 'Marcas aguardando o agente', remove: 'Remover', noElement: 'nenhum elemento',
   waiting: 'Conectando ao navegador…', failed: 'Não foi possível iniciar o navegador:', view: 'Visão do navegador compartilhado',
+  'surface.label': 'Visão', 'surface.browser': 'Navegador', 'surface.desktop': 'Área de trabalho', desktopView: 'Visão da área de trabalho', waitingDesktop: 'Lendo a área de trabalho…', noWindow: 'um lugar na área de trabalho', markScreen: 'Marcar na tela', markScreenHint: 'Congela a tela em 3 s para marcar a tela real', discuss: 'Perguntar ao agente primeiro', discussHint: 'Conferir estas marcas com o agente primeiro? Ele responde sem agir.', discussing: 'Discutindo suas marcas: responda na conversa ou clique em Retomar',
 } satisfies Record<keyof typeof zh, string>

@@ -10,16 +10,20 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import * as NativeToolExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { executeToolFixture } from '@deepseek-ai/dsh-tool-testkit'
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolExecutionResult } from '@deepseek-ai/dsh-tools'
+import { emitAgentEvent } from '@deepseek-ai/dsh-agent'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import type { UserMessage } from '@deepseek-ai/dsh-session'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { chromium } from 'playwright-core'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import CoCanvas, { describeTarget, marksMessage } from '../src/index.ts'
+import CoCanvas, { DISCUSS_HOLD, DISCUSS_LINE, describeTarget, marksMessage } from '../src/index.ts'
 import type { CanvasFrame, CanvasMark, CanvasState } from '../src/types.ts'
 import type { Page } from 'playwright-core'
 
@@ -37,10 +41,23 @@ function findChromium(): string | undefined {
 const executablePath = findChromium()
 
 const mark = (over: Partial<CanvasMark> = {}): CanvasMark => ({
-  id: 'm1', shape: 'box', rect: { x: 10, y: 20, width: 100, height: 30 }, url: 'https://shop.test/', title: 'Shop', at: 0, ...over,
+  id: 'm1', surface: 'browser', shape: 'box', rect: { x: 10, y: 20, width: 100, height: 30 }, url: 'https://shop.test/', title: 'Shop', at: 0, ...over,
 })
 
 describe('model-facing text', () => {
+  it('describes a desktop mark by the window under it, in window and screen coordinates', () => {
+    const window = { app: 'Notepad', title: 'notes.txt - Notepad', pid: 42, windowId: '7', bounds: { x: 100, y: 50, width: 800, height: 600 } }
+    const text = marksMessage([mark({ surface: 'desktop', url: '', title: window.title, window, note: 'this line' })], undefined, 10)
+    expect(text).toContain('The user marked the desktop (coordinates in screen points)')
+    expect(text).toContain('1. box at (10, 20), 100×30 on the desktop (screen points): window "notes.txt - Notepad" of Notepad (pid 42, window_id 7), at (-40, -15) inside it — note: "this line"')
+  })
+
+  it('asks the agent to reply before acting when marks are sent to discuss', () => {
+    const text = marksMessage([mark({ note: 'is this the right one?' })], undefined, 10, true)
+    expect(text).not.toContain('Treat these marks as instructions')
+    expect(text).toContain(DISCUSS_LINE)
+  })
+
   it('describes the element, its position among look-alikes, and the note', () => {
     const target = { tag: 'button', role: 'button', text: 'Submit', selector: 'div:nth-of-type(3) > button', nth: 2, sameCount: 2 }
     expect(describeTarget(target)).toBe('button "Submit" (2nd of 2 button elements with this text), selector `div:nth-of-type(3) > button`')
@@ -52,7 +69,7 @@ describe('model-facing text', () => {
   it('reports handbacks and omits marks beyond the limit', () => {
     const marks = [mark({ id: 'a' }), mark({ id: 'b' }), mark({ id: 'c', shape: 'point' })]
     const text = marksMessage(marks, 'human', 2)
-    expect(text).toContain('operated the browser themselves')
+    expect(text).toContain('operated the browser or desktop themselves')
     expect(text).toContain('(1 older marks omitted)')
     expect(text).toContain('2. point at (10, 20)')
   })
@@ -118,17 +135,26 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     })
     ctx.tools.register(plain('browser_click', () => { clicks.push(Date.now()) }))
     ctx.tools.register(plain('mcp__playwright-mcp__browser_navigate', () => { clicks.push(Date.now()) }))
+    ctx.tools.register(plain('cua_driver_native__click', () => { clicks.push(Date.now()) }))
     ctx.tools.register(plain('read', () => {}))
     await ctx.plugin(CoCanvas, { executablePath, userDataDir: dir, debugPort: await freePort(), viewportWidth: 600, viewportHeight: 400 })
     const canvas = ctx.get('coCanvas')!
     await canvas.browser.page!.setContent(`<div><button>Save</button></div>
       <div style="margin-top:40px"><button id=a>Submit</button></div><div style="margin-top:40px"><button>Submit</button></div>`)
     let n = 0
-    const call = (name: string, args: Record<string, unknown> = {}) => executeToolFixture(ctx, {
-      signal: new AbortController().signal, callId: ToolCallId(`c${++n}`), name, arguments: args,
+    const call = (name: string, args: Record<string, unknown> = {}, agent?: Agent) => executeToolFixture(ctx, {
+      signal: new AbortController().signal, callId: ToolCallId(`c${++n}`), name, arguments: args, ...agent === undefined ? {} : { agent },
     })
     return { ctx, canvas, clicks, call }
   }
+  /** An agent that records the messages steered to it, registered in a scope of its own. */
+  function steeredAgent(ctx: Context): { agent: Agent; steered: UserMessage[] } {
+    const steered: UserMessage[] = []
+    const id = SessionId('sess-co-canvas')
+    const agent = { id, ctx: ctx.plugin(() => {}).ctx, status: 'idle', steer: (message: UserMessage) => { steered.push(message) } } as Agent
+    return { agent, steered }
+  }
+  const reason = (result: ToolExecutionResult): string => result.content.map(b => (b.type === 'text' ? b.text : '')).join('')
   const text = (result: ToolExecutionResult): string =>
     (result.additionalContexts ?? []).flatMap(m => m.content).map(b => (b.type === 'text' ? b.text : '')).join('\n')
 
@@ -165,7 +191,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     canvas.setControl('agent')
     const refused = await pending
     expect(refused.isError).toBe(true)
-    expect(refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain('operated the browser themselves')
+    expect(refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain('operated the browser or desktop themselves')
     expect(clicks).toHaveLength(0)
   }, 60_000)
 
@@ -295,5 +321,59 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     const endpoint = canvas.browser.endpoint
     await ctx.fiber.dispose()
     await expect(fetch(`${endpoint}/json/version`)).rejects.toThrow()
+  }, 60_000)
+
+  it('refuses a desktop action chosen before a new mark, like a browser action', async () => {
+    const { canvas, clicks, call } = await setup()
+    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'not that window' })
+    const refused = await call('cua_driver_native__click')
+    expect(refused.isError).toBe(true)
+    expect(reason(refused)).toContain('not that window')
+    expect(clicks).toHaveLength(0)
+  }, 60_000)
+
+  it('sends marks to discuss: a waiting action is refused, the agent is asked, and the user\'s reply resumes it', async () => {
+    const { ctx, canvas, clicks, call } = await setup()
+    const { agent, steered } = steeredAgent(ctx)
+    await call('read', {}, agent)
+    canvas.setControl('paused')
+    const waiting = call('browser_click', {}, agent)
+    await new Promise(resolve => setTimeout(resolve, 200))
+    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'is this the one?' })
+    await canvas.discuss()
+    const refused = await waiting
+    expect(refused.isError).toBe(true)
+    expect(reason(refused)).toContain(DISCUSS_HOLD)
+    expect(steered).toHaveLength(1)
+    const message = steered[0]!
+    expect(message.source).toMatchObject({ kind: 'dsh-co-canvas', form: 'notice', summary: 'Marks to discuss (1): is this the one?' })
+    expect(message.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain(DISCUSS_LINE)
+    expect(reason(await call('browser_click', {}, agent))).toContain(DISCUSS_HOLD)
+    // The discussion message itself enters the inbox without ending the discussion.
+    emitAgentEvent(ctx, agent, 'agent/inbox/inserted', { message })
+    expect(reason(await call('browser_click', {}, agent))).toContain(DISCUSS_HOLD)
+    emitAgentEvent(ctx, agent, 'agent/inbox/inserted', { message: createUserMessage({ content: [{ type: 'text', text: 'yes, go on' }], source: { kind: 'user' } }) })
+    const resumed = await call('browser_click', {}, agent)
+    expect(resumed.isError).toBe(false)
+    expect(text(resumed)).toBe('')
+    expect(clicks).toHaveLength(1)
+  }, 60_000)
+
+  it('ends a discussion when the user resumes, without a handback note', async () => {
+    const { ctx, canvas, call } = await setup()
+    const { agent } = steeredAgent(ctx)
+    await call('read', {}, agent)
+    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 } })
+    await canvas.discuss()
+    canvas.setControl('agent')
+    const result = await call('browser_click', {}, agent)
+    expect(result.isError).toBe(false)
+    expect(text(result)).toBe('')
+  }, 60_000)
+
+  it('refuses to discuss before any agent has used co-canvas', async () => {
+    const { canvas } = await setup()
+    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 } })
+    await expect(canvas.discuss()).rejects.toThrow('Start a conversation')
   }, 60_000)
 })

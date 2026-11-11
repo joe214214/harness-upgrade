@@ -1,5 +1,5 @@
 ---
-description: "实验性协同画布：用户实时查看、标注并接管 agent 正在使用的共享浏览器；标注定位到页面元素，随 agent 的下一个工具结果送达，供组合人机协同浏览器操作的用户与维护者阅读。"
+description: "实验性协同画布：用户实时查看、标注、讨论并接管 agent 正在使用的共享浏览器和桌面；标注定位到页面元素或桌面窗口，随 agent 的下一个工具结果送达，或作为待讨论的消息发出，供组合人机协同浏览器与桌面操作的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-experimental-co-canvas` 让用户和 agent 在同一个浏览器里协作。它启动一个 Chromium，agent 的浏览器工具连接到它；用户可以通过注入的工具栏直接在这个浏览器窗口里标注页面，也可以在[协同画布标签页](../client-ui-co-canvas/README.zh.md)的实时画面上标注。用户框选或点选某个元素，并附上一句话；每个标注都会定位到下方的元素（角色、文字、选择器，以及它是哪一个相似元素），随 agent 的下一个工具结果送达。用户可以暂停 agent 或接管页面。agent 也可以用 `ask_user_to_mark` 请用户标注。
+`dsh-experimental-co-canvas` 让用户在共享浏览器中与 agent 协作；开启 `desktop` 后也可以在桌面上协作。用户实时查看两者，用框、箭头或点加一句说明来标注，也可以暂停 agent 或接管操作。浏览器标注定位到下方的元素，桌面标注指出所在的窗口。标注随 agent 的下一个工具结果送达；选择**先问 agent** 时，则作为一条消息发出，agent 先回答再操作。**在屏幕上框选**会冻结真实屏幕供直接标注。agent 也可以用 `ask_user_to_mark` 请用户标注。
 
 ## 目录
 
@@ -60,6 +60,10 @@ kind: "package-reference"
 | `maxCropsPerMessage` | `3` | 支持图片的路由上每次送达最多附带的截图数；`0` 表示不附带 |
 | `cropMargin` | `120` | 截图在标注四周保留的像素 |
 | `askTimeoutMs` | `300000` | `ask_user_to_mark` 的等待时限 |
+| `desktop` | `false` | 把主显示器作为第二个画面；与 computer use 提供方一起挂载，例如 [Cua Driver native](../computer-use-cua-driver-native/README.zh.md) |
+| `desktopFrameIntervalMs` | `1000` | 两帧桌面实时画面之间的间隔 |
+| `desktopMaxFrameEdge` | `1600` | 桌面实时画面最长边的像素数 |
+| `gatedDesktopTools` | Cua Driver 的操作类工具 | 匹配 agent 桌面操作工具名称的正则表达式；与 `gatedTools` 一样，用户持有控制权时匹配的调用会等待 |
 
 -----
 
@@ -87,7 +91,15 @@ kind: "package-reference"
 
 ### 送达与控制权
 
-`tools/post-execute` 监听器把未送达的标注，以及上次送达后的控制权交还，作为一条附加用户消息附在 agent 下一次工具调用的结果上；agent 循环会将它与结果一起记录。`tools/pre-execute` 监听器在控制权回到 agent 之前，挂起名称匹配 `gatedTools` 的调用；如果 agent 选定这样的调用之后用户标注了页面或亲自操作过页面，该调用不会执行，而是带着标注被拒绝，因此过时的操作不会作用到页面上；如果用户只是暂停后继续，调用照常执行，交还说明随其结果送达。如果浏览器启动失败，监听器会带着启动错误拒绝这些调用，该错误同时输出到控制台并显示在协同画布标签页中。用户输入经 Playwright 重放，只有用户持有控制权时才被接受。
+`tools/post-execute` 监听器把未送达的标注，以及上次送达后的控制权交还，作为一条附加用户消息附在 agent 下一次工具调用的结果上；agent 循环会将它与结果一起记录。`tools/pre-execute` 监听器在控制权回到 agent 之前，挂起名称匹配 `gatedTools` 或 `gatedDesktopTools` 的调用；如果 agent 选定这样的调用之后用户标注了画面或亲自操作过，该调用不会执行，而是带着标注被拒绝，因此过时的操作不会作用到页面上；如果用户只是暂停后继续，调用照常执行，交还说明随其结果送达。如果浏览器启动失败，监听器会带着启动错误拒绝这些调用，该错误同时输出到控制台并显示在协同画布标签页中。用户输入经 Playwright 重放，只有用户持有控制权时才被接受。
+
+### 桌面画面
+
+开启 `desktop` 后，服务会打开自己的同进程 Cua Driver 运行时，与 computer use 提供方的运行时互不影响。`desktopFrames` 以 `get_desktop_state` 截图生成 JPEG 实时画面，尺寸以屏幕点为单位，并用 sharp 缩放到 `desktopMaxFrameEdge`。桌面标注用 `list_windows` 定位：包含焦点的最前面的可见窗口给出标题、应用、pid 和窗口 id；截图取自标注时所用的那张屏幕截图。**在屏幕上框选**会等几秒、截一张屏，再在全屏浏览器窗口中显示它和一个工具栏；用户画出标注并附上说明，然后选择发送、先问 agent 或取消。即使共享浏览器以无窗口方式运行，这个标注窗口也总会显示出来。网页标签页不能在桌面上重放输入：用户接管时直接使用真实的鼠标和键盘，agent 等待。
+
+### 讨论标注
+
+`discuss` 取出未送达的标注，暂停 agent，并向它的 Session 发出一条用户消息（来源为 `dsh-co-canvas`，形式为带一行摘要的 `notice`），列出标注并请它用文字回复；在支持图片的路由上附带截图。讨论期间，每个受控的浏览器或桌面调用都会立即被拒绝而不是等待，因此因暂停而挂起的调用会返回，agent 可以作答。用户在该 Session 中自己发出的下一条消息，或点“继续”，都会结束讨论，不附交还说明。讨论发给最近一次运行工具或收到用户消息的 agent；如果没有，则发给最近加载的顶层对话。
 
 ### 源码地图
 
@@ -97,6 +109,8 @@ kind: "package-reference"
 | [`src/browser.ts`](src/browser.ts) | 浏览器启动、活动页、screencast、工具栏接线、命中测试、截图、输入 |
 | [`src/overlay.ts`](src/overlay.ts) | 页面内工具栏及其消息 |
 | [`src/marks.ts`](src/marks.ts) | 面向模型的标注文字 |
+| [`src/desktop.ts`](src/desktop.ts) | 桌面截图、实时画面、窗口定位、截图裁剪 |
+| [`src/screen-marker.ts`](src/screen-marker.ts) | 在冻结的屏幕截图上全屏标注 |
 | [`src/types.ts`](src/types.ts) | 与网页标签页共享的类型 |
 
 </details>
@@ -124,7 +138,7 @@ kind: "package-reference"
 ##### 指引原文
 
 ```markdown
-The user watches your browser live and can mark elements on it. Their marks arrive in <user_marks> after a tool result; they take priority over your plan. While the user holds control, your browser actions wait until it is handed back; a browser action chosen before the user's latest input is not run.
+The user watches your browser and desktop live and can mark things on them. Their marks arrive in <user_marks> after a tool result or as a message; they take priority over your plan. While the user holds control, your browser and desktop actions wait until it is handed back; an action chosen before the user's latest input is not run. When the user sends marks to discuss, answer in text before acting.
 ```
 
 #### Token 影响
@@ -172,7 +186,7 @@ The user watches your browser live and can mark elements on it. Their marks arri
 ##### 原因原文
 
 ```markdown
-This browser action was not run: the user acted on the page after you chose it. Re-plan from their input below.
+This action was not run: the user acted on the screen after you chose it. Re-plan from their input below.
 ```
 
 #### Token 影响
@@ -202,6 +216,36 @@ The shared browser failed to start, so browser tools cannot run. Do not start a 
 #### KV Cache 影响
 
 只追加；该失败就是这次调用的工具结果。
+
+### 待讨论的标注
+
+#### 模型看到什么
+
+用户把标注发给 agent 讨论时，一条用户消息会在下一个步骤边界送达；如果 agent 空闲，则开启一个新回合。支持图片的路由还会收到最多 `maxCropsPerMessage` 张截图。在用户回复或点“继续”之前，每个受控的浏览器或桌面调用都不会执行而直接失败，原因是下面这句话。
+
+##### 消息示例
+
+```markdown
+<user_marks>
+The user marked the desktop (coordinates in screen points):
+1. box at (910, 389), 668×62 on the desktop (screen points): window "To-do (4)" (pid 8111, window_id 4194307), at (344, 340) inside it — note: "Is this a duplicate of the other Pay rent? Check with me first"
+The user wants to talk about these marks before you continue. Reply in text: answer their notes or confirm what you understood. Do not operate the browser or the desktop until the user replies.
+</user_marks>
+```
+
+##### 挂起操作的原因原文
+
+```markdown
+This action was not run: the user wants to discuss their marks with you first. Reply to them in text and do not operate the browser or the desktop until they reply.
+```
+
+#### Token 影响
+
+只在用户发问时出现：每个标注约一行，另加两句话和每张截图的图片成本；每次被拒绝的调用一句话。
+
+#### KV Cache 影响
+
+只追加；这条消息像普通用户消息一样进入 Session 历史。
 
 ### 送达的标注
 
@@ -235,6 +279,10 @@ The user marked the shared browser (coordinates in page CSS pixels). Treat these
 - **浏览器只运行在 Host 上** — 浏览器运行在 Host 机器上，不支持远程执行环境。
 - **只处理顶层文档** — 工具栏与命中测试只覆盖主文档，不进入 iframe。
 - **截图中可见** — agent 自己的页面截图会在视口角落包含工具栏。
+
+- **桌面：只覆盖主显示器** — 实时画面、标注和全屏标注窗口都只针对主显示器；其他显示器上的窗口不会被定位。
+- **桌面：已在 Linux（X11）上验证** — Cua Driver 运行时自带 Windows 和 macOS 二进制，但桌面画面和全屏标注只在 Linux 上做过端到端验证；窗口定位取决于各平台 `list_windows` 的返回。
+- **桌面：每个画面一个运行时** — 桌面画面通过自己的 Cua Driver 运行时读取屏幕，与 computer use 提供方的运行时并存。
 
 <a id="dev-note"></a>
 ### 开发备注

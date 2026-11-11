@@ -5,13 +5,31 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** Browser input was sent while the user did not hold control. */
     'co-canvas/not-in-control': { readonly control: CanvasControl }
+    /** Marks were sent to discuss before any agent used co-canvas or sent a message. */
+    'co-canvas/no-agent': Record<string, never>
+    /** The desktop surface is disabled in this composition. */
+    'co-canvas/no-desktop': Record<string, never>
   }
+}
+
+/** Where a mark was drawn: the shared browser's page or the primary display. */
+export type CanvasSurface = 'browser' | 'desktop'
+
+/** The desktop window under a desktop mark. Bounds are screen points. */
+export interface DesktopWindow {
+  /** Application name, empty when the platform does not report one. */
+  readonly app: string
+  readonly title: string
+  readonly pid?: number
+  /** Platform window id as decimal text. */
+  readonly windowId?: string
+  readonly bounds: CanvasRect
 }
 
 /** Who may operate the shared browser: the agent, nobody (paused), or the user. */
 export type CanvasControl = 'agent' | 'paused' | 'human'
 
-/** Rectangle in page CSS pixels of the shared browser's viewport. */
+/** Rectangle in page CSS pixels of the shared browser's viewport, or in screen points on the desktop. */
 export interface CanvasRect {
   readonly x: number
   readonly y: number
@@ -24,6 +42,8 @@ export type MarkShape = 'box' | 'arrow' | 'point'
 
 /** One mark drawn by the user on the live view. */
 export interface MarkInput {
+  /** Surface the rectangle refers to; omission means the browser. */
+  readonly surface?: CanvasSurface
   readonly shape: MarkShape
   readonly rect: CanvasRect
   /** Free-text instruction attached to the mark. */
@@ -50,12 +70,15 @@ export interface MarkTarget {
 
 /** A recorded mark with the page it was drawn on and its grounded element. */
 export interface CanvasMark extends MarkInput {
+  readonly surface: CanvasSurface
   readonly id: string
   readonly url: string
   readonly title: string
   /** Epoch milliseconds. */
   readonly at: number
   readonly target?: MarkTarget
+  /** Window under a desktop mark's focus point. */
+  readonly window?: DesktopWindow
 }
 
 /** A question from the agent that the user answers by marking the page. */
@@ -72,17 +95,21 @@ export interface CanvasState {
   readonly url: string
   readonly title: string
   readonly control: CanvasControl
+  /** The user sent marks to discuss; the agent's actions stay refused until the user replies or resumes. */
+  readonly discussing: boolean
+  /** Whether the desktop surface is enabled. */
+  readonly desktop: boolean
   readonly question: CanvasQuestion | null
   /** Marks not yet delivered to the agent. */
   readonly pending: readonly CanvasMark[]
   readonly viewport: { readonly width: number; readonly height: number }
 }
 
-/** One JPEG frame of the active page. */
+/** One JPEG frame of the active page or of the primary display. */
 export interface CanvasFrame {
   /** Base64 JPEG bytes. */
   readonly data: string
-  /** Page CSS width and height the frame depicts. */
+  /** Page CSS width and height, or screen points, the frame depicts. */
   readonly width: number
   readonly height: number
 }
@@ -93,3 +120,9 @@ export type CanvasInput =
   | { readonly type: 'scroll'; readonly x: number; readonly y: number; readonly deltaY: number }
   | { readonly type: 'text'; readonly text: string }
   | { readonly type: 'key'; readonly key: string }
+
+/** What the user did when marking the real screen, and how many marks were recorded. */
+export interface ScreenMarkOutcome {
+  readonly action: 'send' | 'discuss' | 'cancel'
+  readonly marks: number
+}

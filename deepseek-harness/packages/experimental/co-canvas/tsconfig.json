@@ -13,6 +13,7 @@
     { "path": "../../attachment/attachment" },
     { "path": "../../llm/llm" },
     { "path": "../../multimodal/media-core" },
+    { "path": "../../core/agent" },
     { "path": "../../core/session" },
     { "path": "../../core/system-prompt" },
     { "path": "../../core/tools" },

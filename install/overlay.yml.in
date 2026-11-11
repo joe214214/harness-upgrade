@@ -1,4 +1,4 @@
-# Adds the multimodal and memory packages to a DSH profile (passed with --patch).
+# Adds the multimodal, memory, co-canvas and computer-use packages to a DSH profile (passed with --patch).
 # setup.sh / setup.ps1 fill in the placeholders for the harness path, the data folder (memory, models,
 # browser profile) and the co-canvas browser choice; the browser placeholder occupies a line of its own.
 - insert:
@@ -26,6 +26,7 @@
       name: '@DSH@/packages/experimental/co-canvas/src/index.ts'
       config:
         userDataDir: '@DATA@/co-canvas-profile'
+        desktop: true
 @BROWSER@
     - id: ui-co-canvas
       name: '@DSH@/packages/experimental/client-ui-co-canvas/src/index.ts'
@@ -36,3 +37,7 @@
       config:
         mode: attach
         endpoint: 'http://127.0.0.1:9333'
+    - id: computer-use
+      name: '@DSH@/packages/computer-use/computer-use/src/index.ts'
+    - id: computer-use-cua-driver-native
+      name: '@DSH@/packages/experimental/computer-use-cua-driver-native/src/index.ts'
