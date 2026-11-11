@@ -5,9 +5,10 @@
  * - `ctx.systemPrompt.context` places MEMORY.md in every request;
  * - `ctx.tools` registers memory_read / memory_write / memory_replace /
  *   memory_rewrite and recall;
- * - `agent/turn-stopping` stores the finished turn in episodic memory and
- *   runs the reflect pass, which files durable facts without the model
- *   having to remember to save them.
+ * - `agent/turn-stopping` stores a top-level conversation's finished turn in
+ *   episodic memory and runs the reflect pass, which files durable facts
+ *   without the model having to remember to save them; subagent turns are
+ *   skipped.
  * @module @deepseek-ai/dsh-memory
  */
 
@@ -220,6 +221,9 @@ export function apply(ctx: Context, config: Config): void {
   const stored = new Map<string, number>()
 
   ctx.on('agent/turn-stopping', async ({ agent, signal }) => {
+    // A subagent's work reaches its parent as a tool result; only top-level conversations are remembered.
+    const agents = ctx.get('agents')
+    if (agents !== undefined && !agents.roots().includes(agent)) return
     const session = agent.session
     const sessionId = session.header.id
     try {

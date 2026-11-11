@@ -249,7 +249,8 @@ export default class CoCanvas extends TypertRemoteService {
     const gated = new RegExp(config.gatedTools, 'u')
     const gatedDesktop = new RegExp(config.gatedDesktopTools, 'u')
     ctx.on('tools/pre-execute', async (exec, next) => {
-      if (exec.agent !== undefined) this.agent = exec.agent
+      const root = this.isRoot(exec.agent)
+      if (root && exec.agent !== undefined) this.agent = exec.agent
       const browserTool = gated.test(exec.name)
       if (!browserTool && !gatedDesktop.test(exec.name)) return next()
       if (browserTool) {
@@ -258,6 +259,8 @@ export default class CoCanvas extends TypertRemoteService {
       }
       if (this.control !== 'agent' && !this.discussing) await this.untilAgentControl(exec.signal)
       if (this.discussing) return { kind: 'deny', reason: DISCUSS_HOLD }
+      // Marks belong to the conversation the user sees; a subagent's action waits for control but takes none of them.
+      if (!root) return next()
       // An action chosen before the user's latest marks, or before the user operated the screen, is not run.
       // A bare pause changes nothing on the screen, so the action runs and the handback follows its result.
       if (this.pending.length === 0 && this.handback !== 'human') return next()
@@ -280,7 +283,7 @@ export default class CoCanvas extends TypertRemoteService {
       })
     }
     ctx.on('agent/inbox/inserted', ({ agent, message }) => {
-      if (message.source.kind !== 'user') return
+      if (message.source.kind !== 'user' || !this.isRoot(agent)) return
       this.agent = agent
       if (!this.discussing) return
       this.discussing = false
@@ -289,6 +292,7 @@ export default class CoCanvas extends TypertRemoteService {
     })
     ctx.on('tools/post-execute', async (exec, _result, next) => {
       const downstream = await next()
+      if (!this.isRoot(exec.agent)) return downstream
       const context = await this.takeDelivery(exec)
       if (context === undefined) return downstream
       return { ...downstream, additionalContexts: [...downstream.additionalContexts ?? [], context] }
@@ -633,6 +637,16 @@ export default class CoCanvas extends TypertRemoteService {
     this.handback = undefined
     this.changed()
     return taken
+  }
+
+  /**
+   * Whether an agent is a top-level conversation rather than a subagent; executions without an agent count as top-level.
+   * @param agent - the executing or receiving agent.
+   * @returns false only for an agent owned by another agent.
+   */
+  private isRoot(agent: Agent | undefined): boolean {
+    const agents = this.ctx.get('agents')
+    return agent === undefined || agents === undefined || agents.roots().includes(agent)
   }
 
   private async takeDelivery(exec: ToolExecution): Promise<UserMessage | undefined> {

@@ -149,9 +149,9 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     return { ctx, canvas, clicks, call }
   }
   /** An agent that records the messages steered to it, registered in a scope of its own. */
-  function steeredAgent(ctx: Context): { agent: Agent; steered: UserMessage[] } {
+  function steeredAgent(ctx: Context, name = 'sess-co-canvas'): { agent: Agent; steered: UserMessage[] } {
     const steered: UserMessage[] = []
-    const id = SessionId('sess-co-canvas')
+    const id = SessionId(name)
     const agent = { id, ctx: ctx.plugin(() => {}).ctx, status: 'idle', steer: (message: UserMessage) => { steered.push(message) } } as Agent
     return { agent, steered }
   }
@@ -385,6 +385,26 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     const result = await call('browser_click', {}, agent)
     expect(result.isError).toBe(false)
     expect(text(result)).toBe('')
+  }, 60_000)
+
+  it('keeps marks and discussions for the top-level conversation while a subagent works the browser', async () => {
+    const { ctx, canvas, clicks, call } = await setup()
+    const parent = steeredAgent(ctx, 'sess-parent')
+    const child = steeredAgent(ctx, 'sess-child')
+    ctx.provide('agents', { roots: () => [parent.agent] })
+    await call('read', {}, parent.agent)
+    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'use the second form' })
+    const childClick = await call('browser_click', {}, child.agent)
+    expect(childClick.isError).toBe(false)
+    expect(text(childClick)).toBe('')
+    expect(text(await call('read', {}, child.agent))).toBe('')
+    expect(clicks).toHaveLength(1)
+    await canvas.discuss()
+    expect(child.steered).toHaveLength(0)
+    expect(parent.steered).toHaveLength(1)
+    // A user reply in the subagent's inbox does not end the parent's discussion.
+    emitAgentEvent(ctx, child.agent, 'agent/inbox/inserted', { message: createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }) })
+    expect(reason(await call('browser_click', {}, child.agent))).toContain(DISCUSS_HOLD)
   }, 60_000)
 
   it('refuses to discuss before any agent has used co-canvas', async () => {

@@ -52,7 +52,7 @@ Mount the plugin; it needs the tool registry and system prompt, and uses the LLM
 | Tier | Holds | Written by |
 |---|---|---|
 | MEMORY.md | Durable facts in `user`, `project`, `decisions` sections, each tagged with its Session | `memory_write`, the reflect pass, `memory_replace`, `memory_rewrite` |
-| episodic.db | Every turn of every Session, FTS5-indexed | The turn-stopping listener |
+| episodic.db | Every turn of every top-level Session, FTS5-indexed | The turn-stopping listener |
 | Reflect | Facts extracted from the finished turn | One auxiliary request per turn on the agent's route |
 
 The cap is deliberate: when a write would exceed it, the write fails with an instruction to consolidate, so the agent merges, prunes, and compresses instead of accumulating.
@@ -69,7 +69,7 @@ The cap is deliberate: when a write would exceed it, the write fails with an ins
 
 - `ctx.systemPrompt.context` renders MEMORY.md, without source tags, as runtime context on every request; the provider reads the file each time, so a write is visible on the next request. Facts of the `project` and `decisions` sections appear only in Sessions whose working directory matches the Session that saved them, looked up in the episodic store; facts of unrecorded Sessions appear everywhere.
 - `ctx.tools` registers `memory_read`, `memory_write`, `memory_replace`, `memory_rewrite`, and `recall`.
-- `agent/turn-stopping` derives the Session's messages, keeps those not yet stored, projects them into turns (system prompts and runtime context dropped, ordinary tool results clipped), appends them to SQLite, and runs the reflect pass.
+- `agent/turn-stopping`, for a top-level conversation, derives the Session's messages, keeps those not yet stored, projects them into turns (system prompts and runtime context dropped, ordinary tool results clipped), appends them to SQLite, and runs the reflect pass. Subagent turns are skipped: their work reaches the parent as a tool result, which the parent's turn stores.
 
 ### Reflect parsing
 

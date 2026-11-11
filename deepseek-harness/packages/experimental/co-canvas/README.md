@@ -100,7 +100,7 @@ With `desktop`, the service opens its own same-process Cua Driver runtime, separ
 
 ### Discussing marks
 
-`discuss` takes the undelivered marks, pauses the agent, and steers its Session with one user message (source `dsh-co-canvas`, a `notice` with a one-line summary) that lists the marks and asks for a reply in text; crops follow on image-capable routes. While the discussion lasts, every gated browser or desktop call is refused at once instead of waiting, so a call already held by a pause returns and the agent can answer. The user's next own message in the Session, or Resume, ends the discussion without a handback note. Discussions go to the agent that most recently ran a tool or received a user message, or else the most recently loaded root conversation.
+`discuss` takes the undelivered marks, pauses the agent, and steers its Session with one user message (source `dsh-co-canvas`, a `notice` with a one-line summary) that lists the marks and asks for a reply in text; crops follow on image-capable routes. While the discussion lasts, every gated browser or desktop call is refused at once instead of waiting, so a call already held by a pause returns and the agent can answer. The user's next own message in the Session, or Resume, ends the discussion without a handback note. Marks and discussions belong to the conversation the user sees: they go to the top-level agent that most recently ran a tool or received a user message, or else the most recently loaded top-level conversation. A subagent's browser and desktop actions still wait while the user holds control and are refused during a discussion, but its tool results carry no marks and its inbox does not end a discussion.
 
 ### Source map
 

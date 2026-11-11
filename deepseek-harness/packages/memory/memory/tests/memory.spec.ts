@@ -206,6 +206,20 @@ describe('memory plugin', () => {
     expect(recall.text).toContain('03:12')
   })
 
+  it('remembers only top-level conversations, not subagent turns', async () => {
+    const { ctx, adapter } = await setup('[{"section":"user","fact":"Prefers short answers"}]')
+    const messages = [{ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'Check the tests' }] }]
+    const parent = fakeAgent('s-parent', messages)
+    const child = fakeAgent('s-child', messages)
+    ctx.provide('agents', { roots: () => [parent] })
+    await ctx.serial('agent/turn-stopping', { agent: child as never, turn: 1, signal: new AbortController().signal })
+    expect(adapter.requests).toHaveLength(0)
+    expect((await tool(ctx, 'recall', { query: 'tests' })).text).not.toContain('s-child')
+    await ctx.serial('agent/turn-stopping', { agent: parent as never, turn: 1, signal: new AbortController().signal })
+    expect(adapter.requests).toHaveLength(1)
+    expect((await tool(ctx, 'memory_read', {})).text).toContain('Prefers short answers  <!-- s-parent -->')
+  })
+
   it('skips reflection when disabled and survives a refusal', async () => {
     const off = await setup('[{"section":"user","fact":"x"}]', { reflect: false })
     const messages = [{ role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: 'hi' }] }]

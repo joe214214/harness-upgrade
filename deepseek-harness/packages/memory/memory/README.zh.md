@@ -52,7 +52,7 @@ kind: "package-reference"
 | 层 | 保存什么 | 由谁写入 |
 |---|---|---|
 | MEMORY.md | `user`、`project`、`decisions` 分节的长期事实，每条标注来源 Session | `memory_write`、reflect、`memory_replace`、`memory_rewrite` |
-| episodic.db | 每个 Session 的每一轮，FTS5 索引 | turn-stopping 监听器 |
+| episodic.db | 每个顶层 Session 的每一轮，FTS5 索引 | turn-stopping 监听器 |
 | Reflect | 从刚结束的一轮中提取的事实 | 每轮一次、使用 agent 路由的辅助请求 |
 
 上限是刻意设计的：写入会超限时直接失败并提示先整理，agent 只能合并、删旧、压缩，而不是一味堆积。
@@ -69,7 +69,7 @@ kind: "package-reference"
 
 - `ctx.systemPrompt.context` 在每次请求中把去掉来源标注的 MEMORY.md 渲染为运行时上下文；提供函数每次都读取文件，所以写入在下一次请求即可见。`project` 和 `decisions` 分区的条目，只出现在工作目录与保存它的 Session 相同的 Session 中（从情景存储中查询）；没有记录所属 Session 的条目在所有地方都会出现。
 - `ctx.tools` 注册 `memory_read`、`memory_write`、`memory_replace`、`memory_rewrite` 与 `recall`。
-- `agent/turn-stopping` 派生 Session 的消息，取出尚未保存的部分投影为轮次（丢弃系统提示与运行时上下文，截断普通工具结果），写入 SQLite，并运行 reflect。
+- `agent/turn-stopping` 对顶层对话派生 Session 的消息，取出尚未保存的部分投影为轮次（丢弃系统提示与运行时上下文，截断普通工具结果），写入 SQLite，并运行 reflect。子 agent 的轮次会跳过：它的工作以工具结果的形式回到父 agent，由父 agent 的轮次保存。
 
 ### Reflect 解析
 
