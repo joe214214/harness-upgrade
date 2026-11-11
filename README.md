@@ -137,6 +137,7 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 | Co-canvas (shared browser, marks, pause/take over) | Done, verified end to end on DeepSeek through the real Web UI; Windows uses the built-in Edge |
 | Agent bridge (open and follow Claude Code / Codex / Gemini CLI sessions, share live as their native sessions, two-way memory) | Done, verified end to end on DeepSeek through the Web UI with the real Codex and Gemini CLIs; resuming in Claude Code not exercised (needs a signed-in Claude Code) |
 | Computer use + desktop co-canvas (desktop view, window-grounded marks, Mark on screen, Ask the agent first) | Done, verified end to end on DeepSeek on a Linux X11 desktop; the Cua Driver runtime ships Windows binaries, Windows not yet exercised |
+| Subagents and the new packages | Planned: co-canvas marks and "Ask the agent first" go to whichever agent acts next, which can be a subagent, and memory reflects after every subagent turn; both should target the root conversation only |
 | Speech output | Not started |
 | Upstream PR | Changes are separate commits on the imported release, ready to move to a fork |
 
