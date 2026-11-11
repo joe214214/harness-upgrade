@@ -28,19 +28,20 @@ describe('gen-tool-catalog collectToolCatalog', () => {
     const names = catalog.flatMap(entry => entry.schemas.map(s => s.name)).sort()
     expect(names).toEqual([
       'apply_patch', 'ask_image', 'ask_user_question', 'ask_user_to_mark', 'bash', 'bash', 'cordis_inspect_list',
-      'cordis_inspect_query', 'create_goal', 'create_worktree', 'edit', 'exit_plan_mode', 'get_goal', 'glob', 'grep',
-      'interrupt_agent', 'interrupt_agent', 'job_kill', 'job_list', 'job_output', 'list_agents', 'list_agents',
-      'list_mcp_resource_templates', 'list_mcp_resources', 'list_subagent_models', 'load_workspace_dependencies',
-      'lsp', 'memory_read', 'memory_replace', 'memory_rewrite', 'memory_write', 'plugin_manager', 'plugin_market',
-      'present', 'propose_action', 'pwsh', 'pwsh', 'ralph', 'read', 'read_audio', 'read_document', 'read_image',
+      'cordis_inspect_query', 'create_goal', 'create_worktree', 'edit', 'exit_plan_mode', 'external_memory',
+      'external_sessions', 'get_goal', 'glob', 'grep', 'interrupt_agent', 'interrupt_agent', 'job_kill', 'job_list',
+      'job_output', 'list_agents', 'list_agents', 'list_mcp_resource_templates', 'list_mcp_resources',
+      'list_subagent_models', 'load_workspace_dependencies', 'lsp', 'memory_read', 'memory_replace', 'memory_rewrite',
+      'memory_write', 'open_external_session', 'plugin_manager', 'plugin_market', 'present', 'propose_action', 'pwsh',
+      'pwsh', 'ralph', 'read', 'read_audio', 'read_document', 'read_external_session', 'read_image',
       'read_mcp_resource', 'read_video', 'recall', 'run_code', 'schedule_create', 'schedule_edit', 'schedule_list',
       'schedule_view', 'send_message', 'send_message', 'session_event_read', 'session_event_search',
-      'session_event_trace', 'session_search', 'session_trace', 'skill', 'spawn_teammate', 'stagehand_act',
-      'stagehand_extract', 'stagehand_navigate', 'stagehand_observe', 'stagehand_screenshot', 'stagehand_tabs',
-      'str_replace_editor', 'subagent', 'subagent_oar', 'team_task_create', 'team_task_get', 'team_task_list',
-      'team_task_update', 'terminal_close', 'terminal_list', 'terminal_open', 'terminal_read', 'terminal_send',
-      'terminal_signal', 'todo_write', 'update_goal', 'wait_agent', 'web_fetch', 'web_search', 'workflow',
-      'working_directory', 'write',
+      'session_event_trace', 'session_search', 'session_trace', 'share_session', 'skill', 'spawn_teammate',
+      'stagehand_act', 'stagehand_extract', 'stagehand_navigate', 'stagehand_observe', 'stagehand_screenshot',
+      'stagehand_tabs', 'str_replace_editor', 'subagent', 'subagent_oar', 'team_task_create', 'team_task_get',
+      'team_task_list', 'team_task_update', 'terminal_close', 'terminal_list', 'terminal_open', 'terminal_read',
+      'terminal_send', 'terminal_signal', 'todo_write', 'update_goal', 'wait_agent', 'web_fetch', 'web_search',
+      'workflow', 'working_directory', 'write',
     ])
     // Every tool carries a JSON-Schema `parameters` object (what the model sees).
     for (const entry of catalog) {

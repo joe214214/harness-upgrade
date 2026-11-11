@@ -1,6 +1,6 @@
-# harness-upgrade — multimodal input, long-term memory and human-in-the-loop browser and computer use for DeepSeek Harness
+# harness-upgrade — multimodal input, long-term memory, cross-agent sessions and human-in-the-loop browser and computer use for DeepSeek Harness
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) is DeepSeek's open-source, all-plugin agent runtime. Out of the box its agents read text and single images; its own docs list PDF, audio and video as deferred and ship no built-in memory, and its browser and computer-use agents work alone. This project adds all three as **eight native dsh packages**, built only on dsh's documented extension points — no change to the agent loop — and held to dsh's own engineering gates.
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (`dsh`) is DeepSeek's open-source, all-plugin agent runtime. Out of the box its agents read text and single images; its own docs list PDF, audio and video as deferred and ship no built-in memory, and its browser and computer-use agents work alone, cut off from the user's other coding agents. This project adds all of that as **ten native dsh packages**, built only on dsh's documented extension points — no change to the agent loop — and held to dsh's own engineering gates.
 
 | What an agent can now do | Package | Tool |
 |---|---|---|
@@ -12,6 +12,7 @@
 | Work in a browser the user watches live, marks, and can take over | `dsh-experimental-co-canvas` + Web tab | `ask_user_to_mark` |
 | Operate the desktop (computer use) while the user watches, marks windows, or marks the frozen screen | co-canvas `desktop` + official `dsh-experimental-computer-use-cua-driver-native` | `cua_driver_native__*` |
 | Talk about a mark before acting: the agent answers, then waits for the user | co-canvas **Ask the agent first** | — |
+| Open a Claude Code, Codex, or Gemini CLI session here and follow it live; share this conversation as their native session; share memory both ways | `dsh-experimental-agent-bridge` + Web tab | `external_sessions`, `open_external_session`, `share_session`, `external_memory` |
 | (shared) command runner, cache, windows, image commits | `dsh-media-core` | — |
 
 [`deepseek-harness/`](deepseek-harness) is the complete upgraded harness: the latest official release, `0.2.2-rc.1`, imported unmodified in one commit (byte-identical to upstream's tag), with every change of this project as separate commits on top — 159 source files, +9,223 / −20 lines, plus regenerated catalogs and docs. `git diff <import commit> HEAD -- deepseek-harness` shows exactly what was added.
@@ -58,6 +59,12 @@ dsh-mm headless "what error is in bug.webm?"  # one task, answer printed
 
 - *The agent asks.* Told only to "press the Submit button", the agent noticed the ambiguity and called `ask_user_to_mark`; the user boxed Plan B and sent the mark; the agent clicked Plan B.
 - *The user corrects mid-task.* Told to "submit Plan A", the agent was paused the moment the page appeared; the user boxed Plan B with "Change of plan" and resumed. The browser action the agent had already chosen was refused instead of run, and it re-planned: "You changed the plan to Plan B… Plan A was never submitted."
+
+**Agent bridge · Claude Code, Codex, and Gemini CLI in one conversation.** Like Codex's import of Claude Code sessions, but live and in both directions. A real run on the DeepSeek API through the Web UI: asked about "a checkout bug I fixed in Claude Code yesterday", the agent searched with `external_sessions`, opened the Claude Code session, and summarised where it stopped. Claude Code then added two messages to that session; they arrived as a relayed update without waking the agent, and "what did Claude Code just do?" was answered from them (a regression test, `tests/cart.test.js`). "Share this with Codex and Gemini CLI" wrote the conversation as a native session of each and returned `codex resume <thread>` and `gemini --resume <id>`: the real Gemini CLI lists it, and the real Codex holds every message, extended after each later turn through Codex's own importer. Memory went both ways: the API base path came from Claude Code's project memory and "use pnpm" from Gemini CLI's, each cited by source, while DeepSeek Harness's "Postgres 16 only" was written into a marked block of `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md`.
+
+| A followed Claude Code session reports its new work | The Agent bridge tab |
+|---|---|
+| ![Agent answering what Claude Code just did, from a relayed update](docs/agent-bridge-followed.png) | ![Shared with Codex and Gemini CLI with resume commands; followed sessions; other agents' sessions; memory](docs/agent-bridge-tab.png) |
 
 **Co-canvas on the desktop · Ask before acting.** With the official Cua Driver computer-use provider enabled, the same tab shows the desktop live. A real run on the DeepSeek API, with a To-do app holding two "Pay rent" rows: the agent listed the tasks with computer use; the user boxed the Thursday row in the desktop view with the note "Is this a duplicate…? check with me first" and pressed **Ask the agent first**. The agent answered in the conversation (the two rows differ in date and state; deleting the active one may be the opposite of what you want) and touched nothing — its desktop actions are refused while the discussion lasts. The user replied "Yes, delete the one I marked"; the discussion ended by itself and the agent clicked that row's Delete and verified "To-do (3)". **Mark on screen** freezes the real screen full screen for marking: boxing "Book dentist" there with "What is this one for? Just tell me" got a description and no action.
 
@@ -113,8 +120,11 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 - **Stale actions are the real hazard.** Delivering a correction after the agent's next action is too late if that action is the wrong click. A browser call chosen before the user's latest input is refused with the marks instead of run.
 - **Benchmarks leak.** An early memory test "passed" because the agent globbed outside its workspace and read the harness's own logs. Answers now stay in memory until all runs finish.
 - **A question must be able to stop the work.** Marks first reached the agent only with its next tool result, so a user who paused to ask had to resume first. A discussion now steers the Session with its own message and refuses every gated action at once, so a call already held by the pause returns and the agent can answer; the user's next own message ends the discussion.
+- **Import a foreign session as context, not as fake history.** dsh logs each assistant message with its exact provider stream, so another agent's turns cannot honestly become DeepSeek's own. They arrive as relayed context, the same form dsh uses for messages between agents, parked in the inbox until the next step so following a busy session costs no model calls.
+- **Use the other agent's own door.** Writing Codex's rollout format directly would break with its next release; Codex already ships an importer for Claude Code transcripts that appends to the same thread while it is idle and defers when it diverged. The bridge writes a Claude Code transcript and asks Codex to import it.
+- **Never read your own echo.** Shared files are followed for what the other agent adds, so every record the bridge writes carries a marker, Codex copies are recognised by fingerprint, and the memory block it writes into other agents' files is stripped when their memory is read back.
 - **Reuse the official provider, observe beside it.** Computer use is upstream's Cua Driver provider unchanged; co-canvas only reads the screen through a runtime of its own and gates the provider's action tools by name.
-- **Upstream's bar, not ours.** 87 package tests; dsh's 43 documentation gates and `build:check` pass (bilingual READMEs with Model Experience sections, generated tool/config catalogs, an acknowledged persistence-type change, locale metadata in 8 languages).
+- **Upstream's bar, not ours.** 101 package tests; dsh's 43 documentation gates and `build:check` pass (bilingual READMEs with Model Experience sections, generated tool/config catalogs, an acknowledged persistence-type change, locale metadata in 8 languages).
 
 ## Status
 
@@ -123,6 +133,7 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 | `read_document`, `read_video`, `ask_image`, `memory` | Done, verified end to end on DeepSeek |
 | `read_audio` | Done, verified end to end with the real SenseVoice model (demo 2); real runs found and fixed a missing provider-preparation step and over-long segments |
 | Co-canvas (shared browser, marks, pause/take over) | Done, verified end to end on DeepSeek through the real Web UI; Windows uses the built-in Edge |
+| Agent bridge (open and follow Claude Code / Codex / Gemini CLI sessions, share live as their native sessions, two-way memory) | Done, verified end to end on DeepSeek through the Web UI with the real Codex and Gemini CLIs; resuming in Claude Code not exercised (needs a signed-in Claude Code) |
 | Computer use + desktop co-canvas (desktop view, window-grounded marks, Mark on screen, Ask the agent first) | Done, verified end to end on DeepSeek on a Linux X11 desktop; the Cua Driver runtime ships Windows binaries, Windows not yet exercised |
 | Speech output | Not started |
 | Upstream PR | Changes are separate commits on the imported release, ready to move to a fork |

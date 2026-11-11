@@ -65,6 +65,8 @@ Promotion requires a named product role, documented public behavior and limitati
 | [`speech-to-text-sensevoice`](speech-to-text-sensevoice/README.md) | Managed local SenseVoice inference | — |
 | [`api-speech-to-text`](api-speech-to-text/README.md) | Authenticated transient transcription Remote | `ctx.speechController` |
 | [`client-ui-voice-input`](client-ui-voice-input/README.md) | Microphone capture and guarded draft insertion | — |
+| [`agent-bridge`](agent-bridge/README.md) | Sessions and memory shared live with Claude Code, Codex, and Gemini CLI | `ctx.agentBridge` |
+| [`client-ui-agent-bridge`](client-ui-agent-bridge/README.md) | Sharing, opening, and memory status for the agent bridge in the right Sidebar | — |
 | [`co-canvas`](co-canvas/README.md) | Shared browser the user watches, marks, and takes over while the agent works | `ctx.coCanvas` |
 | [`client-ui-co-canvas`](client-ui-co-canvas/README.md) | Live view, marking tools, and control buttons in the right Sidebar | — |
 | [`plugin-market-bundle`](plugin-market-bundle/README.md) | Default-disabled optional custom plugin indexes: the index service and the Discover tab | — |

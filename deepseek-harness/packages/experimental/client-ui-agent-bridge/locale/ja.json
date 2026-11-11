@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "エージェント連携",
+    "description": "この会話と記憶を Claude Code、Codex、Gemini CLI と共有し、それらのセッションをここで開きます。"
+  }
+}

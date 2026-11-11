@@ -65,6 +65,8 @@ kind: "package-group"
 | [`speech-to-text-sensevoice`](speech-to-text-sensevoice/README.zh.md) | 托管本地 SenseVoice 推理 | — |
 | [`api-speech-to-text`](api-speech-to-text/README.zh.md) | 带认证的临时转写 Remote | `ctx.speechController` |
 | [`client-ui-voice-input`](client-ui-voice-input/README.zh.md) | 麦克风录音与版本检查后的草稿插入 | — |
+| [`agent-bridge`](agent-bridge/README.zh.md) | 与 Claude Code、Codex 和 Gemini CLI 实时共享会话和记忆 | `ctx.agentBridge` |
+| [`client-ui-agent-bridge`](client-ui-agent-bridge/README.zh.md) | 右侧边栏中 Agent 互通的共享、打开和记忆状态 | — |
 | [`co-canvas`](co-canvas/README.zh.md) | 用户可实时查看、标注并接管的 agent 共享浏览器 | `ctx.coCanvas` |
 | [`client-ui-co-canvas`](client-ui-co-canvas/README.zh.md) | 右侧边栏中的实时画面、标注工具和控制按钮 | — |
 | [`plugin-market-bundle`](plugin-market-bundle/README.zh.md) | 默认禁用的可选自定义插件索引：索引服务和「发现」标签页 | — |

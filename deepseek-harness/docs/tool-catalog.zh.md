@@ -41,6 +41,7 @@
 | `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`、`ctx.fs`、`ctx.subprocess`、`ctx.attachments + an image-capable route (frames)`、`ctx.speechToText (speech, at call time)`、`ffmpeg on the host` | `tool/call`、`durable attachment (frames)`、`tool/result` | - | 在所请求的窗口内按场景得分选取变化最大的帧（配置为均匀时则均匀），并与 read_audio 转写合并为一条时间线；窗口越窄，同样的帧预算覆盖的时间段越短。 |
 | `@deepseek-ai/dsh-vision-bridge` | `ask_image` | `ctx.tools`、`ctx.fs`、`ctx.llm`、`ctx.attachments`、`a configured image-capable model` | `tool/call`、`durable attachment (the asked image)`、`tool/result` | - | 图片和问题在一次辅助请求中交给配置的识图模型；只返回文字答案，因此纯文本路由可以使用图片，而图片块不会进入其历史。 |
 | `@deepseek-ai/dsh-experimental-co-canvas` | `ask_user_to_mark` | `ctx.tools`、`ctx.systemPrompt`、`ctx.typert`、`a Chromium the Host can launch`、`the co-canvas Web tab` | `tool/call`、`tool/result`、`user marks attached to later tool results` | - | 问题显示在协同画布标签页中实时页面的旁边；结果列出用户发送前画下的标注，每个标注都定位到其下方的元素。没有问题时画下的标注在下一个工具结果之后送达。 |
+| `@deepseek-ai/dsh-experimental-agent-bridge` | `external_memory`、`external_sessions`、`open_external_session`、`read_external_session`、`share_session` | `ctx.tools`、`ctx.systemPrompt`、`ctx.typert`、`session files of Claude Code, Codex, or Gemini CLI on this machine` | `tool/call`、`tool/result`、`relayed messages of followed sessions`、`session and memory files of the other agents` | - | 打开会话即开始跟随：对方之后新增的消息在下一个步骤边界转发过来。共享会在每轮结束后把对话写成各 Agent 的原生会话；Codex 通过它自己的导入器导入。 |
 | `@deepseek-ai/dsh-memory` | `memory_read`、`memory_replace`、`memory_rewrite`、`memory_write`、`recall` | `ctx.tools`、`ctx.systemPrompt`、`ctx.llm (reflect pass)` | `tool/call`、`tool/result`、`MEMORY.md and episodic.db under the configured root` | - | 每次请求中 MEMORY.md 也作为运行时上下文出现。每轮结束后，插件把这一轮存入情景记忆，并在开启 `reflect` 时，用一次基于 agent 路由的辅助请求提取并归档长期事实。 |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`、`terminal_list`、`terminal_open`、`terminal_read`、`terminal_send`、`terminal_signal` | `ctx.workingDirectory`、`ctx.tools`、`ctx.terminals`、`ctx.systemPrompt`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。 |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`、`get_goal`、`update_goal` | `ctx.tools`、`ctx.agents`、`ctx.goals`、`ctx.systemPrompt`、`a calling Agent in an authorized open turn` | `tool/call`、`goal/change for mutations`、`tool/result` | - | create、edit、pause 和 resume 要求直接来自人类的根权限；complete 和 blocked 也接受确切的当前 Goal Round。blocked 的默认下限是 3 个获准的 Round。 |
@@ -1421,6 +1422,156 @@ glob 和 grep 是无条件可用的发现工具，通过 ctx.subprocess spawn �
 来源：[`packages/experimental/co-canvas/src/index.ts`](../packages/experimental/co-canvas/src/index.ts)
 
 问题显示在协同画布标签页中实时页面的旁边；结果列出用户发送前画下的标注，每个标注都定位到其下方的元素。没有问题时画下的标注在下一个工具结果之后送达。
+
+<a id="deepseek-aidsh-experimental-agent-bridge"></a>
+
+## `@deepseek-ai/dsh-experimental-agent-bridge`
+
+### `external_memory`
+
+读取 <external_agent_memory> 中列出的 Claude Code、Codex 或 Gemini CLI 的记忆文件或用户级指令文件。不带路径时列出这些文件。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "A path listed in <external_agent_memory>."
+    }
+  }
+}
+```
+
+来源：[`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+### `external_sessions`
+
+列出本机上 Claude Code、Codex 和 Gemini CLI 的会话，最匹配的在前，其次是当前工作区的会话，再按时间从新到旧。用户提到在其他编程 Agent 中做过的工作时使用。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "agent": {
+      "type": "string",
+      "description": "Only this agent.",
+      "enum": [
+        "claude",
+        "codex",
+        "gemini"
+      ]
+    },
+    "query": {
+      "type": "string",
+      "description": "Words to look for in the title or working directory."
+    }
+  }
+}
+```
+
+来源：[`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+### `open_external_session`
+
+读取另一个 Agent 的会话（放得下的最新消息）并持续跟随：该 Agent 之后新增的消息会以 <external_session_update> 送达本对话。更早的消息用 read_external_session 读取。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "agent": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex",
+        "gemini"
+      ]
+    },
+    "id": {
+      "type": "string",
+      "description": "Session id from external_sessions."
+    },
+    "follow": {
+      "type": "boolean",
+      "description": "Keep following new messages (default true)."
+    }
+  },
+  "required": [
+    "agent",
+    "id"
+  ]
+}
+```
+
+来源：[`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+### `read_external_session`
+
+按位置读取另一个 Agent 会话中的一段消息（0 是第一条消息）。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "agent": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex",
+        "gemini"
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "start": {
+      "type": "number"
+    },
+    "count": {
+      "type": "number",
+      "description": "Messages to read (default 20)."
+    }
+  },
+  "required": [
+    "agent",
+    "id",
+    "start"
+  ]
+}
+```
+
+来源：[`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+### `share_session`
+
+把本对话实时共享给 Claude Code、Codex 或 Gemini CLI：它被写成该 Agent 的原生会话，每轮结束后更新，对方在那里新增的内容会转发回这里。返回在该 Agent 中继续的命令。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "claude",
+          "codex",
+          "gemini"
+        ]
+      }
+    }
+  },
+  "required": [
+    "agents"
+  ]
+}
+```
+
+来源：[`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+打开会话即开始跟随：对方之后新增的消息在下一个步骤边界转发过来。共享会在每轮结束后把对话写成各 Agent 的原生会话；Codex 通过它自己的导入器导入。
 
 <a id="deepseek-aidsh-memory"></a>
 

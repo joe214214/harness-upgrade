@@ -9,8 +9,8 @@
   en: 6cc2cd9ced70bb09
   zh: 1c0e6cb4ba2ed637
 /tool-schema-catalog/tool-package-map:
-  en: fb7d65582fb5bbfc
-  zh: 42d754eba8b126b0
+  en: b35ab8f3e4742626
+  zh: fa0fdf63cf32c1ae
 /tool-schema-catalog/deepseek-ai-dsh-plugin-manager:
   en: e0143916bb634762
   zh: e0143916bb634762
@@ -180,8 +180,26 @@
   en: b2ee8ea025c8b89b
   zh: b2ee8ea025c8b89b
 /tool-schema-catalog/deepseek-ai-dsh-experimental-co-canvas/ask-user-to-mark:
-  en: 0882def2a6e30272
-  zh: 444554d56b1759d5
+  en: a8a3ccfb5dd9e754
+  zh: 0dec3fe1e3785d33
+/tool-schema-catalog/deepseek-ai-dsh-experimental-agent-bridge:
+  en: 4f44c271cefaa520
+  zh: 4f44c271cefaa520
+/tool-schema-catalog/deepseek-ai-dsh-experimental-agent-bridge/external-memory:
+  en: d31ebca64410287d
+  zh: f06b08ed664b62c1
+/tool-schema-catalog/deepseek-ai-dsh-experimental-agent-bridge/external-sessions:
+  en: 04e1aaa159027188
+  zh: b5d62dae3f1babd3
+/tool-schema-catalog/deepseek-ai-dsh-experimental-agent-bridge/open-external-session:
+  en: 5978815943aa366a
+  zh: 5fcde1b912faa469
+/tool-schema-catalog/deepseek-ai-dsh-experimental-agent-bridge/read-external-session:
+  en: e16c202743317701
+  zh: c4ad85768ac7083f
+/tool-schema-catalog/deepseek-ai-dsh-experimental-agent-bridge/share-session:
+  en: 3ff1492a61e7834f
+  zh: 832fd25eb807d669
 /tool-schema-catalog/deepseek-ai-dsh-memory:
   en: f82fad0555801413
   zh: f82fad0555801413

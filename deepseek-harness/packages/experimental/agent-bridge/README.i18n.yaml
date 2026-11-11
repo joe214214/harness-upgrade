@@ -1,0 +1,106 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/experimental/agent-bridge/README.md
+/:
+  en: 179827d3ce5f8256
+  zh: 86c34e49fac96568
+/deepseek-ai-dsh-experimental-agent-bridge:
+  en: ec4255a73a4d9fec
+  zh: ae51dd487e7ca93d
+/deepseek-ai-dsh-experimental-agent-bridge/summary:
+  en: 95f11ad6ebc50161
+  zh: 48354ba437612006
+/deepseek-ai-dsh-experimental-agent-bridge/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 09388d293f9be9cb
+/deepseek-ai-dsh-experimental-agent-bridge/use-this-package:
+  en: 1055447d37ef0ff3
+  zh: 29ddae7d974ad5f9
+/deepseek-ai-dsh-experimental-agent-bridge/understand-the-implementation:
+  en: a8ea90f5f789672c
+  zh: 4ed0861911abaf5d
+/deepseek-ai-dsh-experimental-agent-bridge/understand-the-implementation/one-transcript-three-formats:
+  en: bfdb8e87408c98af
+  zh: 5a7bca7cae0c7803
+/deepseek-ai-dsh-experimental-agent-bridge/understand-the-implementation/opening-and-following:
+  en: dced324ca34d7e58
+  zh: 44da0261e01fa7bb
+/deepseek-ai-dsh-experimental-agent-bridge/understand-the-implementation/sharing:
+  en: 2bdac8a72ab3db34
+  zh: e7202bcebdd7867e
+/deepseek-ai-dsh-experimental-agent-bridge/understand-the-implementation/memory:
+  en: 31ee16f17b655a78
+  zh: 2cc483d461d71db7
+/deepseek-ai-dsh-experimental-agent-bridge/understand-the-implementation/source-map:
+  en: 86858be7f4598a53
+  zh: 5d34e68a354a28aa
+/deepseek-ai-dsh-experimental-agent-bridge/further-exploration:
+  en: 7b2ae68b82fa5784
+  zh: abc61e082f90dfbd
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/system-prompt-guidance:
+  en: dbc7966c48c88456
+  zh: c6d8f0cdc82904a7
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/system-prompt-guidance/what-the-model-sees:
+  en: fe3ea22155aae1fc
+  zh: bf0c352515a12b83
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/system-prompt-guidance/what-the-model-sees/verbatim-guidance:
+  en: ee8865eda3bcc252
+  zh: 2c7fb4946d77aa1d
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/system-prompt-guidance/token-effect:
+  en: d96d646811813532
+  zh: 0d2bed27db6fd9cf
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/system-prompt-guidance/kv-cache-effect:
+  en: 6a94d9e240bf3234
+  zh: 6a6d46fe6dcd8ea2
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/tool-schema:
+  en: e4c7376d4f29dbd5
+  zh: d18677364e8fe82c
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/tool-schema/what-the-model-sees:
+  en: f7f1f4a297839396
+  zh: 2bc7b9934ba08758
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/tool-schema/token-effect:
+  en: db1d9ecad41f6fcd
+  zh: 3554f299e7ddfa64
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/tool-schema/kv-cache-effect:
+  en: 8a155529262a3e75
+  zh: 4547475a4137d253
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/followed-session-updates:
+  en: 51552c373238af8c
+  zh: 3580af68dcc7d6fb
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/followed-session-updates/what-the-model-sees:
+  en: db136382429e3fc2
+  zh: 3788f308413ffa7e
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/followed-session-updates/what-the-model-sees/example:
+  en: fac1d4d7e305e25e
+  zh: 8ae2f80d42769b42
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/followed-session-updates/token-effect:
+  en: f72028f4574cb53a
+  zh: efbf79eb7bea30ea
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/followed-session-updates/kv-cache-effect:
+  en: d8f4f853e12681e1
+  zh: dcb646c0fc509205
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/external-memory-context:
+  en: bc7050f16c093ad9
+  zh: dba48a124ebfd2fd
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/external-memory-context/what-the-model-sees:
+  en: ababd6dd25f24b08
+  zh: 11e5c960396ab748
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/external-memory-context/what-the-model-sees/example:
+  en: fac1d4d7e305e25e
+  zh: 8ae2f80d42769b42
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/external-memory-context/token-effect:
+  en: 5d6a0fb510ab86ab
+  zh: 9f786e14eebfe435
+/deepseek-ai-dsh-experimental-agent-bridge/model-experience/external-memory-context/kv-cache-effect:
+  en: 17fdc88af8c5071c
+  zh: f1ccdebc79b317e7
+/deepseek-ai-dsh-experimental-agent-bridge/known-limitations-and-deferred-work:
+  en: 4b3b9062a1c2464e
+  zh: 1badcdb7083df65d
+/deepseek-ai-dsh-experimental-agent-bridge/known-limitations-and-deferred-work/dev-note:
+  en: e67f633dc6fe7773
+  zh: 9c6918ce849f6c93

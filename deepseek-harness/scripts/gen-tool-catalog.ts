@@ -62,6 +62,7 @@ import * as ToolReadDocument from '@deepseek-ai/dsh-tool-read-document'
 import * as ToolReadAudio from '@deepseek-ai/dsh-experimental-tool-read-audio'
 import * as ToolReadVideo from '@deepseek-ai/dsh-experimental-tool-read-video'
 import * as VisionBridge from '@deepseek-ai/dsh-vision-bridge'
+import { agentBridgeTools } from '@deepseek-ai/dsh-experimental-agent-bridge'
 import { askUserToMarkTool } from '@deepseek-ai/dsh-experimental-co-canvas'
 import * as Memory from '@deepseek-ai/dsh-memory'
 import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
@@ -498,6 +499,21 @@ const TOOL_PACKAGES: ToolPackage[] = [
       return Promise.resolve()
     },
     note: 'The question appears beside the live page in the co-canvas tab; the result lists the marks drawn before the user sends them, each grounded to the element under it. Marks drawn without a question arrive after the next tool result.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-experimental-agent-bridge',
+    dir: 'agent-bridge',
+    source: 'packages/experimental/agent-bridge/src/tools.ts',
+    requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.typert', 'session files of Claude Code, Codex, or Gemini CLI on this machine'],
+    writes: ['tool/call', 'tool/result', 'relayed messages of followed sessions', 'session and memory files of the other agents'],
+    // Only the tools are mounted: the service would poll and write the other agents' files.
+    mount(ctx) {
+      for (const tool of agentBridgeTools({
+        list: () => '', open: () => '', read: () => '', share: () => Promise.resolve(''), memory: () => '',
+      })) ctx.tools.register(tool)
+      return Promise.resolve()
+    },
+    note: 'Opening a session follows it: messages the other agent adds later are relayed at the next step boundary. Sharing writes the conversation as a native session of each agent after every turn; Codex imports it through its own importer.',
   },
   {
     pkg: '@deepseek-ai/dsh-memory',

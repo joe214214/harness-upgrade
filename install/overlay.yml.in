@@ -1,4 +1,4 @@
-# Adds the multimodal, memory, co-canvas and computer-use packages to a DSH profile (passed with --patch).
+# Adds the multimodal, memory, agent-bridge, co-canvas and computer-use packages to a DSH profile (passed with --patch).
 # setup.sh / setup.ps1 fill in the placeholders for the harness path, the data folder (memory, models,
 # browser profile) and the co-canvas browser choice; the browser placeholder occupies a line of its own.
 - insert:
@@ -22,6 +22,13 @@
       name: '@DSH@/packages/memory/memory/src/index.ts'
       config:
         root: '@DATA@/memory'
+    - id: agent-bridge
+      name: '@DSH@/packages/experimental/agent-bridge/src/index.ts'
+      config:
+        stateDir: '@DATA@/agent-bridge'
+        memoryFile: '@DATA@/memory/MEMORY.md'
+    - id: ui-agent-bridge
+      name: '@DSH@/packages/experimental/client-ui-agent-bridge/src/index.ts'
     - id: co-canvas
       name: '@DSH@/packages/experimental/co-canvas/src/index.ts'
       config:

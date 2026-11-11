@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "エージェント連携",
+    "description": "Claude Code、Codex、Gemini CLI とセッションと記憶をリアルタイムで共有します。"
+  }
+}

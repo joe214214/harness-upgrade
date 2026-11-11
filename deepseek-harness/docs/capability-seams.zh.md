@@ -102,6 +102,8 @@ flowchart LR
   pkg_session_query["session-query"]
   pkg_session_query_sqlite["session-query-sqlite"]
   pkg_message_feedback["message-feedback"]
+  pkg_experimental_agent_bridge["experimental-agent-bridge"]
+  svc_agentBridge["ctx.agentBridge<br/>Experimental sessions and memory shared with other coding agents"]
   pkg_experimental_co_canvas["experimental-co-canvas"]
   svc_coCanvas["ctx.coCanvas<br/>Experimental shared browser for user marks and handoff"]
   pkg_experimental_api_speech_to_text["experimental-api-speech-to-text"]
@@ -363,6 +365,7 @@ flowchart LR
   pkg_deepseek_account --> svc_deepseekAccount
   pkg_deepseek_account_platform --> svc_deepseekAccount
   pkg_deepseek_llm_api_extensions --> svc_deepseekLlmApiExtensions
+  pkg_experimental_agent_bridge --> svc_agentBridge
   pkg_experimental_agent_team --> svc_agentTeams
   pkg_experimental_api_speech_to_text --> svc_speechController
   pkg_experimental_browser_use_chrome_devtools_mcp --> svc_browserUse
@@ -684,6 +687,7 @@ flowchart LR
 | `ctx.tokenMeter` | `core` | [`token-meter`](../packages/llm/token-meter) | - | [`compaction-basic`](../packages/compaction/compaction-basic) | - | 拥有按会话隔离的回放折叠区；压力消费方共享不可变且带修订版本的测量结果。 |
 | `ctx.toolResultPruner` | `core` | [`compaction-tool-result-pruner`](../packages/compaction/compaction-tool-result-pruner) | - | [`compaction-basic`](../packages/compaction/compaction-basic) | - | 在摘要压缩前，通过可回放的单节点表层替换来改写过大的当前工具结果。 |
 | `ctx.sessions` | `core` | [`session`](../packages/core/session) | - | [`agent-loop`](../packages/core/agent-loop), [`agent`](../packages/core/agent), [`session-persistence`](../packages/session/session-persistence), [`session-query`](../packages/session-query/session-query), [`session-query-sqlite`](../packages/session-query/session-query-sqlite), [`subagent`](../packages/subagent/subagent), [`message-feedback`](../packages/feedback/message-feedback) | - | 拥有仅追加的 Session 实例，并发出持久的会话事件流。 |
+| `ctx.agentBridge` | `core` | [`experimental-agent-bridge`](../packages/experimental/agent-bridge) | - | - | - | 把 Claude Code、Codex 和 Gemini CLI 的会话跟随进 Session，把 Session 写成它们的原生会话，并双向共享记忆。 |
 | `ctx.coCanvas` | `core` | [`experimental-co-canvas`](../packages/experimental/co-canvas) | - | - | - | 持有浏览器工具连接的那个 Chromium；随下一个工具结果送达已定位的用户标注，并在用户持有控制权时挂起浏览器工具。 |
 | `ctx.speechController` | `core` | [`experimental-api-speech-to-text`](../packages/experimental/api-speech-to-text) | - | - | - | 在 Provider 调用前校验受限的浏览器音频。 |
 | `ctx.sessionController` | `core` | [`api-session-controller`](../packages/api/session-controller) | - | - | - | 负责 Session 命令、冷读取、持久事件跟随、实时控制状态、模型目录、workspace 打开与 Agent 激活策略。 |

@@ -875,6 +875,50 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-deepseek-account-platform -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-agent-bridge -->
+<a id="deepseek-aidsh-experimental-agent-bridge"></a>
+
+## `@deepseek-ai/dsh-experimental-agent-bridge`
+
+- `inject`: `tools` · `systemPrompt` · `typert`
+- `source`: [`packages/experimental/agent-bridge/src/index.ts:73`](../packages/experimental/agent-bridge/src/index.ts)
+
+```ts config-catalog
+/** Deployment settings: where each agent keeps its data, budgets, and what to share. */
+export interface Config {
+  /** Claude Code's data directory; omission uses `CLAUDE_CONFIG_DIR` or `~/.claude`. */
+  claudeHome?: string | undefined
+  /** Codex's data directory; omission uses `CODEX_HOME` or `~/.codex`. */
+  codexHome?: string | undefined
+  /** Gemini CLI's data directory; omission uses `~/.gemini`. */
+  geminiHome?: string | undefined
+  /** Where the bridge keeps what it follows and shares. */
+  stateDir: string
+  /** DeepSeek Harness's long-term memory file to share; empty disables memory sharing. */
+  memoryFile: string
+  /** Write DeepSeek Harness memory into each agent. */
+  shareMemoryWith: ExternalAgent[]
+  /** Codex executable used for Codex export. */
+  codexCommand: string
+  /** Longest wait for one Codex import. */
+  codexTimeoutMs: number
+  /** How often followed sessions and the memory file are checked. */
+  pollMs: number
+  /** Most sessions listed. */
+  listLimit: number
+  /** Characters of transcript delivered when a session is opened. */
+  openChars: number
+  /** Characters of new messages delivered in one update. */
+  updateChars: number
+  /** Characters of external memory previews in the runtime context. */
+  memoryContextChars: number
+}
+
+/** Coding agents whose sessions and memory the bridge reads and writes. */
+export type ExternalAgent = 'claude' | 'codex' | 'gemini'
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-agent-bridge -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-experimental-agent-team -->
 <a id="deepseek-aidsh-experimental-agent-team"></a>
 
@@ -3943,7 +3987,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-system-prompt`
 
-- `source`: [`packages/core/system-prompt/src/index.ts:271`](../packages/core/system-prompt/src/index.ts)
+- `source`: [`packages/core/system-prompt/src/index.ts:273`](../packages/core/system-prompt/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
@@ -5123,6 +5167,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 | `@deepseek-ai/dsh-deepseek-llm-api-extensions` | — | [`packages/llm/deepseek-llm-api-extensions/src/index.ts`](../packages/llm/deepseek-llm-api-extensions/src/index.ts) |
 | `@deepseek-ai/dsh-deliverable-file-references` | `systemPrompt` | [`packages/deliverables/deliverable-file-references/src/index.ts`](../packages/deliverables/deliverable-file-references/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-auto-review` | `approval` · `llm` · `permissionPresets` · `sessions` · `tools` · `workingDirectory` | [`packages/experimental/auto-review/src/index.ts`](../packages/experimental/auto-review/src/index.ts) |
+| `@deepseek-ai/dsh-experimental-client-ui-agent-bridge` | — | [`packages/experimental/client-ui-agent-bridge/src/index.ts`](../packages/experimental/client-ui-agent-bridge/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-agent-team` | — | [`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-claude-code-mods` | — | [`packages/experimental/client-ui-claude-code-mods/src/index.ts`](../packages/experimental/client-ui-claude-code-mods/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-client-ui-co-canvas` | — | [`packages/experimental/client-ui-co-canvas/src/index.ts`](../packages/experimental/client-ui-co-canvas/src/index.ts) |

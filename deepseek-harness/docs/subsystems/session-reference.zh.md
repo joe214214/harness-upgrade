@@ -130,6 +130,55 @@ type SessionReferenceErrorCode =
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.zh.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxagentbridge--agentbridge"></a>
+
+### `ctx.agentBridge` — `AgentBridge`
+
+Owner of followed and shared sessions and of memory sharing.
+
+```ts cordis-catalog
+/**
+ * Follow the bridge's state: sessions found, follows, exports, and memory.
+ * @param signal - Client observation lifetime.
+ * @returns the current state, then each change.
+ */
+@Remote({ mode: 'stream' }) async* follow(signal: AbortSignal): AsyncIterable<BridgeState>
+
+/** Rescan the agents' session directories. */
+@Remote refresh(): void
+
+/**
+ * Open an external session in a Session and follow it. The agent is asked to summarise where it stands.
+ * @param sessionId - DeepSeek Harness Session.
+ * @param agent - external agent.
+ * @param id - the agent's session id.
+ * @throws RemoteError when the Session is not loaded or the external session is not found.
+ */
+@Remote open(sessionId: string, agent: ExternalAgent, id: string): void
+
+/**
+ * Stop following an external session.
+ * @param sessionId - DeepSeek Harness Session.
+ * @param agent - external agent.
+ * @param id - the agent's session id.
+ */
+@Remote unfollow(sessionId: string, agent: ExternalAgent, id: string): void
+
+/**
+ * Share a Session live with one agent, or stop sharing it.
+ * @param sessionId - DeepSeek Harness Session.
+ * @param agent - external agent.
+ * @param enabled - whether to share.
+ * @throws RemoteError when enabling for a Session that is not loaded.
+ */
+@Remote async share(sessionId: string, agent: ExternalAgent, enabled: boolean): Promise<void>
+
+/** Write DeepSeek Harness memory into the other agents now. */
+@Remote syncMemory(): void
+```
+
+Source: [`packages/experimental/agent-bridge/src/index.ts`](../../packages/experimental/agent-bridge/src/index.ts)
+
 <a id="ctxfilereferences--filereferenceservice-abstract-seam"></a>
 
 ### `ctx.fileReferences` — `FileReferenceService` (abstract seam)

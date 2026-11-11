@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Agent 互通",
+    "description": "把当前对话和记忆同步给 Claude Code、Codex 和 Gemini CLI，也能把它们的会话打开到这里。"
+  }
+}

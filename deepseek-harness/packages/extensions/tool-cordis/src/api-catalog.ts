@@ -114,6 +114,51 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'agentBridge',
+    summary: 'Owner of followed and shared sessions and of memory sharing.',
+    description: 'Owner of followed and shared sessions and of memory sharing.',
+    methods: [
+      {
+        signature: 'readonly homes: AgentHomes',
+        description: 'Data directories of Claude Code, Codex, and Gemini CLI that the bridge reads and writes.',
+        parameters: [],
+      },
+      {
+        signature: '@Remote({ mode: \'stream\' }) async* follow(signal: AbortSignal): AsyncIterable<BridgeState>',
+        description: 'Follow the bridge\'s state: sessions found, follows, exports, and memory.',
+        parameters: [{ name: 'signal', description: 'Client observation lifetime.' }],
+        returns: 'the current state, then each change.',
+      },
+      {
+        signature: '@Remote refresh(): void',
+        description: 'Rescan the agents\' session directories.',
+        parameters: [],
+      },
+      {
+        signature: '@Remote open(sessionId: string, agent: ExternalAgent, id: string): void',
+        description: 'Open an external session in a Session and follow it. The agent is asked to summarise where it stands.',
+        parameters: [{ name: 'sessionId', description: 'DeepSeek Harness Session.' }, { name: 'agent', description: 'external agent.' }, { name: 'id', description: 'the agent\'s session id.' }],
+        throws: ['RemoteError when the Session is not loaded or the external session is not found.'],
+      },
+      {
+        signature: '@Remote unfollow(sessionId: string, agent: ExternalAgent, id: string): void',
+        description: 'Stop following an external session.',
+        parameters: [{ name: 'sessionId', description: 'DeepSeek Harness Session.' }, { name: 'agent', description: 'external agent.' }, { name: 'id', description: 'the agent\'s session id.' }],
+      },
+      {
+        signature: '@Remote async share(sessionId: string, agent: ExternalAgent, enabled: boolean): Promise<void>',
+        description: 'Share a Session live with one agent, or stop sharing it.',
+        parameters: [{ name: 'sessionId', description: 'DeepSeek Harness Session.' }, { name: 'agent', description: 'external agent.' }, { name: 'enabled', description: 'whether to share.' }],
+        throws: ['RemoteError when enabling for a Session that is not loaded.'],
+      },
+      {
+        signature: '@Remote syncMemory(): void',
+        description: 'Write DeepSeek Harness memory into the other agents now.',
+        parameters: [],
+      },
+    ],
+  },
+  {
     key: 'agentDefaultModel',
     summary: 'Owns the default model selection independently of any Host or transport.',
     description: 'Owns the default model selection independently of any Host or transport. Each operation reads the owning Config references.',
@@ -5576,6 +5621,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AgentHandle {\n    agent: Agent;\n    dispose(): Promise<void>;\n}',
   },
   {
+    name: 'AgentHomes',
+    declaration: 'export interface AgentHomes {\n    readonly claude: string;\n    readonly codex: string;\n    readonly gemini: string;\n}',
+  },
+  {
     name: 'AgentOptions',
     declaration: 'export interface AgentOptions {\n    provider?: string;\n    model?: string;\n    reasoningEffort?: ReasoningEffortId | undefined;\n    maxTokens?: number;\n}',
   },
@@ -5830,6 +5879,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BrandedNumber',
     declaration: 'export type BrandedNumber<B extends string> = number & {\n    readonly [BRAND]: B;\n};',
+  },
+  {
+    name: 'BridgeState',
+    declaration: 'export interface BridgeState {\n    readonly sessions: readonly ExternalSessionInfo[];\n    readonly follows: readonly FollowState[];\n    readonly exports: readonly ExportState[];\n    readonly memorySources: readonly MemorySource[];\n    readonly memoryExports: readonly MemoryExportState[];\n}',
   },
   {
     name: 'BrowserUseProviderName',
@@ -6464,6 +6517,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface EveryScheduleRecord {\n    readonly id: ScheduleId;\n    readonly kind: \'every\';\n    readonly title: string;\n    readonly prompt: string;\n    readonly everySeconds: number;\n    readonly scheduledAt: string;\n}',
   },
   {
+    name: 'ExportState',
+    declaration: 'export interface ExportState {\n    readonly sessionId: string;\n    readonly agent: ExternalAgent;\n    readonly status: \'pending\' | \'synced\' | \'deferred\' | \'unavailable\' | \'error\';\n    readonly resume: string | null;\n    readonly path: string | null;\n    readonly written: number;\n    readonly detail: string | null;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'ExternalAgent',
+    declaration: 'export type ExternalAgent = \'claude\' | \'codex\' | \'gemini\';',
+  },
+  {
+    name: 'ExternalSessionInfo',
+    declaration: 'export interface ExternalSessionInfo {\n    readonly agent: ExternalAgent;\n    readonly id: string;\n    readonly path: string;\n    readonly cwd: string | null;\n    readonly title: string;\n    readonly updatedAt: number;\n    readonly exported: boolean;\n}',
+  },
+  {
     name: 'FeedbackCategory',
     declaration: 'export type FeedbackCategory = \'task-result\' | \'instruction-following\' | \'product-interaction\' | \'service-stability\' | \'resource-cost\' | \'security-privacy-permission\' | \'other\';',
   },
@@ -6506,6 +6571,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'FinishReasonMap',
     declaration: 'export interface FinishReasonMap {\n    \'stop\': {\n        kind: \'stop\';\n    };\n    \'tool-calls\': {\n        kind: \'tool-calls\';\n    };\n    \'max-tokens\': {\n        kind: \'max-tokens\';\n    };\n    \'aborted\': {\n        kind: \'aborted\';\n        failure: LlmFailure;\n    };\n    \'error\': {\n        kind: \'error\';\n        failure: LlmFailure;\n    };\n}',
+  },
+  {
+    name: 'FollowState',
+    declaration: 'export interface FollowState {\n    readonly sessionId: string;\n    readonly agent: ExternalAgent;\n    readonly id: string;\n    readonly title: string;\n    readonly relayed: number;\n    readonly status: \'following\' | \'waiting\' | \'missing\';\n    readonly error: string | null;\n}',
   },
   {
     name: 'ForgeActionFailure',
@@ -7266,6 +7335,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'McpResourceRequest',
     declaration: 'export type McpResourceRequest = {\n    method: \'resources/list\' | \'resources/templates/list\';\n    cursor?: string;\n} | {\n    method: \'resources/read\';\n    uri: string;\n};',
+  },
+  {
+    name: 'MemoryExportState',
+    declaration: 'export interface MemoryExportState {\n    readonly agent: ExternalAgent;\n    readonly paths: readonly string[];\n    readonly facts: number;\n    readonly status: \'synced\' | \'disabled\' | \'error\';\n    readonly detail: string | null;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'MemorySource',
+    declaration: 'export interface MemorySource {\n    readonly agent: ExternalAgent;\n    readonly scope: \'user\' | \'project\';\n    readonly kind: \'instructions\' | \'memory\';\n    readonly path: string;\n    readonly bytes: number;\n    readonly updatedAt: number;\n}',
   },
   {
     name: 'Mergeability',

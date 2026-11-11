@@ -341,6 +341,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns append-only Session instances and emits the durable session event feed.',
   },
   {
+    key: 'agentBridge',
+    pkg: 'experimental-agent-bridge',
+    title: 'Experimental sessions and memory shared with other coding agents',
+    mode: 'core',
+    note: 'Follows Claude Code, Codex, and Gemini CLI sessions into Sessions, writes Sessions as their native sessions, and shares memory both ways.',
+  },
+  {
     key: 'coCanvas',
     pkg: 'experimental-co-canvas',
     title: 'Experimental shared browser for user marks and handoff',

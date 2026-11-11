@@ -37,6 +37,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-experimental-tool-read-video` | `read_video` | `ctx.tools`, `ctx.fs`, `ctx.subprocess`, `ctx.attachments + an image-capable route (frames)`, `ctx.speechToText (speech, at call time)`, `ffmpeg on the host` | `tool/call`, `durable attachment (frames)`, `tool/result` | - | Frames are the largest visual changes ranked by scene score (or uniformly spaced when configured) within the requested window and merged with the read_audio transcript into one timeline; a narrower window spends the same frame budget on a shorter span. |
 | `@deepseek-ai/dsh-vision-bridge` | `ask_image` | `ctx.tools`, `ctx.fs`, `ctx.llm`, `ctx.attachments`, `a configured image-capable model` | `tool/call`, `durable attachment (the asked image)`, `tool/result` | - | The image and question go to the configured image-capable model in an auxiliary request; only the text answer returns, so a text-only route can use images without image blocks entering its history. |
 | `@deepseek-ai/dsh-experimental-co-canvas` | `ask_user_to_mark` | `ctx.tools`, `ctx.systemPrompt`, `ctx.typert`, `a Chromium the Host can launch`, `the co-canvas Web tab` | `tool/call`, `tool/result`, `user marks attached to later tool results` | - | The question appears beside the live page in the co-canvas tab; the result lists the marks drawn before the user sends them, each grounded to the element under it. Marks drawn without a question arrive after the next tool result. |
+| `@deepseek-ai/dsh-experimental-agent-bridge` | `external_memory`, `external_sessions`, `open_external_session`, `read_external_session`, `share_session` | `ctx.tools`, `ctx.systemPrompt`, `ctx.typert`, `session files of Claude Code, Codex, or Gemini CLI on this machine` | `tool/call`, `tool/result`, `relayed messages of followed sessions`, `session and memory files of the other agents` | - | Opening a session follows it: messages the other agent adds later are relayed at the next step boundary. Sharing writes the conversation as a native session of each agent after every turn; Codex imports it through its own importer. |
 | `@deepseek-ai/dsh-memory` | `memory_read`, `memory_replace`, `memory_rewrite`, `memory_write`, `recall` | `ctx.tools`, `ctx.systemPrompt`, `ctx.llm (reflect pass)` | `tool/call`, `tool/result`, `MEMORY.md and episodic.db under the configured root` | - | MEMORY.md is also placed in every request as runtime context. After each turn the plugin stores the turn in episodic memory and, with `reflect` on, files durable facts it extracts with one auxiliary request on the agent's route. |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.workingDirectory`, `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
@@ -1415,6 +1416,156 @@ Ask the user to point at something in the shared browser, and wait for their ans
 Source: [`packages/experimental/co-canvas/src/index.ts`](../packages/experimental/co-canvas/src/index.ts)
 
 The question appears beside the live page in the co-canvas tab; the result lists the marks drawn before the user sends them, each grounded to the element under it. Marks drawn without a question arrive after the next tool result.
+
+<a id="deepseek-aidsh-experimental-agent-bridge"></a>
+
+## `@deepseek-ai/dsh-experimental-agent-bridge`
+
+### `external_memory`
+
+Read a memory or user-level instruction file of Claude Code, Codex, or Gemini CLI listed in <external_agent_memory>. Without a path, list them.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "A path listed in <external_agent_memory>."
+    }
+  }
+}
+```
+
+Source: [`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+### `external_sessions`
+
+List sessions of Claude Code, Codex, and Gemini CLI on this machine, best matches first, then sessions of the current workspace, then the newest. Use it when the user refers to work done in another coding agent.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "agent": {
+      "type": "string",
+      "description": "Only this agent.",
+      "enum": [
+        "claude",
+        "codex",
+        "gemini"
+      ]
+    },
+    "query": {
+      "type": "string",
+      "description": "Words to look for in the title or working directory."
+    }
+  }
+}
+```
+
+Source: [`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+### `open_external_session`
+
+Read another agent's session (the newest messages that fit) and keep following it: messages that agent adds later arrive in this conversation as <external_session_update>. Use read_external_session for older messages.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "agent": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex",
+        "gemini"
+      ]
+    },
+    "id": {
+      "type": "string",
+      "description": "Session id from external_sessions."
+    },
+    "follow": {
+      "type": "boolean",
+      "description": "Keep following new messages (default true)."
+    }
+  },
+  "required": [
+    "agent",
+    "id"
+  ]
+}
+```
+
+Source: [`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+### `read_external_session`
+
+Read a range of messages of another agent's session, by position (0 is the first message).
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "agent": {
+      "type": "string",
+      "enum": [
+        "claude",
+        "codex",
+        "gemini"
+      ]
+    },
+    "id": {
+      "type": "string"
+    },
+    "start": {
+      "type": "number"
+    },
+    "count": {
+      "type": "number",
+      "description": "Messages to read (default 20)."
+    }
+  },
+  "required": [
+    "agent",
+    "id",
+    "start"
+  ]
+}
+```
+
+Source: [`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+### `share_session`
+
+Share this conversation live with Claude Code, Codex, or Gemini CLI: it is written as a native session of that agent and kept up to date after each turn, and what the other agent adds there is relayed back here. Returns the command that continues it in that agent.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "claude",
+          "codex",
+          "gemini"
+        ]
+      }
+    }
+  },
+  "required": [
+    "agents"
+  ]
+}
+```
+
+Source: [`packages/experimental/agent-bridge/src/tools.ts`](../packages/experimental/agent-bridge/src/tools.ts)
+
+Opening a session follows it: messages the other agent adds later are relayed at the next step boundary. Sharing writes the conversation as a native session of each agent after every turn; Codex imports it through its own importer.
 
 <a id="deepseek-aidsh-memory"></a>
 

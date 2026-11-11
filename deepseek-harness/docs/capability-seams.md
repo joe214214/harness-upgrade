@@ -100,6 +100,8 @@ flowchart LR
   pkg_session_query["session-query"]
   pkg_session_query_sqlite["session-query-sqlite"]
   pkg_message_feedback["message-feedback"]
+  pkg_experimental_agent_bridge["experimental-agent-bridge"]
+  svc_agentBridge["ctx.agentBridge<br/>Experimental sessions and memory shared with other coding agents"]
   pkg_experimental_co_canvas["experimental-co-canvas"]
   svc_coCanvas["ctx.coCanvas<br/>Experimental shared browser for user marks and handoff"]
   pkg_experimental_api_speech_to_text["experimental-api-speech-to-text"]
@@ -361,6 +363,7 @@ flowchart LR
   pkg_deepseek_account --> svc_deepseekAccount
   pkg_deepseek_account_platform --> svc_deepseekAccount
   pkg_deepseek_llm_api_extensions --> svc_deepseekLlmApiExtensions
+  pkg_experimental_agent_bridge --> svc_agentBridge
   pkg_experimental_agent_team --> svc_agentTeams
   pkg_experimental_api_speech_to_text --> svc_speechController
   pkg_experimental_browser_use_chrome_devtools_mcp --> svc_browserUse
@@ -682,6 +685,7 @@ flowchart LR
 | `ctx.tokenMeter` | `core` | [`token-meter`](../packages/llm/token-meter) | - | [`compaction-basic`](../packages/compaction/compaction-basic) | - | Owns isolated per-session replay folds; pressure consumers share immutable revisioned measurements. |
 | `ctx.toolResultPruner` | `core` | [`compaction-tool-result-pruner`](../packages/compaction/compaction-tool-result-pruner) | - | [`compaction-basic`](../packages/compaction/compaction-basic) | - | Rewrites oversized current tool results through replayable single-node surface replacements before summary compaction. |
 | `ctx.sessions` | `core` | [`session`](../packages/core/session) | - | [`agent-loop`](../packages/core/agent-loop), [`agent`](../packages/core/agent), [`session-persistence`](../packages/session/session-persistence), [`session-query`](../packages/session-query/session-query), [`session-query-sqlite`](../packages/session-query/session-query-sqlite), [`subagent`](../packages/subagent/subagent), [`message-feedback`](../packages/feedback/message-feedback) | - | Owns append-only Session instances and emits the durable session event feed. |
+| `ctx.agentBridge` | `core` | [`experimental-agent-bridge`](../packages/experimental/agent-bridge) | - | - | - | Follows Claude Code, Codex, and Gemini CLI sessions into Sessions, writes Sessions as their native sessions, and shares memory both ways. |
 | `ctx.coCanvas` | `core` | [`experimental-co-canvas`](../packages/experimental/co-canvas) | - | - | - | Owns one Chromium the browser tools attach to; delivers grounded user marks with the next tool result and holds browser tools while the user has control. |
 | `ctx.speechController` | `core` | [`experimental-api-speech-to-text`](../packages/experimental/api-speech-to-text) | - | - | - | Validates bounded browser audio before provider dispatch. |
 | `ctx.sessionController` | `core` | [`api-session-controller`](../packages/api/session-controller) | - | - | - | Owns Session commands, cold reads, durable-event following, live control state, model catalogs, workspace opening, and Agent activation policy. |
