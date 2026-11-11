@@ -53,6 +53,10 @@ composer 菜单中的模型名称和推理等级均使用 400（regular）字重
 
 以 type-only 方式导入本包的 `/client` 声明，再通过 `ctx.slots.inject('conversation.input.model.label', () => ctx.slots.register({ name: 'conversation.input.model.label' }, ModelLabel))` 注册。`ModelLabel` 的 props 从 `PropsRuntime<'conversation.input.model.label'>` 派生；用提供方 ID 选择 CSS Module 类，并保留 `model.name` 作为文字。注册随声明和贡献插件的生命周期清理。不替换组件时，样式也可以在三个显示位置通过名称外层的 `data-provider-id` 和 `data-model-id` 属性定位。
 
+### 菜单操作行
+
+`conversation.input.model.manage` 是会话作用域的 `single` slot，渲染在根面板和模型面板底部，用于一个操作，例如跳到管理提供方和 API 密钥的位置。owner prop `close` 关闭菜单；打开其他界面前先调用它。没有贡献时不渲染任何内容。[settings-general](../ui-settings-general/README.zh.md) 贡献了**管理模型和 API 密钥**。
+
 ### 不可路由的会话
 
 目录可用性不会阻止使用已保存选择发送消息；请求执行负责报告凭据缺失或模型不可用。刷新及刷新失败期间保留上次显示的选择和分组。Host 重置时清空这些显示。退登后选择器隐藏账号提供方，同时保留已保存的提供方／模型 ID 和推理强度。再次登录且该模型可用时恢复目录名称。既有会话日志保持不变。

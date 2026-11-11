@@ -4,6 +4,7 @@
 export const zh = {
   'trigger': '设置',
   'shortcut.open': '打开设置',
+  'models.manage': '管理模型和 API 密钥',
   'desktop.update.available': '新版本',
   'desktop.update.checking': '正在检查更新…',
   'desktop.update.progress': '{percent}%',
@@ -53,6 +54,7 @@ export type SettingsKey = keyof typeof zh
 export const en = {
   'trigger': 'Settings',
   'shortcut.open': 'Open settings',
+  'models.manage': 'Manage models and API keys',
   'desktop.update.available': 'Update',
   'desktop.update.checking': 'Checking for updates…',
   'desktop.update.progress': '{percent}%',
@@ -99,6 +101,7 @@ export const en = {
 export const ja = {
   'trigger': '設定',
   'shortcut.open': '設定を開く',
+  'models.manage': 'モデルと API キーを管理',
   'desktop.update.available': '更新',
   'desktop.update.checking': '更新を確認中…',
   'desktop.update.progress': '{percent}%',
@@ -145,6 +148,7 @@ export const ja = {
 export const es = {
   'trigger': 'Configuración',
   'shortcut.open': 'Abrir configuración',
+  'models.manage': 'Administrar modelos y claves de API',
   'desktop.update.available': 'Actualizar',
   'desktop.update.checking': 'Buscando actualizaciones...',
   'desktop.update.progress': '{percent}%',
@@ -191,6 +195,7 @@ export const es = {
 export const fr = {
   'trigger': 'Paramètres',
   'shortcut.open': 'Ouvrir les paramètres',
+  'models.manage': 'Gérer les modèles et les clés API',
   'desktop.update.available': 'Mise à jour',
   'desktop.update.checking': 'Vérification des mises à jour…',
   'desktop.update.progress': '{percent}%',
@@ -237,6 +242,7 @@ export const fr = {
 export const de = {
   'trigger': 'Einstellungen',
   'shortcut.open': 'Einstellungen öffnen',
+  'models.manage': 'Modelle und API-Schlüssel verwalten',
   'desktop.update.available': 'Aktualisieren',
   'desktop.update.checking': 'Suche nach Updates…',
   'desktop.update.progress': '{percent}%',
@@ -283,6 +289,7 @@ export const de = {
 export const ru = {
   'trigger': 'Настройки',
   'shortcut.open': 'Открыть настройки',
+  'models.manage': 'Управление моделями и ключами API',
   'desktop.update.available': 'Обновить',
   'desktop.update.checking': 'Проверка обновлений…',
   'desktop.update.progress': '{percent}%',
@@ -329,6 +336,7 @@ export const ru = {
 export const pt = {
   'trigger': 'Configurações',
   'shortcut.open': 'Abrir configurações',
+  'models.manage': 'Gerenciar modelos e chaves de API',
   'desktop.update.available': 'Atualizar',
   'desktop.update.checking': 'Verificando atualizações…',
   'desktop.update.progress': '{percent}%',

@@ -26,6 +26,7 @@
     { "path": "../shortcuts/tsconfig.client.json" },
     { "path": "../modules" },
     { "path": "../product-analytics/tsconfig.client.json" },
-    { "path": "../ui-layout" }
+    { "path": "../ui-layout" },
+    { "path": "../ui-model-selection" }
   ]
 }

@@ -2642,7 +2642,7 @@ export interface ReconnectConfig {
 ## `@deepseek-ai/dsh-memory`
 
 - `inject`: `tools` · `systemPrompt`
-- `source`: [`packages/memory/memory/src/index.ts:49`](../packages/memory/memory/src/index.ts)
+- `source`: [`packages/memory/memory/src/index.ts:50`](../packages/memory/memory/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config; every field has a validated default. */
@@ -4795,7 +4795,7 @@ export type ApprovalPolicy = 'ask' | 'never'
 export interface Config {
   /** Provider of the image-capable model; empty uses the calling agent's provider. */
   provider?: string
-  /** Image-capable model that answers. */
+  /** Image-capable model that answers; empty picks one, so any configured model provider works. */
   model?: string
   /** Output token cap of one answer. */
   maxTokens?: number

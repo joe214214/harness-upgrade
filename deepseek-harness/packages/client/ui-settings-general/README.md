@@ -55,6 +55,10 @@ The General section holds the built-in Coding Tools and Current version rows alo
 
 On a loopback browser, the shell renders **Open configuration file** only when the Host confirms that a provider-owned local document can be prepared. The action opens that document in the native text editor (bypassing the browser file association on macOS). Remote browsers never register this native-open action, including on configured public deployments; their preferences persist through the Host settings service.
 
+### Model menu link
+
+While the settings shell is mounted, the composer model menu shows **Manage models and API keys** in its `conversation.input.model.manage` row. It closes the menu and opens Settings on the Models section, where API keys are entered and providers added.
+
 ### Onboarding steps
 
 The onboarding ledger projects in ascending order and mounts exactly one step at a time. Registrants own durable completion, capability readiness, copy, mutations, and their visible wrapper, so independently registered flows cannot stack and the shell does not become a second configuration fact source. Visible steps own their dialog chrome and app-root `inert` lifecycle.

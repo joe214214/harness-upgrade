@@ -53,6 +53,10 @@ Contributions must render non-interactive inline content, such as a colored name
 
 Import this package's `/client` declarations type-only, then register through `ctx.slots.inject('conversation.input.model.label', () => ctx.slots.register({ name: 'conversation.input.model.label' }, ModelLabel))`. Derive `ModelLabel` props from `PropsRuntime<'conversation.input.model.label'>`; use provider IDs to choose CSS Module classes and retain `model.name` as the text. Registration follows the declaration and contributing plugin lifetimes. Without a component replacement, styles can target the enclosing label's `data-provider-id` and `data-model-id` attributes in all three placements.
 
+### Menu action row
+
+`conversation.input.model.manage` is a session-scoped `single` slot rendered at the bottom of the root and model panes, for one action such as a link to where providers and API keys are managed. Its owner prop `close` closes the menu; call it before opening another surface. Without a contribution nothing renders. [settings-general](../ui-settings-general/README.md) contributes **Manage models and API keys**.
+
 ### Unroutable sessions
 
 Catalog availability does not block sending with a saved selection; request execution reports missing credentials or unavailable models. Refreshes and refresh failures retain the last displayed selection and groups. A Host reset clears that display. Sign-out hides the account provider from the picker while preserving the saved provider/model ID and reasoning effort. Signing in restores the catalog name when that model is available again. Existing session logs remain unchanged.

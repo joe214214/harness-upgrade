@@ -121,7 +121,7 @@ Copy-Item (Join-Path $Here 'dsh-mm.mjs') (Join-Path $Bin 'dsh-mm.mjs') -Force
 Add-UserPath $Bin
 
 if (-not $env:DEEPSEEK_API_KEY -and -not [Environment]::GetEnvironmentVariable('DEEPSEEK_API_KEY', 'User')) {
-  $secure = Read-Host 'DeepSeek API key (leave empty to set DEEPSEEK_API_KEY yourself)' -AsSecureString
+  $secure = Read-Host 'DeepSeek API key (leave empty to add keys later in Settings > Models)' -AsSecureString
   $key = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
   if ($key) { [Environment]::SetEnvironmentVariable('DEEPSEEK_API_KEY', $key, 'User') }
 }

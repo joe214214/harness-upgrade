@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount the plugin with a filesystem backend, an attachment store, and the LLM runtime, and name the image-capable model.
+Mount the plugin with a filesystem backend, an attachment store, and the LLM runtime. Without a configured model it picks one that accepts images from the models with an API key.
 
 ### Minimal configuration
 
@@ -34,13 +34,13 @@ Mount the plugin with a filesystem backend, an attachment store, and the LLM run
     - id: vision-bridge
       name: '@deepseek-ai/dsh-vision-bridge'
       config:
-        model: deepseek-flash
+        model: ''
 ```
 
 | Field | Default | Meaning |
 |---|---|---|
 | `provider` | `''` | Provider of the answering model; empty uses the calling agent's provider |
-| `model` | `deepseek-flash` | Image-capable model that answers; a model without image input is refused at call time |
+| `model` | `''` | Image-capable model that answers; empty uses the calling model when it accepts images, else the first image-capable model of `provider`, the caller's provider, then every provider; a configured model without image input is refused at call time |
 | `maxTokens` | `1500` | Output cap of one answer |
 | `timeoutMs` | `120000` | Deadline of one answer |
 

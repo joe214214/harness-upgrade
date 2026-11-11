@@ -38,6 +38,7 @@ import type { DesktopUpdateBridge } from '../types.ts'
 import { DesktopUpdateSource } from './desktop-update-source.ts'
 import { CloseLabel, HeaderContent, TriggerContent } from './chrome.tsx'
 import { GeneralSection } from './GeneralSection.tsx'
+import { ManageModelsLink } from './ManageModelsLink.tsx'
 import { CurrentVersionRow } from './CurrentVersionRow.tsx'
 import { DeveloperToolsRow, type DeveloperToolsRowInjected } from './DeveloperToolsRow.tsx'
 import { SettingsDocumentAction } from './SettingsDocumentAction.tsx'
@@ -228,7 +229,13 @@ export function apply(ctx: ClientContext): void {
         },
         inject: shellInjected,
       }, SettingsRoot)
-      return () => { disposeCommand(); disposeSlot() }
+      // The model menu links to the Models section, where API keys and providers are entered.
+      const disposeManage = ctx.slots.inject('conversation.input.model.manage', () => ctx.slots.register({
+        name: 'conversation.input.model.manage',
+        locale: NS,
+        inject: () => ({ openModels: () => { shellInstance.actions.openSection('models') } }),
+      }, ManageModelsLink))
+      return () => { disposeCommand(); disposeSlot(); disposeManage() }
     }))
 
   ctx.slots.inject('settings.trigger', () =>

@@ -83,7 +83,7 @@ EOF
 chmod +x "$install_dir/bin/dsh-mm"
 
 if [ -z "${DEEPSEEK_API_KEY:-}" ] && [ ! -f "$install_dir/env" ] && [ -t 0 ]; then
-  read -r -s -p "DeepSeek API key (leave empty to set DEEPSEEK_API_KEY yourself): " key; echo
+  read -r -s -p "DeepSeek API key (leave empty to add keys later in Settings > Models): " key; echo
   if [ -n "$key" ]; then
     (umask 077; printf 'export DEEPSEEK_API_KEY=%q\n' "$key" > "$install_dir/env")
   fi

@@ -80,3 +80,27 @@ it('refuses non-image files and a configured model without image input', async (
   const blind = await setup('blind')
   expect((await ask(blind.ctx, { file_path: 'shot.png', question: 'x' })).text).toContain('does not declare image input')
 })
+
+it('picks an image-capable model from any configured provider when none is configured', async () => {
+  const catalog: Record<string, LlmModelInfo[]> = {
+    text: [{ provider: 'text', id: 'plain', name: 'Plain', inputModalities: ['text'] }],
+    other: [
+      { provider: 'other', id: 'plain-2', name: 'Plain 2', inputModalities: ['text'] },
+      { provider: 'other', id: 'seer', name: 'Seer', inputModalities: ['text', 'image'] },
+    ],
+  }
+  const llm = {
+    listProviders: () => [{ id: 'text', name: 'Text' }, { id: 'other', name: 'Other' }, { id: 'locked', name: 'Locked' }],
+    listModels: (provider: string) => (catalog[provider] === undefined ? Promise.reject(new Error('no credentials')) : Promise.resolve(catalog[provider])),
+    resolveModelInfo: (provider: string, model: string) => {
+      const info = catalog[provider]?.find(m => m.id === model)
+      return info === undefined ? Promise.reject(new Error('unknown model')) : Promise.resolve(info)
+    },
+  }
+  const signal = new AbortController().signal
+  expect(await VisionBridge.pickVisionModel(llm, { provider: '', model: '' }, { signal })).toEqual({ provider: 'other', model: 'seer' })
+  expect(await VisionBridge.pickVisionModel(llm, { provider: 'other', model: 'seer' }, { signal })).toEqual({ provider: 'other', model: 'seer' })
+  await expect(VisionBridge.pickVisionModel(llm, { provider: 'text', model: 'plain' }, { signal })).rejects.toThrow('does not declare image input')
+  const blind = { ...llm, listProviders: () => [{ id: 'text', name: 'Text' }] }
+  await expect(VisionBridge.pickVisionModel(blind, { provider: '', model: '' }, { signal })).rejects.toThrow('add one in Settings > Models')
+})

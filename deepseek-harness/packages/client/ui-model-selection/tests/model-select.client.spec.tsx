@@ -98,6 +98,7 @@ describe('ModelSelect label slot', () => {
     })
     await runtime.root.declare({
       'conversation.input.model.label': { kind: 'single', scope: 'session', inline: true },
+      'conversation.input.model.manage': { kind: 'single', scope: 'session' },
     }, ({ renderSlot, SessionProvider }) => <SessionProvider session={session}>
       <ModelSelect locked={false} available directory={directory} load={vi.fn()}
         resolveText={resolveText} select={select} t={t} renderSlot={renderSlot} />
@@ -189,6 +190,7 @@ describe('ModelSelect catalog badges', () => {
     const session = runtime.sessions.retainFor(runtime.ctx, sessionId)
     await runtime.root.declare({
       'conversation.input.model.label': { kind: 'single', scope: 'session', inline: true },
+      'conversation.input.model.manage': { kind: 'single', scope: 'session' },
     }, ({ renderSlot, SessionProvider }) => <SessionProvider session={session}>
       <ModelSelect locked={false} available directory={createSnapshotStore(badged())} load={vi.fn()} resolveText={chinese}
         select={vi.fn()} t={t} renderSlot={renderSlot} />
@@ -201,6 +203,37 @@ describe('ModelSelect catalog badges', () => {
     } })
     expect(screen.getByRole('button', { name: '选择模型，当前 DeepSeek-V4.1-Flash' }).textContent).toBe('DeepSeek-V4.1-Flash [info]')
     expect(screen.queryByText('新')).toBeNull()
+  })
+})
+
+describe('ModelSelect action row', () => {
+  it('shows a contributed action under the menu, which closes the menu before it runs', async () => {
+    const runtime = await SlotTestRuntime.create()
+    onTestFinished(() => runtime.dispose())
+    const sessionId = SessionId('model-manage')
+    await runtime.sessions.add({ id: sessionId })
+    const session = runtime.sessions.retainFor(runtime.ctx, sessionId)
+    await runtime.root.declare({
+      'conversation.input.model.label': { kind: 'single', scope: 'session', inline: true },
+      'conversation.input.model.manage': { kind: 'single', scope: 'session' },
+    }, ({ renderSlot, SessionProvider }) => <SessionProvider session={session}>
+      <ModelSelect locked={false} available directory={createSnapshotStore(state())} load={vi.fn()} resolveText={resolveText}
+        select={vi.fn()} t={t} renderSlot={renderSlot} />
+    </SessionProvider>)
+    runtime.renderRoot()
+    const trigger = screen.getByRole('button', { name: /^选择模型/ })
+    fireEvent.click(trigger)
+    expect(screen.queryByRole('button', { name: 'Manage' })).toBeNull()
+    const opened = vi.fn()
+    await runtime.mount({ inject: ['slots'], apply(ctx) {
+      ctx.slots.inject('conversation.input.model.manage', () => ctx.slots.register({
+        name: 'conversation.input.model.manage',
+      }, ({ close }) => <button type="button" onClick={() => { close(); opened() }}>Manage</button>))
+    } })
+    fireEvent.click(screen.getByRole('button', { name: 'Manage' }))
+    expect(opened).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('button', { name: 'Manage' })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /^模型/ })).toBeNull()
   })
 })
 

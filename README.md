@@ -21,7 +21,7 @@
 
 ## Try it
 
-The full harness source is in this repository. One script installs its dependencies, builds it (about 5 minutes), and adds a `dsh-mm` command. Only a [DeepSeek API key](https://platform.deepseek.com/api_keys) is needed; the script asks for it.
+The full harness source is in this repository. One script installs its dependencies, builds it (about 5 minutes), and adds a `dsh-mm` command. A [DeepSeek API key](https://platform.deepseek.com/api_keys) is enough; the script asks for it, and it can be left empty to add keys for any provider in the app instead.
 
 Clone into the folder that should hold everything; the script keeps the harness and all its data side by side there (pass `-Root` / `--root` to choose another folder). Only the pnpm package store stays in its usual shared location.
 
@@ -52,6 +52,14 @@ dsh-mm headless "what error is in bug.webm?"  # one task, answer printed
 ```
 
 ![DSH Web UI reading a scanned PDF page with read_document](docs/web-ui-scanned-pdf.png)
+
+### Models and API keys
+
+The model menu under the message box picks the model for the conversation. **Manage models and API keys** at its bottom opens Settings → Models: enter a key for DeepSeek, or **Add model provider** for any of about 40 providers (Anthropic, OpenAI, Google Gemini, OpenRouter, …) or a custom OpenAI- or Anthropic-compatible endpoint, whose model list is fetched from the endpoint. Every new tool works on any model: `ask_image` picks an image-capable model that has a key when the conversation's model reads no images.
+
+| Model menu | Settings → Models |
+|---|---|
+| ![Model menu with Manage models and API keys](docs/models-menu.png) | ![Settings, Models section with DeepSeek and a custom provider](docs/models-settings.png) |
 
 ## Demos (real runs on the DeepSeek API)
 
@@ -137,7 +145,8 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 | Co-canvas (shared browser, marks, pause/take over) | Done, verified end to end on DeepSeek through the real Web UI; Windows uses the built-in Edge |
 | Agent bridge (open and follow Claude Code / Codex / Gemini CLI sessions, share live as their native sessions, two-way memory) | Done, verified end to end on DeepSeek through the Web UI with the real Codex and Gemini CLIs; resuming in Claude Code not exercised (needs a signed-in Claude Code) |
 | Computer use + desktop co-canvas (desktop view, window-grounded marks, Mark on screen, Ask the agent first) | Done, verified end to end on DeepSeek on a Linux X11 desktop; the Cua Driver runtime ships Windows binaries, Windows not yet exercised |
-| Subagents and the new packages | Planned: co-canvas marks and "Ask the agent first" go to whichever agent acts next, which can be a subagent, and memory reflects after every subagent turn; both should target the root conversation only |
+| Subagents and the new packages | Done: co-canvas marks and **Ask the agent first** go to the top-level conversation only (a subagent's browser and desktop actions still wait while the user holds control); memory stores and reflects on top-level turns only |
+| Other model providers | Verified end to end through a custom OpenAI-compatible provider added in Settings → Models: `read_document` on a scanned PDF answered on that route |
 | Speech output | Not started |
 | Upstream PR | Changes are separate commits on the imported release, ready to move to a fork |
 

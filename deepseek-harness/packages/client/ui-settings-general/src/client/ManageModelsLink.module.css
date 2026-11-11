@@ -1,0 +1,23 @@
+.link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 3px;
+  padding: 7px 8px;
+  border: none;
+  border-top: 1px solid var(--dsw-alias-separator-primary);
+  border-radius: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--dsw-alias-label-primary);
+}

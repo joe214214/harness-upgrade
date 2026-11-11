@@ -17,6 +17,12 @@ export interface ModelLabelOwner {
   selected: boolean
 }
 
+/** Owner share of the action row under the model list. */
+export interface ModelManageOwner {
+  /** Close the model menu; call it before opening another surface. */
+  close: () => void
+}
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /**
@@ -39,6 +45,20 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
       scope: 'session'
       inline: true
       owner: ModelLabelOwner
+    }
+    /**
+     * Action row under the model list, such as a link to where providers and API keys are managed.
+     * Renders nothing without a contribution.
+     * @example
+     * ctx.slots.inject('conversation.input.model.manage', () => ctx.slots.register(
+     *   { name: 'conversation.input.model.manage' },
+     *   ({ close }) => React.createElement('button', { onClick: close }, 'Manage'),
+     * ))
+     */
+    'conversation.input.model.manage': {
+      kind: 'single'
+      scope: 'session'
+      owner: ModelManageOwner
     }
   }
 }

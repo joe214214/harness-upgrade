@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-与文件系统后端、附件存储和 LLM 运行时一起挂载，并指定识图模型。
+与文件系统后端、附件存储和 LLM 运行时一起挂载。未配置模型时，它从已有 API 密钥的模型中挑一个能识图的。
 
 ### 最小配置
 
@@ -34,13 +34,13 @@ kind: "package-reference"
     - id: vision-bridge
       name: '@deepseek-ai/dsh-vision-bridge'
       config:
-        model: deepseek-flash
+        model: ''
 ```
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `provider` | `''` | 回答模型的提供方；为空时使用调用方 agent 的提供方 |
-| `model` | `deepseek-flash` | 负责回答的识图模型；未声明图片输入的模型会在调用时被拒绝 |
+| `model` | `''` | 负责回答的识图模型；为空时，调用方模型能识图就用它，否则依次取 `provider`、调用方提供方、所有提供方中第一个能识图的模型；配置的模型未声明图片输入时会在调用时被拒绝 |
 | `maxTokens` | `1500` | 一次回答的输出上限 |
 | `timeoutMs` | `120000` | 一次回答的时限 |
 

@@ -34,7 +34,7 @@ export const inject = ['tools', 'fs', 'llm', 'attachments', 'systemPrompt']
 export interface Config {
   /** Provider of the image-capable model; empty uses the calling agent's provider. */
   provider?: string
-  /** Image-capable model that answers. */
+  /** Image-capable model that answers; empty picks one, so any configured model provider works. */
   model?: string
   /** Output token cap of one answer. */
   maxTokens?: number
@@ -44,7 +44,7 @@ export interface Config {
 
 export const Config: z<Config> = z.object({
   provider: z.string().default(''),
-  model: z.string().default('deepseek-flash'),
+  model: z.string().default(''),
   maxTokens: z.natural().min(64).default(1500),
   timeoutMs: z.natural().min(1000).default(120_000),
 })
@@ -68,6 +68,56 @@ async function resolveTarget(ctx: Context, exec: ToolExecution, requested: strin
   if (info === undefined) throw new FsError(`cannot read "${target.displayPath}": not found`, 'FS_NOT_FOUND')
   if (info.type !== 'file') throw new FsError(`cannot read "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
   return target
+}
+
+/** Model routes the bridge can call; the LLM service implements it. */
+type ModelDirectory = Pick<Context['llm'], 'listProviders' | 'listModels' | 'resolveModelInfo'>
+
+/**
+ * Choose the image-capable model that answers: the configured model, then the caller's own model,
+ * then the first image-capable model of the caller's provider, then of any other configured provider.
+ * @param llm - the LLM service.
+ * @param cfg - resolved config.
+ * @param exec - the calling tool execution.
+ * @returns provider and model.
+ * @throws Error when no configured provider offers an image-capable model.
+ */
+export async function pickVisionModel(llm: ModelDirectory, cfg: Pick<ResolvedConfig, 'provider' | 'model'>, exec: Pick<ToolExecution, 'agent' | 'signal'>): Promise<{ provider: string; model: string }> {
+  const routed = exec.agent?.session.requestHeader()?.config
+  const callerProvider = routed?.provider ?? exec.agent?.options.provider
+  const callerModel = routed?.model ?? exec.agent?.options.model
+  const sees = async (provider: string, model: string): Promise<boolean> => {
+    try {
+      return (await llm.resolveModelInfo(provider, model, exec.signal)).inputModalities?.includes('image') ?? false
+    } catch (error) {
+      // An unknown model or an unconfigured provider is simply not a candidate.
+      void error
+      return false
+    }
+  }
+  const configuredProvider = cfg.provider || callerProvider
+  if (cfg.model !== '') {
+    if (configuredProvider !== undefined && await sees(configuredProvider, cfg.model)) {
+      return { provider: configuredProvider, model: cfg.model }
+    }
+    throw new Error(`ask_image: configured model "${cfg.model}" does not declare image input; configure an image-capable model`)
+  }
+  if (callerProvider !== undefined && callerModel !== undefined && await sees(callerProvider, callerModel)) {
+    return { provider: callerProvider, model: callerModel }
+  }
+  const providers = [...new Set([cfg.provider, callerProvider, ...llm.listProviders().map(p => p.id)])].filter((p): p is string => p !== undefined && p !== '')
+  for (const provider of providers) {
+    let models: Awaited<ReturnType<ModelDirectory['listModels']>> = []
+    try {
+      models = await llm.listModels(provider)
+    } catch (error) {
+      // A provider without credentials cannot list models; the next one is tried.
+      void error
+    }
+    const image = models.find(m => m.inputModalities?.includes('image') ?? false)
+    if (image !== undefined) return { provider, model: image.id }
+  }
+  throw new Error('ask_image: none of the configured model providers offers an image-capable model; add one in Settings > Models')
 }
 
 /**
@@ -107,14 +157,9 @@ export function apply(ctx: Context, config: Config): void {
       const data = await ctx.fs.readBytes(target, exec.signal, ctx.attachments.imageLimits.maxImageBytes)
       const ref = await ctx.attachments.saveImage({ data, mediaType, name: basename(target.displayPath) })
 
-      const provider = cfg.provider || exec.agent?.session.requestHeader()?.config.provider || exec.agent?.options.provider
-      if (!provider) throw new Error('ask_image: no provider configured and the calling route has none')
-      const info = await ctx.llm.resolveModelInfo(provider, cfg.model, exec.signal)
-      if (!(info.inputModalities?.includes('image') ?? false)) {
-        throw new Error(`ask_image: configured model "${cfg.model}" does not declare image input; configure an image-capable model`)
-      }
+      const { provider, model } = await pickVisionModel(ctx.llm, cfg, exec)
       const signal = AbortSignal.any([exec.signal, AbortSignal.timeout(cfg.timeoutMs)])
-      const call = await ctx.llm.prepareCall({ provider, model: cfg.model, maxTokens: cfg.maxTokens }, signal)
+      const call = await ctx.llm.prepareCall({ provider, model, maxTokens: cfg.maxTokens }, signal)
       const image: ImageBlock = { type: 'image', attachment: ref }
       const options: GenerateOptions = {
         ...call.config,
@@ -128,7 +173,7 @@ export function apply(ctx: Context, config: Config): void {
       const finish = assembler.finish
       if (finish.kind === 'error' || finish.kind === 'aborted') throw new Error(`ask_image: the vision model failed: ${finish.failure.message}`)
       const answer = assembler.blocks().map(b => (b.type === 'text' ? b.text : '')).join('').trim()
-      return { model: `${provider}/${cfg.model}`, answer: answer || '(the vision model returned no answer)' }
+      return { model: `${provider}/${model}`, answer: answer || '(the vision model returned no answer)' }
     },
     presentCall(args): GenericCallView {
       return { card: 'generic', title: `Ask about ${args.file_path}`, kind: 'read', locations: [{ path: args.file_path }] }
