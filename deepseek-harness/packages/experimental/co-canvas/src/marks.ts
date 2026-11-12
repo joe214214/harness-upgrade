@@ -57,19 +57,14 @@ export function describeMark(mark: CanvasMark): string {
   return `${where} on "${mark.title}" (${mark.url}): ${target}${note}`
 }
 
-/** Line that asks the agent to discuss marks before acting. */
-export const DISCUSS_LINE = 'The user wants to talk about these marks before you continue. Reply in text: answer their notes or confirm what you understood. '
-  + 'Do not operate the browser or the desktop until the user replies.'
-
 /**
- * Text delivered with the agent's next tool result, or as a message to discuss.
+ * Text delivered with the agent's next tool result.
  * @param marks - undelivered marks, oldest first.
  * @param handback - control the user held since the agent's last step, if any.
  * @param maxMarks - most marks listed; older ones are summarized by count.
- * @param discuss - the user sent these marks to discuss before the agent continues.
  * @returns the message body.
  */
-export function marksMessage(marks: readonly CanvasMark[], handback: CanvasControl | undefined, maxMarks: number, discuss = false): string {
+export function marksMessage(marks: readonly CanvasMark[], handback: CanvasControl | undefined, maxMarks: number): string {
   const lines: string[] = ['<user_marks>']
   if (handback === 'human') lines.push('The user operated the browser or desktop themselves and handed control back; the screen may have changed since your last step.')
   if (handback === 'paused') lines.push('The user paused you and resumed; the screen may have changed since your last step.')
@@ -79,12 +74,9 @@ export function marksMessage(marks: readonly CanvasMark[], handback: CanvasContr
     const surfaces = new Set(shown.map(m => m.surface))
     const what = surfaces.size > 1 ? 'the shared browser and the desktop' : surfaces.has('desktop') ? 'the desktop' : 'the shared browser'
     const units = surfaces.size > 1 ? 'page CSS pixels in the browser, screen points on the desktop' : surfaces.has('desktop') ? 'screen points' : 'page CSS pixels'
-    lines.push(discuss
-      ? `The user marked ${what} (coordinates in ${units}):`
-      : `The user marked ${what} (coordinates in ${units}). Treat these marks as instructions:`)
+    lines.push(`The user marked ${what} (coordinates in ${units}). Treat these marks as instructions:`)
     shown.forEach((mark, i) => { lines.push(`${i + 1}. ${describeMark(mark)}`) })
   }
-  if (discuss) lines.push(DISCUSS_LINE)
   lines.push('</user_marks>')
   return lines.join('\n')
 }

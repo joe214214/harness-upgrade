@@ -1002,6 +1002,7 @@ export const TYPE_LINK_EXEMPTIONS: Readonly<Record<string, string>> = {
   CanvasState: 'packages/experimental/co-canvas/README.md',
   MarkInput: 'packages/experimental/co-canvas/README.md',
   ScreenMarkOutcome: 'packages/experimental/co-canvas/README.md',
+  ModelChoice: 'packages/experimental/co-canvas/README.md',
   BridgeState: 'packages/experimental/agent-bridge/README.md',
   ExternalAgent: 'packages/experimental/agent-bridge/README.md',
   ProductEvent: 'Desktop event fields are owned by packages/client/product-analytics/README.md and src/events.ts',

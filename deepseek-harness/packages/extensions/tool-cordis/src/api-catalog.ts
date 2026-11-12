@@ -741,6 +741,16 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [],
       },
       {
+        signature: 'readonly brief: TaskBriefTracker',
+        description: 'What the agent is doing and where.',
+        parameters: [],
+      },
+      {
+        signature: 'readonly timeline: Timeline',
+        description: 'Screens after the agent\'s browser and desktop actions.',
+        parameters: [],
+      },
+      {
         signature: '@Remote({ mode: \'stream\' }) async* follow(signal: AbortSignal): AsyncIterable<CanvasState>',
         description: 'Follow the browser and collaboration state.',
         parameters: [{ name: 'signal', description: 'Client observation lifetime.' }],
@@ -760,10 +770,44 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['RemoteError when the desktop surface is disabled.'],
       },
       {
-        signature: '@Remote async discuss(): Promise<void>',
-        description: 'Send the undelivered marks to the agent to discuss before it continues. The agent\'s browser and desktop actions are refused until the user replies in the conversation or resumes.',
+        signature: '@Remote async ask(question: string, step?: string, marks?: readonly MarkInput[]): Promise<string>',
+        description: 'Ask a light model about the screen without stopping the agent. On the live view the undelivered marks are the subject and are taken out of the agent\'s delivery; on a timeline step, the marks drawn on that step\'s frame are. The question and answer are then left for the agent at its next step, without waking it or asking it to reply.',
+        parameters: [{ name: 'question', description: 'the user\'s question.' }, { name: 'step', description: 'timeline step the marks were drawn on; omitted for the live view.' }, { name: 'marks', description: 'marks on that step\'s frame, in its coordinates.' }],
+        returns: 'the answer\'s id; its text arrives through `follow`.',
+      },
+      {
+        signature: '@Remote async askModels(): Promise<ModelChoice[]>',
+        description: 'List the models that can answer side questions: every model of every provider with credentials.',
         parameters: [],
-        throws: ['RemoteError when no agent has used co-canvas or received a message yet.'],
+        returns: 'models, image-capable ones first.',
+      },
+      {
+        signature: '@Remote async setAskModel(choice: ModelChoice): Promise<void>',
+        description: 'Choose the model that answers side questions and summarizes the task brief.',
+        parameters: [{ name: 'choice', description: 'the model, as listed by `askModels`.' }],
+      },
+      {
+        signature: '@Remote async setPauseOnAsk(on: boolean): Promise<void>',
+        description: 'Pause the agent while a side question is answered, or let it keep working.',
+        parameters: [{ name: 'on', description: 'pause while answering.' }],
+      },
+      {
+        signature: '@Remote editGoal(goal: string): void',
+        description: 'Correct the task brief\'s goal; an empty goal returns to following the user\'s requests.',
+        parameters: [{ name: 'goal', description: 'the goal as the user wants it understood.' }],
+      },
+      {
+        signature: '@Remote async stepFrame(step: string): Promise<CanvasFrame>',
+        description: 'The screen after one timeline step.',
+        parameters: [{ name: 'step', description: 'step id.' }],
+        returns: 'the frame.',
+        throws: ['RemoteError when the step is no longer kept.'],
+      },
+      {
+        signature: '@Remote async rewind(step: string, marks: readonly MarkInput[], note: string): Promise<void>',
+        description: 'Send the agent back to an earlier step: its next browser or desktop action is refused, and it receives the step\'s screen with the user\'s marks, the actions it took since, and the request to return to that state before continuing. The agent resumes if it was paused.',
+        parameters: [{ name: 'step', description: 'step id.' }, { name: 'marks', description: 'marks on that step\'s frame, in its coordinates.' }, { name: 'note', description: 'what went wrong, in the user\'s words.' }],
+        throws: ['RemoteError when the step is gone or no agent has acted yet.'],
       },
       {
         signature: '@Remote async markScreen(delayMs: number): Promise<ScreenMarkOutcome>',
@@ -5885,6 +5929,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface BridgeState {\n    readonly sessions: readonly ExternalSessionInfo[];\n    readonly follows: readonly FollowState[];\n    readonly exports: readonly ExportState[];\n    readonly memorySources: readonly MemorySource[];\n    readonly memoryExports: readonly MemoryExportState[];\n}',
   },
   {
+    name: 'BriefAction',
+    declaration: 'export interface BriefAction {\n    readonly tool: string;\n    readonly action: string;\n    readonly app: string;\n    readonly window: string;\n    readonly url: string;\n}',
+  },
+  {
+    name: 'BriefSummarizer',
+    declaration: 'export type BriefSummarizer = (input: string, signal: AbortSignal) => Promise<{\n    goal?: string;\n    progress?: string;\n} | undefined>;',
+  },
+  {
     name: 'BrowserUseProviderName',
     declaration: 'export type BrowserUseProviderName = Branded<\'BrowserUseProviderName\'>;',
   },
@@ -5930,7 +5982,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CanvasState',
-    declaration: 'export interface CanvasState {\n    readonly connected: boolean;\n    readonly failure: string | null;\n    readonly url: string;\n    readonly title: string;\n    readonly control: CanvasControl;\n    readonly discussing: boolean;\n    readonly desktop: boolean;\n    readonly question: CanvasQuestion | null;\n    readonly pending: readonly CanvasMark[];\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n}',
+    declaration: 'export interface CanvasState {\n    readonly connected: boolean;\n    readonly failure: string | null;\n    readonly url: string;\n    readonly title: string;\n    readonly control: CanvasControl;\n    readonly brief: TaskBrief | null;\n    readonly answers: readonly SideAnswer[];\n    readonly askModel: ModelChoice | null;\n    readonly pauseOnAsk: boolean;\n    readonly timeline: readonly TimelineStep[];\n    readonly desktop: boolean;\n    readonly question: CanvasQuestion | null;\n    readonly pending: readonly CanvasMark[];\n    readonly viewport: {\n        readonly width: number;\n        readonly height: number;\n    };\n}',
   },
   {
     name: 'CanvasSurface',
@@ -7465,6 +7517,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ModelCatalogModel {\n    readonly id: string;\n    readonly name: string;\n    readonly description?: string;\n    readonly reasoning?: ModelReasoning;\n    readonly badge?: LlmModelBadge;\n}',
   },
   {
+    name: 'ModelChoice',
+    declaration: 'export interface ModelChoice {\n    readonly provider: string;\n    readonly model: string;\n    readonly name: string;\n    readonly image: boolean;\n}',
+  },
+  {
     name: 'ModelMessageSource',
     declaration: 'export interface ModelMessageSource extends AssistantProviderMetadata {\n    kind: \'model\';\n}',
   },
@@ -7574,11 +7630,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'OverlayMessage',
-    declaration: 'export type OverlayMessage = {\n    readonly type: \'hello\';\n} | {\n    readonly type: \'mark\';\n    readonly shape: \'box\' | \'point\';\n    readonly rect: {\n        x: number;\n        y: number;\n        width: number;\n        height: number;\n    };\n    readonly note: string;\n} | {\n    readonly type: \'control\';\n    readonly control: \'agent\' | \'paused\';\n} | {\n    readonly type: \'answer\';\n    readonly questionId: string;\n} | {\n    readonly type: \'discuss\';\n};',
+    declaration: 'export type OverlayMessage = {\n    readonly type: \'hello\';\n} | {\n    readonly type: \'mark\';\n    readonly shape: \'box\' | \'point\';\n    readonly rect: {\n        x: number;\n        y: number;\n        width: number;\n        height: number;\n    };\n    readonly note: string;\n} | {\n    readonly type: \'control\';\n    readonly control: \'agent\' | \'paused\';\n} | {\n    readonly type: \'answer\';\n    readonly questionId: string;\n} | {\n    readonly type: \'ask\';\n    readonly question: string;\n};',
   },
   {
     name: 'OverlayState',
-    declaration: 'export interface OverlayState {\n    readonly control: \'agent\' | \'paused\' | \'human\';\n    readonly discussing: boolean;\n    readonly pending: number;\n    readonly question: {\n        readonly id: string;\n        readonly text: string;\n    } | null;\n    readonly marks: readonly {\n        readonly shape: string;\n        readonly rect: {\n            x: number;\n            y: number;\n            width: number;\n            height: number;\n        };\n    }[];\n    readonly url: string;\n}',
+    declaration: 'export interface OverlayState {\n    readonly control: \'agent\' | \'paused\' | \'human\';\n    readonly answer: string | null;\n    readonly pending: number;\n    readonly question: {\n        readonly id: string;\n        readonly text: string;\n    } | null;\n    readonly marks: readonly {\n        readonly shape: string;\n        readonly rect: {\n            x: number;\n            y: number;\n            width: number;\n            height: number;\n        };\n    }[];\n    readonly url: string;\n}',
   },
   {
     name: 'OwnerIdentityRequest',
@@ -8366,7 +8422,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ScreenMarkOutcome',
-    declaration: 'export interface ScreenMarkOutcome {\n    readonly action: \'send\' | \'discuss\' | \'cancel\';\n    readonly marks: number;\n}',
+    declaration: 'export interface ScreenMarkOutcome {\n    readonly action: \'send\' | \'ask\' | \'cancel\';\n    readonly marks: number;\n}',
   },
   {
     name: 'SearchFileMatches',
@@ -9134,7 +9190,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SharedDesktop',
-    declaration: 'export class SharedDesktop {\n    constructor(private readonly options: SharedDesktopOptions);\n    async screenshot(): Promise<DesktopShot>;\n    async *frames(signal: AbortSignal): AsyncIterable<CanvasFrame>;\n    async capture(shape: MarkShape, rect: CanvasRect, focus: {\n        x: number;\n        y: number;\n    }, margin: number | undefined, shot?: DesktopShot): Promise<DesktopCapture>;\n    async close(): Promise<void>;\n}',
+    declaration: 'export class SharedDesktop {\n    constructor(private readonly options: SharedDesktopOptions);\n    async screenshot(): Promise<DesktopShot>;\n    async toFrame(shot: DesktopShot): Promise<CanvasFrame>;\n    async window(pid?: number, windowId?: string): Promise<DesktopWindow | undefined>;\n    async *frames(signal: AbortSignal): AsyncIterable<CanvasFrame>;\n    async capture(shape: MarkShape, rect: CanvasRect, focus: {\n        x: number;\n        y: number;\n    }, margin: number | undefined, shot?: DesktopShot): Promise<DesktopCapture>;\n    async close(): Promise<void>;\n}',
   },
   {
     name: 'SharedDesktopOptions',
@@ -9179,6 +9235,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ShellSandboxInfo',
     declaration: 'export interface ShellSandboxInfo {\n    mode: SandboxMode;\n    denied: boolean;\n    enforcement?: SandboxEnforcement;\n    runnerFailed?: boolean;\n}',
+  },
+  {
+    name: 'SideAnswer',
+    declaration: 'export interface SideAnswer {\n    readonly id: string;\n    readonly question: string;\n    readonly answer: string;\n    readonly status: \'answering\' | \'done\' | \'failed\';\n    readonly model: string;\n    readonly at: number;\n    readonly step?: number;\n    readonly marks: number;\n}',
   },
   {
     name: 'SignInAttemptId',
@@ -9359,6 +9419,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'StagedAttachment',
     declaration: 'export type StagedAttachment = {\n    readonly type: \'file\';\n    readonly attachment: FileAttachmentRef;\n} | {\n    readonly type: \'image\';\n    readonly attachment: ImageAttachmentRef;\n    readonly encodedBytes: number;\n};',
+  },
+  {
+    name: 'StepInput',
+    declaration: 'export type StepInput = Omit<TimelineStep, \'id\' | \'index\' | \'irreversible\'>;',
   },
   {
     name: 'StopShareRequest',
@@ -9585,6 +9649,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type TableValueOf<S extends DomainSpec, N extends keyof S[\'tables\']> = S[\'tables\'][N] extends DomainTableSpec<string, infer V> ? V : never;',
   },
   {
+    name: 'TaskBrief',
+    declaration: 'export interface TaskBrief {\n    readonly goal: string;\n    readonly goalEdited: boolean;\n    readonly app: string;\n    readonly window: string;\n    readonly url: string;\n    readonly progress: string;\n    readonly steps: number;\n}',
+  },
+  {
+    name: 'TaskBriefTracker',
+    declaration: 'export class TaskBriefTracker {\n    constructor(private readonly everySteps: number, private readonly summarize: BriefSummarizer | undefined, private readonly changed: () => void);\n    noteRequest(text: string): void;\n    noteAction(action: BriefAction): void;\n    edit(goal: string): void;\n    snapshot(): TaskBrief | null;\n    text(): string;\n}',
+  },
+  {
     name: 'TeamId',
     declaration: 'export type TeamId = Branded<\'TeamId\'>;',
   },
@@ -9731,6 +9803,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TimedUserQuestionResult',
     declaration: 'export type TimedUserQuestionResult = AskUserQuestionAnswer | {\n    pending: true;\n    callId: ToolCallId;\n};',
+  },
+  {
+    name: 'Timeline',
+    declaration: 'export class Timeline {\n    constructor(private readonly dir: string, private readonly maxSteps: number);\n    async record(input: StepInput, frame: CanvasFrame): Promise<TimelineStep>;\n    list(): TimelineStep[];\n    get(id: string): TimelineStep | undefined;\n    after(id: string): TimelineStep[];\n    async frame(id: string): Promise<CanvasFrame | undefined>;\n    async crops(id: string, marks: readonly MarkInput[], margin: number): Promise<Buffer[]>;\n}',
+  },
+  {
+    name: 'TimelineStep',
+    declaration: 'export interface TimelineStep {\n    readonly id: string;\n    readonly index: number;\n    readonly at: number;\n    readonly surface: CanvasSurface;\n    readonly tool: string;\n    readonly action: string;\n    readonly app: string;\n    readonly window: string;\n    readonly url: string;\n    readonly irreversible: boolean;\n}',
   },
   {
     name: 'ToastOptions',

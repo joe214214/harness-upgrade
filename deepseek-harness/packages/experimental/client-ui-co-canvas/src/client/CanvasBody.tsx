@@ -1,9 +1,15 @@
-/** Live view of the shared browser or the desktop, with marking tools, control buttons, discussion, and the agent's open question. */
-import { useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
+/**
+ * Live view of the shared browser or the desktop, with marking tools and control buttons, the task
+ * brief, side questions, the timeline of the agent's actions, and the agent's open question.
+ */
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { CanvasControl, CanvasFrame, CanvasMark, CanvasRect, CanvasSurface, MarkShape } from '@deepseek-ai/dsh-experimental-co-canvas/types'
+import type { CanvasControl, CanvasFrame, CanvasMark, CanvasRect, CanvasSurface, MarkInput, MarkShape } from '@deepseek-ai/dsh-experimental-co-canvas/types'
 import type { CanvasInjected } from './face.ts'
+import { Answers } from './Answers.tsx'
+import { BriefCard } from './Brief.tsx'
+import { TimelineStrip } from './TimelineStrip.tsx'
 import type {} from './locales.ts'
 import css from './CanvasBody.module.css'
 
@@ -18,7 +24,7 @@ const SCREEN_MARK_DELAY_MS = 3000
 /** Keys forwarded by name while the user holds control; printable keys are sent as text. */
 const NAMED_KEYS = new Set(['Enter', 'Backspace', 'Delete', 'Tab', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'])
 
-function MarkGlyph({ mark, index, head }: { readonly mark: Pick<CanvasMark, 'shape' | 'rect'>; readonly index?: number; readonly head: CanvasSurface }): ReactNode {
+function MarkGlyph({ mark, index, head }: { readonly mark: Pick<MarkInput, 'shape' | 'rect'>; readonly index?: number; readonly head: CanvasSurface }): ReactNode {
   const { x, y, width, height } = mark.rect
   const label = index === undefined ? null : <text className={css.label} x={x + 4} y={y - 6}>{index}</text>
   if (mark.shape === 'point') return <g><circle className={css.point} cx={x} cy={y} r={9} />{label}</g>
@@ -47,59 +53,106 @@ const shapeOf = (shape: MarkShape, start: Point, end: Point): MarkShape => (Math
  * @returns the panel.
  */
 export function CanvasBody({
-  t, useCanvas, useFrame, useDesktopFrame, mark, removeMark, setControl, input, answer, discuss, markScreen,
+  t, useCanvas, useFrame, useDesktopFrame, mark, removeMark, setControl, input, answer, markScreen,
+  ask, askModels, setAskModel, setPauseOnAsk, editGoal, stepFrame, rewind,
 }: PropsRuntime<'sidebar.right.pane.tab'> & PropsLocale<'coCanvas'> & InjectFace<CanvasInjected>): ReactNode {
   const state = useCanvas(s => s)
   const [view, setView] = useState<CanvasSurface>('browser')
   const [shape, setShape] = useState<MarkShape>('box')
   const [note, setNote] = useState('')
+  const [query, setQuery] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
+  const [step, setStep] = useState<string | null>(null)
+  const [past, setPast] = useState<{ step: string; frame: CanvasFrame } | null>(null)
+  const [stepMarks, setStepMarks] = useState<MarkInput[]>([])
   const control: CanvasControl = state?.control ?? 'agent'
   const human = control === 'human'
   const desktop = view === 'desktop' && state?.desktop === true
-  const discussing = state?.discussing ?? false
   const pending = state?.pending ?? []
   const question = state?.question ?? null
+  const steps = state?.timeline ?? []
+  const shownStep = step === null ? undefined : steps.find(s => s.id === step)
   const report = (action: Promise<unknown>): void => {
     setNotice(null)
     action.catch((error: unknown) => { setNotice(error instanceof Error ? error.message : String(error)) })
   }
-  const status = discussing ? t('discussing') : `${t(`control.${control}`)}${!desktop && state !== null && state.url !== '' ? ` · ${state.title || state.url}` : ''}`
+  useEffect(() => {
+    if (step === null) return undefined
+    let current = true
+    stepFrame(step).then((frame) => { if (current) setPast({ step, frame }) }, (error: unknown) => {
+      if (current) setNotice(error instanceof Error ? error.message : String(error))
+    })
+    return () => { current = false }
+  }, [step, stepFrame])
+  // Going back to a step pauses the agent, so the screen does not move on while the user looks back.
+  const selectStep = (id: string | null): void => {
+    setStep(id)
+    setStepMarks([])
+    setPast(null)
+    if (id !== null && control === 'agent') report(setControl('paused'))
+  }
+  const sendQuestion = (): void => {
+    report(step === null ? ask(query) : ask(query, step, stepMarks))
+    setQuery('')
+    setStepMarks([])
+  }
+  const sendRewind = (): void => {
+    if (step === null) return
+    report(rewind(step, stepMarks, query))
+    setQuery('')
+    selectStep(null)
+  }
+  const where = shownStep === undefined
+    ? (!desktop && state !== null && state.url !== '' ? ` · ${state.title || state.url}` : '')
+    : ` · ${t('timeline.step', { n: String(shownStep.index) })}`
+  const status = `${t(`control.${control}`)}${where}`
 
   return <div className={css.body}>
     {state?.desktop === true && <div className={css.group} role="radiogroup" aria-label={t('surface.label')}>
       {SURFACES.map(s => <Button key={s} size="sm" variant={s === view ? 'outline' : 'ghost'} role="radio" aria-checked={s === view}
-        onClick={() => { setView(s) }}>{t(`surface.${s}`)}</Button>)}
+        onClick={() => { setView(s); selectStep(null) }}>{t(`surface.${s}`)}</Button>)}
     </div>}
+    <BriefCard brief={state?.brief ?? null} editGoal={editGoal} report={report} t={t} />
     <div className={css.toolbar}>
       <div className={css.group} role="radiogroup" aria-label={t('tool.label')}>
         {SHAPES.map(s => <Button key={s} size="sm" variant={s === shape ? 'outline' : 'ghost'} role="radio" aria-checked={s === shape}
-          disabled={human && !desktop} onClick={() => { setShape(s) }}>{t(`tool.${s}`)}</Button>)}
+          disabled={human && !desktop && step === null} onClick={() => { setShape(s) }}>{t(`tool.${s}`)}</Button>)}
       </div>
       <div className={css.group}>
-        {control === 'agent' && !discussing && <Button size="sm" variant="ghost" onClick={() => { report(setControl('paused')) }}>{t('pause')}</Button>}
-        {(control === 'paused' || discussing) && <Button size="sm" variant="ghost" onClick={() => { report(setControl('agent')) }}>{t('resume')}</Button>}
+        {control === 'agent' && <Button size="sm" variant="ghost" onClick={() => { report(setControl('paused')) }}>{t('pause')}</Button>}
+        {control === 'paused' && <Button size="sm" variant="ghost" onClick={() => { selectStep(null); report(setControl('agent')) }}>{t('resume')}</Button>}
         {human
           ? <Button size="sm" variant="primary" onClick={() => { report(setControl('agent')) }}>{t('handBack')}</Button>
-          : <Button size="sm" variant="outline" onClick={() => { report(setControl('human')) }}>{t('take')}</Button>}
+          : <Button size="sm" variant="outline" onClick={() => { selectStep(null); report(setControl('human')) }}>{t('take')}</Button>}
       </div>
     </div>
-    <div className={css.status} data-control={discussing ? 'paused' : control}>{status}</div>
+    <div className={css.status} data-control={control}>{status}</div>
     {notice !== null && <div className={css.status} role="alert">{notice}</div>}
     {question !== null && <div className={css.question}>
       <span>{t('ask')} <strong>{question.text}</strong></span>
       <Button size="sm" variant="primary" onClick={() => { report(answer(question.id)) }}>{t('answer')}</Button>
     </div>}
-    <input className={css.note} value={note} placeholder={t('note')} aria-label={t('note')} disabled={human && !desktop}
+    <input className={css.note} value={note} placeholder={t('note')} aria-label={t('note')} disabled={human && !desktop && step === null}
       onChange={(event) => { setNote(event.target.value) }} />
-    {desktop && <div className={css.toolbar}>
+    {desktop && step === null && <div className={css.toolbar}>
       <Button size="sm" variant="outline" onClick={() => { report(markScreen(SCREEN_MARK_DELAY_MS)) }}>{t('markScreen')}</Button>
       <span className={css.status}>{t('markScreenHint')}</span>
     </div>}
-    <Surface key={desktop ? 'desktop' : 'browser'} t={t} useFrame={desktop ? useDesktopFrame : useFrame} surface={desktop ? 'desktop' : 'browser'}
-      pending={pending} shape={shape} note={note} replay={human && !desktop} failure={desktop ? null : state?.failure ?? null}
-      onMarked={() => { setNote('') }} mark={(value) => { report(mark(value)) }} input={(value) => { report(input(value)) }} />
-    {pending.length > 0 && <div className={css.pending}>
+    {step === null
+      ? <LiveSurface key={desktop ? 'desktop' : 'browser'} t={t} useFrame={desktop ? useDesktopFrame : useFrame} surface={desktop ? 'desktop' : 'browser'}
+        pending={pending} shape={shape} note={note} replay={human && !desktop} failure={desktop ? null : state?.failure ?? null}
+        onMarked={() => { setNote('') }} mark={(value) => { report(mark(value)) }} input={(value) => { report(input(value)) }} />
+      : <Surface t={t} frame={past?.step === step ? past.frame : null} surface={shownStep?.surface ?? 'desktop'} glyphs={stepMarks} shape={shape} note={note}
+        replay={false} failure={null} onMarked={() => { setNote('') }} mark={(value) => { setStepMarks(marks => [...marks, value]) }} input={() => {}} />}
+    <TimelineStrip steps={steps} selected={step} select={selectStep} t={t} />
+    {shownStep !== undefined && <div className={css.status}>{t('timeline.hint')}{shownStep.irreversible ? ` · ${t('timeline.irreversible')}` : ''}</div>}
+    <div className={css.askRow}>
+      <input className={css.note} value={query} placeholder={t('ask.placeholder')} aria-label={t('ask.placeholder')}
+        onChange={(event) => { setQuery(event.target.value) }} onKeyDown={(event) => { if (event.key === 'Enter') sendQuestion() }} />
+      <Button size="sm" variant="primary" onClick={sendQuestion}>{t('ask.button')}</Button>
+      {step !== null && <Button size="sm" variant="outline" onClick={sendRewind}>{t('rewind')}</Button>}
+    </div>
+    {step === null && pending.length > 0 && <div className={css.pending}>
       <div className={css.pendingTitle}>{t('pending')}</div>
       <ol className={css.list}>
         {pending.map(m => <li key={m.id} className={css.item}>
@@ -110,11 +163,9 @@ export function CanvasBody({
           <Button size="sm" variant="ghost" onClick={() => { report(removeMark(m.id)) }}>{t('remove')}</Button>
         </li>)}
       </ol>
-      {question === null && <div className={css.question}>
-        <span>{t('discussHint')}</span>
-        <Button size="sm" variant="primary" onClick={() => { report(discuss()) }}>{t('discuss')}</Button>
-      </div>}
     </div>}
+    <Answers answers={state?.answers ?? []} askModel={state?.askModel ?? null} pauseOnAsk={state?.pauseOnAsk ?? false}
+      askModels={askModels} setAskModel={setAskModel} setPauseOnAsk={setPauseOnAsk} report={report} t={t} />
   </div>
 }
 
@@ -126,9 +177,10 @@ function describe(m: CanvasMark, t: PropsLocale<'coCanvas'>['t']): string {
 
 interface SurfaceProps {
   readonly t: PropsLocale<'coCanvas'>['t']
-  readonly useFrame: InjectFace<CanvasInjected>['useFrame']
+  readonly frame: CanvasFrame | null
   readonly surface: CanvasSurface
-  readonly pending: readonly CanvasMark[]
+  /** Marks drawn on this frame, numbered in order. */
+  readonly glyphs: readonly Pick<MarkInput, 'shape' | 'rect'>[]
   readonly shape: MarkShape
   readonly note: string
   /** The user holds control of the browser: pointer and keys are replayed instead of drawing marks. */
@@ -139,9 +191,18 @@ interface SurfaceProps {
   readonly input: (input: Parameters<CanvasInjected['input']>[0]) => void
 }
 
-/** The live frame of one surface with its marks; remounted when the surface changes so each streams only while shown. */
-function Surface({ t, useFrame, surface: kind, pending, shape, note, replay, failure, onMarked, mark, input }: SurfaceProps): ReactNode {
-  const frame: CanvasFrame | null = useFrame(f => f)
+/** The live frame of one surface with its undelivered marks; remounted when the surface changes so each streams only while shown. */
+function LiveSurface(props: Omit<SurfaceProps, 'frame' | 'glyphs'> & {
+  readonly useFrame: InjectFace<CanvasInjected>['useFrame']
+  readonly pending: readonly CanvasMark[]
+}): ReactNode {
+  const frame: CanvasFrame | null = props.useFrame(f => f)
+  const glyphs = props.pending.filter(m => m.surface === props.surface)
+  return <Surface {...props} frame={frame} glyphs={glyphs} />
+}
+
+/** One frame with marks drawn on it: the live view, or the screen after a timeline step. */
+function Surface({ t, frame, surface: kind, glyphs, shape, note, replay, failure, onMarked, mark, input }: SurfaceProps): ReactNode {
   const [draft, setDraft] = useState<{ start: Point; end: Point } | null>(null)
   const surface = useRef<HTMLDivElement>(null)
 
@@ -182,7 +243,6 @@ function Surface({ t, useFrame, surface: kind, pending, shape, note, replay, fai
     event.preventDefault()
   }
 
-  const shown = pending.filter(m => m.surface === kind)
   const draftShape = draft === null ? null : shapeOf(shape, draft.start, draft.end)
   const draftMark = draft === null || draftShape === null ? null : { shape: draftShape, rect: rectOf(draftShape, draft.start, draft.end) }
 
@@ -195,7 +255,7 @@ function Surface({ t, useFrame, surface: kind, pending, shape, note, replay, fai
         <svg className={css.overlay} viewBox={`0 0 ${frame.width} ${frame.height}`} preserveAspectRatio="none">
           <defs><marker id={`co-canvas-head-${kind}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
             <path className={css.head} d="M0,0 L10,5 L0,10 z" /></marker></defs>
-          {shown.map(m => <MarkGlyph key={m.id} mark={m} index={pending.indexOf(m) + 1} head={kind} />)}
+          {glyphs.map((m, i) => <MarkGlyph key={i} mark={m} index={i + 1} head={kind} />)}
           {draftMark !== null && <MarkGlyph mark={draftMark} head={kind} />}
         </svg>
       </>}

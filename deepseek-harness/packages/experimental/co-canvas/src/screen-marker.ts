@@ -1,7 +1,7 @@
 /**
  * Marking on the real screen: a full-screen browser window shows a frozen
  * screenshot of the primary display, the user draws marks on it with notes,
- * and chooses to send them, discuss them first, or cancel.
+ * and chooses to send them, ask about them, or cancel.
  * @module @deepseek-ai/dsh-experimental-co-canvas/screen-marker
  */
 
@@ -20,7 +20,7 @@ export interface ScreenMarkerOptions {
 
 /** What the user did on the frozen screen. Mark rectangles are in screen points. */
 export interface ScreenMarkResult {
-  readonly action: 'send' | 'discuss' | 'cancel'
+  readonly action: 'send' | 'ask' | 'cancel'
   readonly marks: readonly MarkInput[]
 }
 
@@ -44,17 +44,17 @@ button[aria-pressed=true]{background:#e8ecff;border-color:#4d6bfe}button.primary
 input{width:260px;max-width:40vw;padding:5px 8px;border:1px solid #c8c8c8;border-radius:6px}.hint{color:#666;font-size:12px}
 </style></head><body><img src="/shot.png" alt=""><div class="marks"></div><div class="draft box" hidden></div>
 <div class="bar"><button data-shape="box"></button><button data-shape="arrow"></button><button data-shape="point"></button>
-<input class="note"><button class="primary send"></button><button class="discuss"></button><button class="cancel"></button><span class="hint"></span></div>
+<input class="note"><button class="primary send"></button><button class="ask"></button><button class="cancel"></button><span class="hint"></span></div>
 <script>
 (() => {
   const W = @W@, H = @H@
   const zh = (navigator.language || '').toLowerCase().startsWith('zh')
   const T = zh
-    ? { box: '框选', arrow: '箭头', point: '点选', note: '下一个标注的附言（可选）', send: '发送并继续', discuss: '先问 agent', cancel: '取消', hint: '在画面上拖动标注 · Esc 取消' }
-    : { box: 'Box', arrow: 'Arrow', point: 'Point', note: 'Note for the next mark (optional)', send: 'Send and continue', discuss: 'Ask the agent first', cancel: 'Cancel', hint: 'Drag on the screen to mark · Esc cancels' }
+    ? { box: '框选', arrow: '箭头', point: '点选', note: '下一个标注的附言（可选）', send: '发送并继续', ask: '问一下', cancel: '取消', hint: '在画面上拖动标注 · Esc 取消' }
+    : { box: 'Box', arrow: 'Arrow', point: 'Point', note: 'Note for the next mark (optional)', send: 'Send and continue', ask: 'Ask', cancel: 'Cancel', hint: 'Drag on the screen to mark · Esc cancels' }
   const $ = (s) => document.querySelector(s)
   const note = $('.note'), draft = $('.draft'), list = $('.marks'), bar = $('.bar')
-  note.placeholder = T.note; $('.send').textContent = T.send; $('.discuss').textContent = T.discuss; $('.cancel').textContent = T.cancel; $('.hint').textContent = T.hint
+  note.placeholder = T.note; $('.send').textContent = T.send; $('.ask').textContent = T.ask; $('.cancel').textContent = T.cancel; $('.hint').textContent = T.hint
   let shape = 'box', start = null, done = false
   const marks = []
   const shapes = [...document.querySelectorAll('[data-shape]')]
@@ -73,11 +73,11 @@ input{width:260px;max-width:40vw;padding:5px 8px;border:1px solid #c8c8c8;border
       const label = document.createElement('span'); label.textContent = String(i + 1); el.appendChild(label)
       list.appendChild(el)
     })
-    $('.send').disabled = $('.discuss').disabled = marks.length === 0
+    $('.send').disabled = $('.ask').disabled = marks.length === 0
   }
   const finish = (action) => { if (done) return; done = true; window.${SCREEN_MARKER_BINDING}(JSON.stringify({ action, marks: action === 'cancel' ? [] : marks })) }
   $('.send').addEventListener('click', () => finish('send'))
-  $('.discuss').addEventListener('click', () => finish('discuss'))
+  $('.ask').addEventListener('click', () => finish('ask'))
   $('.cancel').addEventListener('click', () => finish('cancel'))
   addEventListener('keydown', (e) => { if (e.key === 'Escape') finish('cancel') })
   addEventListener('pointerdown', (e) => {
@@ -179,7 +179,7 @@ export function parseScreenMarks(json: string): ScreenMarkResult {
   }
   if (typeof value !== 'object' || value === null) return { action: 'cancel', marks: [] }
   const { action, marks } = value as { action?: unknown; marks?: unknown }
-  if (action !== 'send' && action !== 'discuss') return { action: 'cancel', marks: [] }
+  if (action !== 'send' && action !== 'ask') return { action: 'cancel', marks: [] }
   const parsed: MarkInput[] = []
   for (const m of Array.isArray(marks) ? marks : []) {
     const { shape, rect, note } = m as { shape?: unknown; rect?: Record<string, unknown>; note?: unknown }

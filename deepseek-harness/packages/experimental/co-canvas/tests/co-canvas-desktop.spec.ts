@@ -102,11 +102,11 @@ describe('desktop surface', () => {
   it('accepts only well-formed marks from the marker page', () => {
     expect(parseScreenMarks('not json')).toEqual({ action: 'cancel', marks: [] })
     expect(parseScreenMarks(JSON.stringify({ action: 'send', marks: [] }))).toEqual({ action: 'cancel', marks: [] })
-    expect(parseScreenMarks(JSON.stringify({ action: 'discuss', marks: [
+    expect(parseScreenMarks(JSON.stringify({ action: 'ask', marks: [
       { shape: 'box', rect: { x: 1, y: 2, width: 3, height: 4 }, note: 'this' },
       { shape: 'oval', rect: { x: 1, y: 2, width: 3, height: 4 } },
       { shape: 'point', rect: { x: 'a', y: 2, width: 0, height: 0 } },
-    ] }))).toEqual({ action: 'discuss', marks: [{ shape: 'box', rect: { x: 1, y: 2, width: 3, height: 4 }, note: 'this' }] })
+    ] }))).toEqual({ action: 'ask', marks: [{ shape: 'box', rect: { x: 1, y: 2, width: 3, height: 4 }, note: 'this' }] })
   })
 })
 
@@ -122,10 +122,10 @@ describe.skipIf(executablePath === undefined)('marking on the real screen', () =
         await page.mouse.move(1000, 500, { steps: 4 })
         await page.mouse.up()
         await page.mouse.click(1200, 600)
-        await page.click('.discuss')
-      })()
+        await page.click('.ask')
+      })().catch(() => {}) // the marker closes the page once the marks are sent
     })
-    expect(result).toEqual({ action: 'discuss', marks: [
+    expect(result).toEqual({ action: 'ask', marks: [
       { shape: 'box', rect: { x: 600, y: 300, width: 400, height: 200 }, note: 'this square' },
       { shape: 'point', rect: { x: 1200, y: 600, width: 0, height: 0 } },
     ] })
@@ -134,7 +134,8 @@ describe.skipIf(executablePath === undefined)('marking on the real screen', () =
   it('reports a cancelled marking when the user presses Escape', async () => {
     const shot: DesktopShot = { png: await screenPng(), pixelWidth: 200, pixelHeight: 100, width: 800, height: 400 }
     const result = await markOnScreen(shot, { headless: true, executablePath }, AbortSignal.timeout(30_000), (page) => {
-      void page.keyboard.press('Escape')
+      // The marker closes the page as soon as it handles Escape, so the press itself may reject.
+      page.keyboard.press('Escape').catch(() => {})
     })
     expect(result).toEqual({ action: 'cancel', marks: [] })
   }, 60_000)

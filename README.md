@@ -11,7 +11,8 @@
 | Remember facts and past sessions across sessions | `dsh-memory` | `memory_*`, `recall` |
 | Work in a browser the user watches live, marks, and can take over | `dsh-experimental-co-canvas` + Web tab | `ask_user_to_mark` |
 | Operate the desktop (computer use) while the user watches, marks windows, or marks the frozen screen | co-canvas `desktop` + official `dsh-experimental-computer-use-cua-driver-native` | `cua_driver_native__*` |
-| Talk about a mark before acting: the agent answers, then waits for the user | co-canvas **Ask the agent first** | — |
+| Ask about what's on screen without stopping the agent: a light model you choose answers in seconds from a task brief recorded while the agent works | co-canvas **Ask** | — |
+| Go back to any earlier step of the agent's work, mark what went wrong, and send it back there | co-canvas **Timeline** | — |
 | Open a Claude Code, Codex, or Gemini CLI session here and follow it live; share this conversation as their native session; share memory both ways | `dsh-experimental-agent-bridge` + Web tab | `external_sessions`, `open_external_session`, `share_session`, `external_memory` |
 | (shared) command runner, cache, windows, image commits | `dsh-media-core` | — |
 
@@ -84,11 +85,11 @@ The model menu under the message box picks the model for the conversation. **Man
 |---|---|
 | ![Agent answering what Claude Code just did, from a relayed update](docs/agent-bridge-followed.png) | ![Shared with Codex and Gemini CLI with resume commands; followed sessions; other agents' sessions; memory](docs/agent-bridge-tab.png) |
 
-**Co-canvas on the desktop · Ask before acting.** With the official Cua Driver computer-use provider enabled, the same tab shows the desktop live. A real run on the DeepSeek API, with a To-do app holding two "Pay rent" rows: the agent listed the tasks with computer use; the user boxed the Thursday row in the desktop view with the note "Is this a duplicate…? check with me first" and pressed **Ask the agent first**. The agent answered in the conversation (the two rows differ in date and state; deleting the active one may be the opposite of what you want) and touched nothing — its desktop actions are refused while the discussion lasts. The user replied "Yes, delete the one I marked"; the discussion ended by itself and the agent clicked that row's Delete and verified "To-do (3)". **Mark on screen** freezes the real screen full screen for marking: boxing "Book dentist" there with "What is this one for? Just tell me" got a description and no action.
+**Co-canvas on the desktop · Ask on the side, go back in time.** With the official Cua Driver computer-use provider, the same tab shows the desktop live. A real run on the DeepSeek API with a flight-search app on the desktop: asked for the cheapest Shanghai→Beijing flight on 20 November, the agent worked the app with computer use while the tab's **Task** card filled itself in: the goal, the window "飞行网 · 机票查询", and a progress line. Mid-task the user boxed a result row and asked "这班几点到北京？是在哪个网站上？"; `deepseek-flash` answered in the tab in **3.1 s** ("HU7604 21:55 到达北京，¥640，在飞行网的机票查询页面上") while the agent kept working, and the question and answer reached the agent as information only. Then the user picked step 2 on the **Timeline** (the agent paused and the tab showed that step's screen), wrote "日期错了，我要的是 11月21日", and pressed **Went wrong here**: the agent went back, searched the 21st, and reported CA1832 at ¥540. Nothing was booked. **Mark on screen** freezes the real screen full screen for marking.
 
-| Box a window row on the desktop view | The agent answers without acting | Marking the frozen real screen |
+| Side question answered while the agent works | Back to step 2 on the timeline | The agent redid the search for the 21st |
 |---|---|---|
-| ![Desktop view with the Thursday Pay rent row boxed and Ask the agent first](docs/desktop-1-marked.png) | ![Agent reply listing the options, tab showing Discussing your marks](docs/desktop-2-discussed.png) | ![Full-screen marker over the real screen with the Book dentist row boxed](docs/desktop-3-mark-on-screen.png) |
+| ![Task card, desktop view, and the side answer in the Questions section](docs/desktop-1-side-question.png) | ![Paused on step 2 with its screen and the Went wrong here button](docs/desktop-2-timeline-step.png) | ![Agent reply with CA1832 at 540 after going back](docs/desktop-4-rewound.png) |
 
 | The agent asks; the user marks | The user corrects mid-task |
 |---|---|
@@ -130,8 +131,8 @@ Uniform sampling needs 6× the frames and 1.75× the input tokens to match chang
 | `read_audio` | Done, verified end to end with the real SenseVoice model (demo 2) |
 | Co-canvas (shared browser, marks, pause/take over) | Done, verified end to end on DeepSeek through the real Web UI; Windows uses the built-in Edge |
 | Agent bridge (open and follow Claude Code / Codex / Gemini CLI sessions, share live as their native sessions, two-way memory) | Done, verified end to end on DeepSeek through the Web UI with the real Codex and Gemini CLIs; resuming in Claude Code not exercised (needs a signed-in Claude Code) |
-| Computer use + desktop co-canvas (desktop view, window-grounded marks, Mark on screen, Ask the agent first) | Done, verified end to end on DeepSeek on a Linux X11 desktop; the Cua Driver runtime ships Windows binaries, Windows not yet exercised |
-| Subagents | Co-canvas marks and **Ask the agent first** go to the top-level conversation; a subagent's browser and desktop actions still wait while the user holds control. Memory stores and reflects on top-level turns only |
+| Computer use + desktop co-canvas (desktop view, window-grounded marks, Mark on screen, task brief, side questions, timeline and going back) | Done, verified end to end on DeepSeek on a Linux X11 desktop; the Cua Driver runtime ships Windows binaries, Windows not yet fully exercised |
+| Subagents | Co-canvas marks, side answers and the timeline belong to the top-level conversation; a subagent's browser and desktop actions still wait while the user holds control. Memory stores and reflects on top-level turns only |
 | Other model providers | Verified end to end through a custom OpenAI-compatible provider added in Settings → Models: `read_document` on a scanned PDF answered on that route |
 | Speech output | Not started |
 

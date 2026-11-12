@@ -1,5 +1,5 @@
 ---
-description: "Experimental co-canvas: a shared browser and desktop the user watches live, marks, discusses, and takes over while the agent works, with marks grounded to page elements or desktop windows and delivered with the agent's next tool result or as a message to discuss, for users and maintainers composing human-in-the-loop browser and computer use."
+description: "Experimental co-canvas: a shared browser and desktop the user watches live, marks, asks about, rewinds, and takes over while the agent works, with marks grounded to page elements or desktop windows, side questions answered by a light model, and a timeline of the agent's actions, for users and maintainers composing human-in-the-loop browser and computer use."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-co-canvas` lets the user work beside the agent in a shared browser and, with `desktop`, on the desktop. The user watches both live, marks them with a box, arrow or point and a note, and pauses the agent or takes over. Browser marks resolve to the element underneath; desktop marks name the window. Marks reach the agent with its next tool result, or, with **Ask the agent first**, as a message it answers before acting. **Mark on screen** freezes the real screen for direct marking. The agent can ask for a mark with `ask_user_to_mark`.
+`dsh-experimental-co-canvas` lets the user work beside the agent in a shared browser and, with `desktop`, on the desktop: watch both live, mark them, pause the agent, or take over. Marks resolve to the element or window underneath and reach the agent with its next tool result. **Ask** sends a question about the marks to a light model that answers within seconds from a task brief recorded while the agent works; the agent keeps working and gets the answer as information. A timeline keeps the screen after each action, so the user can send the agent back to any step.
 
 ## Table of Contents
 
@@ -65,6 +65,14 @@ Mount it with the co-canvas tab and a browser-use provider in attach mode that p
 | `desktopMaxFrameEdge` | `1600` | Longest edge of a live desktop frame in pixels |
 | `gatedDesktopTools` | Cua Driver action tools | Regular expression for the agent's desktop action tools; matching calls wait while the user holds control, like `gatedTools` |
 | `hiddenTools` | empty | Regular expression for global tools withdrawn from every agent through the tool registry's per-agent restriction, such as computer-use tools that duplicate the shared browser's; empty hides nothing |
+| `dataDir` | `~/.dsh-co-canvas` | Timeline frames and the tab's settings |
+| `askProvider` | empty | Provider of the side-question model; empty uses the first provider with an API key that offers it |
+| `askModel` | `deepseek-flash` | Model that answers side questions and summarizes the task brief, until the user picks another in the tab |
+| `askMaxTokens` | `600` | Output cap of one side answer |
+| `sideTimeoutMs` | `60000` | Deadline of one side answer |
+| `timelineMaxSteps` | `300` | Most timeline steps kept; older frames are deleted |
+| `timelineSettleMs` | `400` | Wait after an action before its screen is recorded |
+| `briefEverySteps` | `4` | Actions between refreshes of the task brief's summary |
 
 -----
 
@@ -92,15 +100,27 @@ The focus point of a mark is the centre of a box, the head of an arrow, or the p
 
 ### Delivery and control
 
-A `tools/post-execute` listener attaches undelivered marks, and any handback since the last delivery, to the result of the agent's next tool call as one additional user message; the agent loop logs it with the result. A `tools/pre-execute` listener holds calls whose name matches `gatedTools` or `gatedDesktopTools` until control returns to the agent; if the user marked the screen or operated it after the agent chose such a call, the call is refused with the marks instead of run, so a stale action never reaches the page; after a bare pause the call runs and the handback follows its result. If the browser failed to start, the listener refuses these calls with the launch error, which is also logged to the console and shown in the co-canvas tab. User input is replayed through Playwright and refused unless the user holds control. While the agent is paused, including during a discussion, `frames` and `desktopFrames` stop reading their source, so the view holds the last frame and the user marks a still picture; no desktop screenshot is taken meanwhile, and desktop marks are cropped from that frame. Resume or Take over streams live frames again.
+A `tools/post-execute` listener attaches undelivered marks, and any handback since the last delivery, to the result of the agent's next tool call as one additional user message; the agent loop logs it with the result. A `tools/pre-execute` listener holds calls whose name matches `gatedTools` or `gatedDesktopTools` until control returns to the agent; if the user marked the screen or operated it after the agent chose such a call, the call is refused with the marks instead of run, so a stale action never reaches the page; after a bare pause the call runs and the handback follows its result. If the browser failed to start, the listener refuses these calls with the launch error, which is also logged to the console and shown in the co-canvas tab. User input is replayed through Playwright and refused unless the user holds control. While the agent is paused, `frames` and `desktopFrames` stop reading their source, so the view holds the last frame and the user marks a still picture; no desktop screenshot is taken meanwhile, and desktop marks are cropped from that frame. Resume or Take over streams live frames again.
 
 ### Desktop surface
 
-With `desktop`, the service opens its own same-process Cua Driver runtime, separate from the computer-use provider's. `desktopFrames` streams JPEG frames of `get_desktop_state` screenshots, sized in screen points and scaled with sharp to `desktopMaxFrameEdge`. A desktop mark is grounded with `list_windows`: the frontmost visible window containing the focus point gives the title, application, pid, and window id, and the crop is cut from the screenshot the mark was drawn on. **Mark on screen** waits a few seconds, takes a screenshot, and shows it in a full-screen browser window with its own toolbar; the user draws marks with notes and chooses to send them, discuss them first, or cancel. The marker window always opens visibly, even beside a headless shared browser. The Web tab cannot replay input on the desktop: there the user takes over with the real mouse and keyboard, and the agent waits.
+With `desktop`, the service opens its own same-process Cua Driver runtime, separate from the computer-use provider's. `desktopFrames` streams JPEG frames of `get_desktop_state` screenshots, sized in screen points and scaled with sharp to `desktopMaxFrameEdge`. A desktop mark is grounded with `list_windows`: the frontmost visible window containing the focus point gives the title, application, pid, and window id, and the crop is cut from the screenshot the mark was drawn on. **Mark on screen** waits a few seconds, takes a screenshot, and shows it in a full-screen browser window with its own toolbar; the user draws marks with notes and chooses to send them, ask about them, or cancel. The marker window always opens visibly, even beside a headless shared browser. The Web tab cannot replay input on the desktop: there the user takes over with the real mouse and keyboard, and the agent waits.
 
-### Discussing marks
+### Task brief
 
-`discuss` takes the undelivered marks, pauses the agent, and steers its Session with one user message (source `dsh-co-canvas`, a `notice` with a one-line summary) that lists the marks and asks for a reply in text; crops follow on image-capable routes. While the discussion lasts, every gated browser or desktop call is refused at once instead of waiting, so a call already held by a pause returns and the agent can answer. The user's next own message in the Session, or Resume, ends the discussion without a handback note. Marks and discussions belong to the conversation the user sees: they go to the top-level agent that most recently ran a tool or received a user message, or else the most recently loaded top-level conversation. A subagent's browser and desktop actions still wait while the user holds control and are refused during a discussion, but its tool results carry no marks and its inbox does not end a discussion.
+The brief holds the goal, the application, window and page of the agent's last action, and a one-line progress summary. The goal starts as the user's request; location comes from each recorded action (the window the action named, or the frontmost one, through `list_windows`; the page title and URL in the browser). Every `briefEverySteps` actions, and after each new request, the side-question model rewrites goal and progress from the last three requests and twelve actions, off the agent's path. A goal the user edits in the tab is kept until cleared.
+
+### Side questions
+
+`ask` takes the undelivered marks out of the agent's delivery, or takes marks drawn on a timeline step's frame, and sends one request to the side-question model: the brief, the last eight actions, a description of each mark, and the marks' crops (the whole screen when nothing is marked) on image-capable models, with the model's least reasoning effort. The answer streams into the tab. The agent keeps working unless the user turned on pausing for questions. When the answer is complete, the question and answer are queued in the agent's inbox for its next step, without waking it, as a user message the agent is told not to answer. The model is chosen in the tab from every model of every provider with an API key and is kept in `dataDir` with the pause choice.
+
+### Timeline and going back
+
+A `tools/post-execute` listener records each gated call of the top-level agent: after `timelineSettleMs`, a JPEG of the browser page or the desktop, the tool, its arguments in one line, and the window or page. Recording runs while the model thinks; the next gated call waits for it, so each frame shows the screen its action left. Actions whose arguments name submitting, paying, ordering, sending, deleting, confirming or booking, or a key press of Enter, are flagged as possibly irreversible. Frames live under `dataDir/timeline`, which is emptied when the service starts. Selecting a step in the tab pauses the agent and shows that frame. `rewind` refuses the agent's next gated call once and steers its Session with the step, the user's marks and note, the actions taken since, and the request to return to that state before continuing; the agent resumes. Nothing is undone automatically.
+
+### Subagents
+
+Marks, side answers, rewinds and the timeline belong to the conversation the user sees: the top-level agent that most recently ran a tool or received a user message, or else the most recently loaded top-level conversation. A subagent's browser and desktop actions still wait while the user holds control, but its tool results carry no marks and are not recorded on the timeline.
 
 ### Source map
 
@@ -112,6 +132,9 @@ With `desktop`, the service opens its own same-process Cua Driver runtime, separ
 | [`src/marks.ts`](src/marks.ts) | Model-facing mark text |
 | [`src/desktop.ts`](src/desktop.ts) | Desktop screenshots, live frames, window grounding, crops |
 | [`src/screen-marker.ts`](src/screen-marker.ts) | Full-screen marking on a frozen screenshot |
+| [`src/brief.ts`](src/brief.ts) | Task brief and its summary request |
+| [`src/sidecar.ts`](src/sidecar.ts) | Side-question model choice and request |
+| [`src/timeline.ts`](src/timeline.ts) | Timeline steps, frames, crops, irreversible-action check |
 | [`src/types.ts`](src/types.ts) | Types shared with the Web tab |
 
 </details>
@@ -139,7 +162,7 @@ One paragraph in the system prompt, present only while `ask_user_to_mark` is vis
 ##### Verbatim guidance
 
 ```markdown
-The user watches your browser and desktop live and can mark things on them. Their marks arrive in <user_marks> after a tool result or as a message; they take priority over your plan. While the user holds control, your browser and desktop actions wait until it is handed back; an action chosen before the user's latest input is not run. When the user sends marks to discuss, answer in text before acting.
+The user watches your browser and desktop live and can mark things on them. Their marks arrive in <user_marks> after a tool result or as a message; they take priority over your plan. While the user holds control, your browser and desktop actions wait until it is handed back; an action chosen before the user's latest input is not run. The user may go back to an earlier step and mark what went wrong (<user_rewind>). Questions the user asks a separate assistant about the screen arrive as <user_side_question> for your information; do not answer them.
 ```
 
 #### Token effect
@@ -218,35 +241,63 @@ Only after a failed launch: one sentence plus the error per browser call.
 
 Append-only; the failure is the call's tool result.
 
-### Marks to discuss
+### Side questions
 
 #### What the model sees
 
-When the user sends marks to discuss, one user message arrives at the next step boundary, or starts a turn when the agent is idle; image-capable routes also receive up to `maxCropsPerMessage` crops. Until the user replies or resumes, every gated browser or desktop call fails without running, with the verbatim reason below.
+After the side-question model answers, one user message waits in the inbox and arrives at the agent's next step boundary, or before the user's next prompt when the agent is idle; it does not start a turn.
 
 ##### Example message
 
 ```markdown
-<user_marks>
-The user marked the desktop (coordinates in screen points):
-1. box at (910, 389), 668×62 on the desktop (screen points): window "To-do (4)" (pid 8111, window_id 4194307), at (344, 340) inside it — note: "Is this a duplicate of the other Pay rent? Check with me first"
-The user wants to talk about these marks before you continue. Reply in text: answer their notes or confirm what you understood. Do not operate the browser or the desktop until the user replies.
-</user_marks>
-```
-
-##### Verbatim reason for a held action
-
-```markdown
-This action was not run: the user wants to discuss their marks with you first. Reply to them in text and do not operate the browser or the desktop until they reply.
+<user_side_question>
+The user asked a separate assistant about the screen while you worked. This is for your information; do not answer it, and change your plan only if it shows you misunderstood the task.
+Question: 这班几点到北京？是在哪个网站上？
+Mark 1: box at (838, 362), 712×52 on the desktop (screen points): window "飞行网 · 机票查询" of Chromium-browser (pid 17432, window_id 4194307), at (18, 282) inside it
+Answer (deepseek-official/deepseek-flash): 标记的 HU7604 航班 21:55 到达北京，价格 ¥640，是在"飞行网"的机票查询页面上看到的。
+</user_side_question>
 ```
 
 #### Token effect
 
-Only when the user asks: about one line per mark plus two sentences, and the image cost of each crop; one sentence per refused call.
+Only when the user asks: the question, one line per mark, and the answer, as text. The side request itself is a separate model call outside the Session, billed to the side-question model.
 
 #### KV Cache effect
 
 Append-only; the message enters the Session history like any user message.
+
+### Going back to a step
+
+#### What the model sees
+
+One user message that starts or joins a turn, with up to `maxCropsPerMessage` crops of the marks on image-capable routes, and a refusal of the gated call the agent had already chosen.
+
+##### Example message
+
+```markdown
+<user_rewind step="2">
+The user went back to step 2 of your work, after you ran click pid=17432 window_id=4194307 element_index=14, and marked where it went wrong.
+The screen then: Chromium-browser · 飞行网 · 机票查询.
+The user says: "日期错了，我要的是 11月21日，不是 20 日。请从这里重新查。"
+What you did after that step, oldest first:
+3. scroll direction="down" pid=17432
+Return to the state of step 2 before continuing: undo or navigate back where you can. Actions such as submitting, paying, or sending cannot be undone; if you took one, tell the user instead of repeating it.
+</user_rewind>
+```
+
+##### Verbatim reason for the refused action
+
+```markdown
+This action was not run: the user went back to an earlier step of your work and marked what went wrong. Their message follows; re-plan from it.
+```
+
+#### Token effect
+
+Only when the user goes back: a few lines plus one line per later action, and each crop's image cost.
+
+#### KV Cache effect
+
+Append-only.
 
 ### Delivered marks
 
@@ -276,7 +327,9 @@ Append-only; the message follows the tool result it is attached to.
 <a id="known-limitations-and-deferred-work"></a>
 
 - **One shared browser per Host** — every Session that attaches uses the same browser, and one question can be open at a time.
-- **Marks are not stored outside the Session** — undelivered marks are lost when the Host restarts.
+- **Marks are not stored outside the Session** — undelivered marks are lost when the Host restarts, and the timeline starts empty.
+- **Going back does not undo** — the agent is told the earlier state and must return to it itself; submitted forms, payments, and sent messages stay done. The irreversible-action flag is a word match on tool arguments and can miss clicks that name no target.
+- **One timeline per Host** — steps of every top-level conversation share one timeline.
 - **Host-only browser** — the browser runs on the Host machine; remote execution environments are not supported.
 - **Top frame only** — the toolbar and hit testing cover the main document, not iframes.
 - **Visible to screenshots** — the agent's own page screenshots include the toolbar in a corner of the viewport.

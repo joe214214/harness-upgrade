@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/client-ui-co-canvas/README.md
 /:
-  en: 3c6689cee8652605
-  zh: abc7dc8f07a18763
+  en: 4448eb23c2d4d6cb
+  zh: 9089ce7bebc3946a
 /deepseek-ai-dsh-experimental-client-ui-co-canvas:
   en: 98eee443564f748d
   zh: f4fb639bdc78d6ca
 /deepseek-ai-dsh-experimental-client-ui-co-canvas/summary:
-  en: 121fe1c104628511
-  zh: 2a54191072b6001b
+  en: 409865e2417f33ae
+  zh: 677a8a6f62d1b401
 /deepseek-ai-dsh-experimental-client-ui-co-canvas/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
@@ -18,8 +18,8 @@
   en: 0cb269fbaad80b0c
   zh: e3191356cb402944
 /deepseek-ai-dsh-experimental-client-ui-co-canvas/understand-the-implementation:
-  en: 60945d129a350868
-  zh: 518e3cc87879ecf5
+  en: b3fa55194218e0aa
+  zh: 6d857644590b7340
 /deepseek-ai-dsh-experimental-client-ui-co-canvas/further-exploration:
   en: 20e8d183305fb06b
   zh: 2592f648e81a6fed

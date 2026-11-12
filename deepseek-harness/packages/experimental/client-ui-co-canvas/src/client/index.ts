@@ -42,7 +42,13 @@ function registerUi(ctx: Context): void {
     setControl: control => unwrap(remote.setControl(control)),
     input: input => unwrap(remote.input(input)),
     answer: id => unwrap(remote.answer(id)),
-    discuss: () => unwrap(remote.discuss()),
+    ask: (question, step, marks) => unwrap(remote.ask(question, step, marks)),
+    askModels: () => unwrap(remote.askModels()),
+    setAskModel: choice => unwrap(remote.setAskModel(choice)),
+    setPauseOnAsk: on => unwrap(remote.setPauseOnAsk(on)),
+    editGoal: goal => unwrap(remote.editGoal(goal)),
+    stepFrame: step => unwrap(remote.stepFrame(step)),
+    rewind: (step, marks, note) => unwrap(remote.rewind(step, marks, note)),
     markScreen: delayMs => unwrap(remote.markScreen(delayMs)),
   }
   ctx.effect(() => ctx.sidebarRightTabs.register({

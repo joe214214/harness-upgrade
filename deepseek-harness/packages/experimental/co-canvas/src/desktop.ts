@@ -109,6 +109,32 @@ export function windowAt(windows: readonly WindowRecord[], x: number, y: number)
 }
 
 /**
+ * The window an action was aimed at, or else the frontmost visible window.
+ * @param windows - `list_windows` records.
+ * @param pid - process the action named, when it named one.
+ * @param windowId - window the action named, when it named one.
+ * @returns the window, or undefined when none is visible.
+ */
+export function actionWindow(windows: readonly WindowRecord[], pid?: number, windowId?: string): DesktopWindow | undefined {
+  const visible = windows.filter(r => r.bounds !== undefined && r.minimized !== true && r.is_on_screen !== false)
+  const z = (r: WindowRecord): number => (typeof r.z_index === 'number' ? r.z_index : Number.NEGATIVE_INFINITY)
+  const named = windowId === undefined ? undefined : visible.find(r => String(r.window_id) === windowId)
+  const ofPid = pid === undefined ? [] : visible.filter(r => r.pid === pid)
+  const front = (list: WindowRecord[]): WindowRecord | undefined =>
+    list.reduce<WindowRecord | undefined>((a, r) => (a === undefined || z(r) > z(a) ? r : a), undefined)
+  const record = named ?? front(ofPid) ?? front(visible)
+  if (record?.bounds === undefined) return undefined
+  const b = record.bounds
+  return {
+    app: record.app_name ?? '',
+    title: record.title ?? '',
+    ...record.pid === undefined ? {} : { pid: record.pid },
+    ...record.window_id === undefined ? {} : { windowId: String(record.window_id) },
+    bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+  }
+}
+
+/**
  * SVG drawing one mark in red over a crop.
  * @param shape - mark kind.
  * @param rect - mark rectangle in crop pixels.
@@ -163,19 +189,39 @@ export class SharedDesktop {
   }
 
   /**
+   * Encode a screenshot as a JPEG frame scaled to the frame edge limit.
+   * @param shot - the screenshot.
+   * @returns the frame, sized in screen points.
+   */
+  async toFrame(shot: DesktopShot): Promise<CanvasFrame> {
+    const scale = Math.min(1, this.options.maxFrameEdge / Math.max(shot.pixelWidth, shot.pixelHeight))
+    const jpeg = await sharp(shot.png)
+      .resize(Math.max(1, Math.round(shot.pixelWidth * scale)))
+      .jpeg({ quality: this.options.frameQuality })
+      .toBuffer()
+    return { data: jpeg.toString('base64'), width: shot.width, height: shot.height }
+  }
+
+  /**
+   * Find the window an action was aimed at, or else the frontmost one.
+   * @param pid - process the action named.
+   * @param windowId - window the action named.
+   * @returns the window, or undefined when the runtime lists none.
+   */
+  async window(pid?: number, windowId?: string): Promise<DesktopWindow | undefined> {
+    const driver = await this.open()
+    const listed = await driver.callTool('list_windows', JSON.stringify({ on_screen_only: true }))
+    return actionWindow((JSON.parse(listed.structuredJson ?? '{}') as { windows?: WindowRecord[] }).windows ?? [], pid, windowId)
+  }
+
+  /**
    * Stream JPEG frames of the primary display.
    * @param signal - observation lifetime.
    * @returns frames sized in screen points, one per interval while read.
    */
   async* frames(signal: AbortSignal): AsyncIterable<CanvasFrame> {
     while (!signal.aborted) {
-      const shot = await this.screenshot()
-      const scale = Math.min(1, this.options.maxFrameEdge / Math.max(shot.pixelWidth, shot.pixelHeight))
-      const jpeg = await sharp(shot.png)
-        .resize(Math.max(1, Math.round(shot.pixelWidth * scale)))
-        .jpeg({ quality: this.options.frameQuality })
-        .toBuffer()
-      yield { data: jpeg.toString('base64'), width: shot.width, height: shot.height }
+      yield await this.toFrame(await this.screenshot())
       await new Promise<void>((resolve) => {
         const timer = setTimeout(done, this.options.frameIntervalMs)
         function done(): void { clearTimeout(timer); signal.removeEventListener('abort', done); resolve() }

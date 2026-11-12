@@ -1132,7 +1132,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-experimental-co-canvas`
 
 - `inject`: `tools` · `systemPrompt` · `typert`
-- `source`: [`packages/experimental/co-canvas/src/index.ts:65`](../packages/experimental/co-canvas/src/index.ts)
+- `source`: [`packages/experimental/co-canvas/src/index.ts:82`](../packages/experimental/co-canvas/src/index.ts)
 
 ```ts config-catalog
 /** Deployment settings of the shared browser and of mark delivery. */
@@ -1180,6 +1180,22 @@ export interface Config {
    * duplicate browser tools; empty hides nothing.
    */
   hiddenTools: string
+  /** Directory of the timeline's frames and of the panel's settings. */
+  dataDir: string
+  /** Provider of the side-question model; empty uses the first provider with credentials that offers it. */
+  askProvider: string
+  /** Model that answers side questions and summarizes the task brief, until the user picks another in the panel. */
+  askModel: string
+  /** Output token cap of one side answer. */
+  askMaxTokens: number
+  /** Deadline of one side answer. */
+  sideTimeoutMs: number
+  /** Most timeline steps kept; older frames are deleted. */
+  timelineMaxSteps: number
+  /** Wait after an action before its screen is recorded, so the screen has settled. */
+  timelineSettleMs: number
+  /** Actions between refreshes of the task brief's summary. */
+  briefEverySteps: number
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-co-canvas -->

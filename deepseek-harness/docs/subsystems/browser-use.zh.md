@@ -97,11 +97,59 @@ Owner of the shared browser and of the user's marks and control.
 @Remote({ mode: 'stream' }) desktopFrames(signal: AbortSignal): AsyncIterable<CanvasFrame>
 
 /**
- * Send the undelivered marks to the agent to discuss before it continues. The agent's
- * browser and desktop actions are refused until the user replies in the conversation or resumes.
- * @throws RemoteError when no agent has used co-canvas or received a message yet.
+ * Ask a light model about the screen without stopping the agent. On the live view the undelivered
+ * marks are the subject and are taken out of the agent's delivery; on a timeline step, the marks
+ * drawn on that step's frame are. The question and answer are then left for the agent at its next
+ * step, without waking it or asking it to reply.
+ * @param question - the user's question.
+ * @param step - timeline step the marks were drawn on; omitted for the live view.
+ * @param marks - marks on that step's frame, in its coordinates.
+ * @returns the answer's id; its text arrives through `follow`.
  */
-@Remote async discuss(): Promise<void>
+@Remote async ask(question: string, step?: string, marks?: readonly MarkInput[]): Promise<string>
+
+/**
+ * List the models that can answer side questions: every model of every provider with credentials.
+ * @returns models, image-capable ones first.
+ */
+@Remote async askModels(): Promise<ModelChoice[]>
+
+/**
+ * Choose the model that answers side questions and summarizes the task brief.
+ * @param choice - the model, as listed by `askModels`.
+ */
+@Remote async setAskModel(choice: ModelChoice): Promise<void>
+
+/**
+ * Pause the agent while a side question is answered, or let it keep working.
+ * @param on - pause while answering.
+ */
+@Remote async setPauseOnAsk(on: boolean): Promise<void>
+
+/**
+ * Correct the task brief's goal; an empty goal returns to following the user's requests.
+ * @param goal - the goal as the user wants it understood.
+ */
+@Remote editGoal(goal: string): void
+
+/**
+ * The screen after one timeline step.
+ * @param step - step id.
+ * @returns the frame.
+ * @throws RemoteError when the step is no longer kept.
+ */
+@Remote async stepFrame(step: string): Promise<CanvasFrame>
+
+/**
+ * Send the agent back to an earlier step: its next browser or desktop action is refused, and it
+ * receives the step's screen with the user's marks, the actions it took since, and the request to
+ * return to that state before continuing. The agent resumes if it was paused.
+ * @param step - step id.
+ * @param marks - marks on that step's frame, in its coordinates.
+ * @param note - what went wrong, in the user's words.
+ * @throws RemoteError when the step is gone or no agent has acted yet.
+ */
+@Remote async rewind(step: string, marks: readonly MarkInput[], note: string): Promise<void>
 
 /**
  * Mark the real screen: after a delay, show a frozen screenshot full screen and collect marks on it.

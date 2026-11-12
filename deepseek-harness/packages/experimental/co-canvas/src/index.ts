@@ -1,13 +1,16 @@
 /**
- * Co-canvas: the user watches the agent's browser live, marks elements on it,
+ * Co-canvas: the user watches the agent's browser and desktop live, marks them,
  * and pauses or takes control. Marks reach the agent with its next tool result,
- * grounded to the element under each mark; the agent can also ask the user to
- * mark something with `ask_user_to_mark`.
+ * grounded to the element or window under each mark; the agent can also ask the
+ * user to mark something with `ask_user_to_mark`. Side questions about the screen
+ * are answered by a light model from a task brief, and every browser or desktop
+ * action is kept on a timeline the user can go back to.
  * @module @deepseek-ai/dsh-experimental-co-canvas
  */
 
 import { randomUUID } from 'node:crypto'
-import { tmpdir } from 'node:os'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Service } from '@deepseek-ai/cordis'
 import type { Context } from '@deepseek-ai/cordis'
@@ -15,6 +18,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-attachment'
 import { boundContextSummary, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, ContextFormed } from '@deepseek-ai/dsh-llm'
+import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { STORED_IMAGE_SCHEMA, imageBlock, routeAcceptsImages } from '@deepseek-ai/dsh-media-core'
 import type { StoredImage } from '@deepseek-ai/dsh-media-core'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
@@ -29,12 +33,25 @@ import type { DesktopShot } from './desktop.ts'
 import { markOnScreen } from './screen-marker.ts'
 import type { Page } from 'playwright-core'
 import type { OverlayMessage, OverlayState } from './overlay.ts'
-import { marksMessage } from './marks.ts'
-import type { CanvasControl, CanvasFrame, CanvasInput, CanvasMark, CanvasQuestion, CanvasState, MarkInput, ScreenMarkOutcome } from './types.ts'
+import { describeMark, marksMessage } from './marks.ts'
+import { BRIEF_SYSTEM, TaskBriefTracker, parseBriefSummary } from './brief.ts'
+import { Timeline, describeArgs } from './timeline.ts'
+import { askSide, listChoices, resolveChoice } from './sidecar.ts'
+import type { SideModels } from './sidecar.ts'
+import type {
+  CanvasControl, CanvasFrame, CanvasInput, CanvasMark, CanvasQuestion, CanvasState, CanvasSurface, MarkInput, ModelChoice,
+  ScreenMarkOutcome, SideAnswer, TimelineStep,
+} from './types.ts'
 
 export type * from './types.ts'
-export { DISCUSS_LINE, describeMark, describeTarget, describeWindow, marksMessage } from './marks.ts'
-export { SharedDesktop, markSvg, openCuaDriver, windowAt } from './desktop.ts'
+export { describeMark, describeTarget, describeWindow, marksMessage } from './marks.ts'
+export { BRIEF_SYSTEM, TaskBriefTracker, parseBriefSummary } from './brief.ts'
+export type { BriefAction, BriefSummarizer } from './brief.ts'
+export { Timeline, cropFrame, describeArgs, looksIrreversible } from './timeline.ts'
+export type { StepInput } from './timeline.ts'
+export { SIDE_SYSTEM, askSide, listChoices, resolveChoice } from './sidecar.ts'
+export type { SideModels, SideRequest } from './sidecar.ts'
+export { SharedDesktop, actionWindow, markSvg, openCuaDriver, windowAt } from './desktop.ts'
 export type { DesktopCapture, DesktopDriver, DesktopShot, DesktopToolResult, SharedDesktopOptions } from './desktop.ts'
 export { SCREEN_MARKER_BINDING, markOnScreen, parseScreenMarks } from './screen-marker.ts'
 export type { ScreenMarkResult, ScreenMarkerOptions } from './screen-marker.ts'
@@ -106,6 +123,22 @@ export interface Config {
    * duplicate browser tools; empty hides nothing.
    */
   hiddenTools: string
+  /** Directory of the timeline's frames and of the panel's settings. */
+  dataDir: string
+  /** Provider of the side-question model; empty uses the first provider with credentials that offers it. */
+  askProvider: string
+  /** Model that answers side questions and summarizes the task brief, until the user picks another in the panel. */
+  askModel: string
+  /** Output token cap of one side answer. */
+  askMaxTokens: number
+  /** Deadline of one side answer. */
+  sideTimeoutMs: number
+  /** Most timeline steps kept; older frames are deleted. */
+  timelineMaxSteps: number
+  /** Wait after an action before its screen is recorded, so the screen has settled. */
+  timelineSettleMs: number
+  /** Actions between refreshes of the task brief's summary. */
+  briefEverySteps: number
 }
 
 /** Model-facing reason for a browser or desktop action that was chosen before the user's latest input. */
@@ -128,9 +161,18 @@ export const DESKTOP_ACTIONS = '^(cua_driver_native__|mcp__cua-driver-mcp__)(cli
   + '|parallel_mouse_drag|type_text|press_key|hotkey|set_value|scroll|launch_app|kill_app|bring_to_front|set_window_frame|invoke_menu|move_cursor'
   + '|clipboard_write|replay_trajectory)$'
 
-/** Model-facing reason for a browser or desktop action refused while the user discusses marks. */
-export const DISCUSS_HOLD = 'This action was not run: the user wants to discuss their marks with you first. '
-  + 'Reply to them in text and do not operate the browser or the desktop until they reply.'
+/** Model-facing reason for a browser or desktop action refused because the user went back to an earlier step. */
+export const REWOUND = 'This action was not run: the user went back to an earlier step of your work and marked what went wrong. '
+  + 'Their message follows; re-plan from it.'
+
+/** Settings the user changes in the panel, kept across restarts. */
+interface PanelSettings {
+  readonly askModel?: ModelChoice
+  readonly pauseOnAsk?: boolean
+}
+
+/** Most side answers kept for the panel. */
+const MAX_ANSWERS = 50
 
 const optionalString = z.union([z.string().min(1), z.const(undefined)])
 
@@ -199,6 +241,14 @@ export default class CoCanvas extends TypertRemoteService {
     desktopMaxFrameEdge: z.natural().min(320).default(1600),
     gatedDesktopTools: z.string().min(1).default(DESKTOP_ACTIONS),
     hiddenTools: z.string().default(''),
+    dataDir: z.string().min(1).default(join(homedir(), '.dsh-co-canvas')),
+    askProvider: z.string().default(''),
+    askModel: z.string().min(1).default('deepseek-flash'),
+    askMaxTokens: z.natural().min(64).default(600),
+    sideTimeoutMs: z.natural().min(1000).default(60_000),
+    timelineMaxSteps: z.natural().min(1).default(300),
+    timelineSettleMs: z.natural().default(400),
+    briefEverySteps: z.natural().min(1).default(4),
   })
 
   /** The shared Chromium the agent's browser tools attach to. */
@@ -216,11 +266,21 @@ export default class CoCanvas extends TypertRemoteService {
   private failure: string | undefined
   /** The primary display, when {@link Config.desktop} is on. */
   readonly desktop: SharedDesktop | undefined
-  /** The user sent marks to discuss; gated actions are refused until the user replies or resumes. */
-  private discussing = false
-  /** Agent that most recently ran a tool or received a user message; discussions go to it. */
+  /** Top-level agent that most recently ran a tool or received a user message; side answers and rewinds go to it. */
   private agent: Agent | undefined
   private screenMarking = false
+  /** What the agent is doing and where. */
+  readonly brief: TaskBriefTracker
+  /** Screens after the agent's browser and desktop actions. */
+  readonly timeline: Timeline
+  private answers: SideAnswer[] = []
+  /** The user's choice of side-question model; undefined uses the configured one. */
+  private askChoice: ModelChoice | undefined
+  private pauseOnAsk = false
+  /** The user went back to an earlier step: the agent's next gated action is refused once. */
+  private rewound = false
+  /** Recording of the latest action's screen; the next gated action waits for it. */
+  private capturing: Promise<void> = Promise.resolve()
 
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'coCanvas', { namespace: 'coCanvas' })
@@ -244,6 +304,9 @@ export default class CoCanvas extends TypertRemoteService {
         openDriver: openCuaDriver,
       })
       : undefined
+    this.timeline = new Timeline(join(config.dataDir, 'timeline'), config.timelineMaxSteps)
+    const summarize = (input: string, signal: AbortSignal): ReturnType<CoCanvas['summarizeBrief']> => this.summarizeBrief(input, signal)
+    this.brief = new TaskBriefTracker(config.briefEverySteps, summarize, () => { this.changed() })
 
     // MCP tools are registered as `mcp__<server>__<tool>`, so the default also matches a prefixed name.
     const gated = new RegExp(config.gatedTools, 'u')
@@ -257,10 +320,15 @@ export default class CoCanvas extends TypertRemoteService {
         const down = await this.launchFailure(exec.signal)
         if (down !== undefined) return { kind: 'deny', reason: `${BROWSER_DOWN}\n${down}` }
       }
-      if (this.control !== 'agent' && !this.discussing) await this.untilAgentControl(exec.signal)
-      if (this.discussing) return { kind: 'deny', reason: DISCUSS_HOLD }
+      if (this.control !== 'agent') await this.untilAgentControl(exec.signal)
       // Marks belong to the conversation the user sees; a subagent's action waits for control but takes none of them.
       if (!root) return next()
+      // The previous action's screen is recorded before this one changes it.
+      await this.capturing
+      if (this.rewound) {
+        this.rewound = false
+        return { kind: 'deny', reason: REWOUND }
+      }
       // An action chosen before the user's latest marks, or before the user operated the screen, is not run.
       // A bare pause changes nothing on the screen, so the action runs and the handback follows its result.
       if (this.pending.length === 0 && this.handback !== 'human') return next()
@@ -271,7 +339,7 @@ export default class CoCanvas extends TypertRemoteService {
       this.carried.push(...taken.pending.filter(p => p.crop !== undefined))
       return { kind: 'deny', reason: `${STALE_ACTION}\n${marks}` }
     })
-    // The user's own reply ends a discussion: the agent may act on what they said.
+    // The user's own request becomes part of the task brief.
     // Hidden tools are withdrawn per agent through the tool registry's own restriction, so their
     // definitions leave every request; the restriction ends with the agent.
     if (config.hiddenTools !== '') {
@@ -285,14 +353,18 @@ export default class CoCanvas extends TypertRemoteService {
     ctx.on('agent/inbox/inserted', ({ agent, message }) => {
       if (message.source.kind !== 'user' || !this.isRoot(agent)) return
       this.agent = agent
-      if (!this.discussing) return
-      this.discussing = false
-      this.control = 'agent'
-      this.changed()
+      this.brief.noteRequest(message.content.map(b => (b.type === 'text' ? b.text : '')).join('\n'))
     })
     ctx.on('tools/post-execute', async (exec, _result, next) => {
       const downstream = await next()
       if (!this.isRoot(exec.agent)) return downstream
+      const surface: CanvasSurface | undefined = gated.test(exec.name) ? 'browser' : gatedDesktop.test(exec.name) ? 'desktop' : undefined
+      if (surface !== undefined) {
+        // Recorded after the result returns, while the model thinks; the next gated action waits for it.
+        this.capturing = this.capturing.then(() => this.recordStep(exec, surface)).catch((error: unknown) => {
+          console.error('[co-canvas]', `could not record a timeline step: ${String(error)}`)
+        })
+      }
       const context = await this.takeDelivery(exec)
       if (context === undefined) return downstream
       return { ...downstream, additionalContexts: [...downstream.additionalContexts ?? [], context] }
@@ -306,13 +378,17 @@ export default class CoCanvas extends TypertRemoteService {
         ? ''
         : 'The user watches your browser and desktop live and can mark things on them. Their marks arrive in <user_marks> after a tool result '
           + 'or as a message; they take priority over your plan. While the user holds control, your browser and desktop actions wait until it is handed back; '
-          + 'an action chosen before the user\'s latest input is not run. When the user sends marks to discuss, answer in text before acting.',
+          + 'an action chosen before the user\'s latest input is not run. The user may go back to an earlier step and mark what went wrong (<user_rewind>). '
+          + 'Questions the user asks a separate assistant about the screen arrive as <user_side_question> for your information; do not answer them.',
     })
 
-    ctx.tools.register(askUserToMarkTool((question, exec) => this.ask(question, exec)))
+    ctx.tools.register(askUserToMarkTool((question, exec) => this.askUser(question, exec)))
   }
 
   async* [Service.init](): AsyncGenerator<() => Promise<void> | void, void, void> {
+    await this.loadSettings()
+    // Resolved in the background so the panel names the model before the first question.
+    this.defaultChoice().catch((error: unknown) => { console.error('[co-canvas]', `could not resolve the side-question model: ${String(error)}`) })
     yield async () => {
       this.question?.settle()
       await this.desktop?.close()
@@ -390,25 +466,130 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   /**
-   * Send the undelivered marks to the agent to discuss before it continues. The agent's
-   * browser and desktop actions are refused until the user replies in the conversation or resumes.
-   * @throws RemoteError when no agent has used co-canvas or received a message yet.
+   * Ask a light model about the screen without stopping the agent. On the live view the undelivered
+   * marks are the subject and are taken out of the agent's delivery; on a timeline step, the marks
+   * drawn on that step's frame are. The question and answer are then left for the agent at its next
+   * step, without waking it or asking it to reply.
+   * @param question - the user's question.
+   * @param step - timeline step the marks were drawn on; omitted for the live view.
+   * @param marks - marks on that step's frame, in its coordinates.
+   * @returns the answer's id; its text arrives through `follow`.
    */
   @Remote
-  async discuss(): Promise<void> {
-    // Without a tracked agent (e.g. after a restart), the most recently loaded root conversation is the one on screen.
+  async ask(question: string, step?: string, marks?: readonly MarkInput[]): Promise<string> {
+    const text = question.trim() === '' ? 'What is this?' : question.trim()
+    const onStep = step === undefined ? undefined : this.timeline.get(step)
+    if (step !== undefined && onStep === undefined) throw new RemoteError('co-canvas/no-step', 'That step is no longer kept', { step })
+    const live = onStep === undefined ? this.pending.splice(0) : []
+    const subject = onStep === undefined ? live.map(p => p.mark) : marks ?? []
+    const id = randomUUID()
+    const choice = this.askChoice ?? await this.defaultChoice()
+    const entry: SideAnswer = {
+      id, question: text, answer: '', status: 'answering', model: choice === undefined ? '' : `${choice.provider}/${choice.model}`,
+      at: Date.now(), marks: subject.length, ...onStep === undefined ? {} : { step: onStep.index },
+    }
+    this.answers = [...this.answers, entry].slice(-MAX_ANSWERS)
+    if (this.pauseOnAsk && this.control === 'agent') this.control = 'paused'
+    this.changed()
+    void this.answer$(entry, choice, onStep, live, marks ?? [])
+    return id
+  }
+
+  /**
+   * List the models that can answer side questions: every model of every provider with credentials.
+   * @returns models, image-capable ones first.
+   */
+  @Remote
+  async askModels(): Promise<ModelChoice[]> {
+    const llm = this.ctx.get('llm')
+    return llm === undefined ? [] : listChoices(llm, AbortSignal.timeout(30_000))
+  }
+
+  /**
+   * Choose the model that answers side questions and summarizes the task brief.
+   * @param choice - the model, as listed by `askModels`.
+   */
+  @Remote
+  async setAskModel(choice: ModelChoice): Promise<void> {
+    this.askChoice = choice
+    this.changed()
+    await this.saveSettings()
+  }
+
+  /**
+   * Pause the agent while a side question is answered, or let it keep working.
+   * @param on - pause while answering.
+   */
+  @Remote
+  async setPauseOnAsk(on: boolean): Promise<void> {
+    this.pauseOnAsk = on
+    this.changed()
+    await this.saveSettings()
+  }
+
+  /**
+   * Correct the task brief's goal; an empty goal returns to following the user's requests.
+   * @param goal - the goal as the user wants it understood.
+   */
+  @Remote
+  editGoal(goal: string): void {
+    this.brief.edit(goal)
+  }
+
+  /**
+   * The screen after one timeline step.
+   * @param step - step id.
+   * @returns the frame.
+   * @throws RemoteError when the step is no longer kept.
+   */
+  @Remote
+  async stepFrame(step: string): Promise<CanvasFrame> {
+    const frame = await this.timeline.frame(step)
+    if (frame === undefined) throw new RemoteError('co-canvas/no-step', 'That step is no longer kept', { step })
+    return frame
+  }
+
+  /**
+   * Send the agent back to an earlier step: its next browser or desktop action is refused, and it
+   * receives the step's screen with the user's marks, the actions it took since, and the request to
+   * return to that state before continuing. The agent resumes if it was paused.
+   * @param step - step id.
+   * @param marks - marks on that step's frame, in its coordinates.
+   * @param note - what went wrong, in the user's words.
+   * @throws RemoteError when the step is gone or no agent has acted yet.
+   */
+  @Remote
+  async rewind(step: string, marks: readonly MarkInput[], note: string): Promise<void> {
+    const target = this.timeline.get(step)
+    if (target === undefined) throw new RemoteError('co-canvas/no-step', 'That step is no longer kept', { step })
     const agent = this.agent ?? this.ctx.get('agents')?.roots().at(-1)
     if (agent === undefined) throw new RemoteError('co-canvas/no-agent', 'Start a conversation with the agent first', {})
-    const taken = this.takePending()
-    if (taken === undefined || taken.pending.length === 0) return
-    this.discussing = true
-    if (this.control === 'agent') this.control = 'paused'
+    const later = this.timeline.after(step)
+    const lines = [`<user_rewind step="${target.index}">`,
+      `The user went back to step ${target.index} of your work, after you ran ${target.tool} ${target.action}, and marked where it went wrong.`,
+      `The screen then: ${[target.app, target.window, target.url].filter(x => x !== '').join(' · ') || 'unknown'}.`]
+    if (note.trim() !== '') lines.push(`The user says: "${note.trim()}"`)
+    for (const [i, mark] of marks.entries()) lines.push(`Mark ${i + 1}: ${mark.shape} at (${Math.round(mark.rect.x)}, ${Math.round(mark.rect.y)}) on that screen${mark.note === undefined || mark.note === '' ? '' : `, note: "${mark.note}"`}.`)
+    if (later.length > 0) {
+      lines.push('What you did after that step, oldest first:')
+      for (const s of later) lines.push(`${s.index}. ${s.tool} ${s.action}${s.irreversible ? ' (may not be undoable)' : ''}`)
+    }
+    lines.push(`Return to the state of step ${target.index} before continuing: undo or navigate back where you can${target.url === '' ? '' : ` (the page then was ${target.url})`}. `
+      + 'Actions such as submitting, paying, or sending cannot be undone; if you took one, tell the user instead of repeating it.')
+    lines.push('</user_rewind>')
+    const crops = await this.timeline.crops(step, marks, this.config.cropMargin)
+    const accepts = crops.length > 0 && this.ctx.get('attachments') !== undefined
+      && await routeAcceptsImages(this.ctx, { agent, signal: AbortSignal.timeout(30_000) })
+    const images: ContentBlock[] = accepts ? (await this.storeImages(crops.slice(-this.config.maxCropsPerMessage))).map(attachment => ({ type: 'image', attachment })) : []
+    if (note.trim() !== '') this.brief.noteRequest(note)
+    this.rewound = true
+    this.handback = undefined
+    if (this.control !== 'agent') this.control = 'agent'
     this.changed()
-    const text = marksMessage(taken.pending.map(p => p.mark), taken.handback, this.config.maxMarksPerMessage, true)
-    const images = await this.saveCrops(taken.pending, agent, AbortSignal.timeout(30_000))
-    const notes = taken.pending.map(p => p.mark.note).filter(note => note !== undefined && note !== '')
-    const summary = boundContextSummary(`Marks to discuss (${taken.pending.length})${notes.length === 0 ? '' : `: ${notes.join('; ')}`}`)
-    agent.steer(createUserMessage({ content: [{ type: 'text', text }, ...images.map(imageBlock)], source: { kind: 'dsh-co-canvas', form: 'notice', summary } }))
+    agent.steer(createUserMessage({
+      content: [{ type: 'text', text: lines.join('\n') }, ...images],
+      source: { kind: 'dsh-co-canvas', form: 'notice', summary: boundContextSummary(`Back to step ${target.index}${note.trim() === '' ? '' : `: ${note.trim()}`}`) },
+    }))
   }
 
   /**
@@ -433,7 +614,7 @@ export default class CoCanvas extends TypertRemoteService {
       }, AbortSignal.timeout(this.config.askTimeoutMs))
       if (result.action === 'cancel') return { action: 'cancel', marks: 0 }
       for (const input of result.marks) await this.recordDesktop({ ...input, surface: 'desktop' }, shot)
-      if (result.action === 'discuss') await this.discuss()
+      if (result.action === 'ask') await this.ask(result.marks.map(m => m.note ?? '').filter(n => n !== '').join('; '))
       else if (this.control === 'paused') this.setControl('agent')
       return { action: result.action, marks: result.marks.length }
     } finally {
@@ -467,12 +648,8 @@ export default class CoCanvas extends TypertRemoteService {
    */
   @Remote
   setControl(control: CanvasControl): void {
-    if (control === this.control && !(control === 'agent' && this.discussing)) return
-    if (control === 'agent') {
-      // Resuming after a discussion needs no handback note: the agent already answered the marks.
-      if (!this.discussing) this.handback = this.control === 'human' || this.handback === 'human' ? 'human' : 'paused'
-      this.discussing = false
-    }
+    if (control === this.control) return
+    if (control === 'agent') this.handback = this.control === 'human' || this.handback === 'human' ? 'human' : 'paused'
     this.control = control
     this.changed()
   }
@@ -526,14 +703,14 @@ export default class CoCanvas extends TypertRemoteService {
       case 'mark': await this.record({ shape: message.shape, rect: message.rect, ...message.note === '' ? {} : { note: message.note } }, page); return
       case 'control': this.setControl(message.control); return
       case 'answer': this.answer(message.questionId); return
-      case 'discuss': await this.discuss(); return
+      case 'ask': await this.ask(message.question); return
     }
   }
 
   private toolbarState(url: string): OverlayState {
     return {
       control: this.control,
-      discussing: this.discussing,
+      answer: this.answers.at(-1)?.answer ?? null,
       pending: this.pending.length,
       question: this.question === undefined ? null : { id: this.question.id, text: this.question.text },
       marks: this.pending.filter(p => p.mark.surface === 'browser' && p.mark.url === url).map(p => ({ shape: p.mark.shape, rect: p.mark.rect })),
@@ -548,7 +725,11 @@ export default class CoCanvas extends TypertRemoteService {
       failure: this.failure ?? null,
       ...page,
       control: this.control,
-      discussing: this.discussing,
+      brief: this.brief.snapshot(),
+      answers: this.answers,
+      askModel: this.askChoice ?? this.defaultResolved ?? null,
+      pauseOnAsk: this.pauseOnAsk,
+      timeline: this.timeline.list(),
       desktop: this.desktop !== undefined,
       question: this.question === undefined ? null : { id: this.question.id, text: this.question.text },
       pending: this.pending.map(p => p.mark),
@@ -579,7 +760,7 @@ export default class CoCanvas extends TypertRemoteService {
     return Promise.race([this.launch.promise, promise]).finally(() => { signal.removeEventListener('abort', abort) })
   }
 
-  /** Wait until the agent holds control or the user starts a discussion. */
+  /** Wait until the agent holds control. */
   /**
    * Pass frames through while the agent acts or the user holds control; while paused, stop reading
    * so the viewer keeps the last frame.
@@ -614,7 +795,7 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   private untilAgentControl(signal: AbortSignal): Promise<void> {
-    const released = (): boolean => this.control === 'agent' || this.discussing
+    const released = (): boolean => this.control === 'agent'
     if (released()) return Promise.resolve()
     const { promise, resolve, reject } = Promise.withResolvers<undefined>()
     const check = (): void => { if (released()) resolve(undefined) }
@@ -627,7 +808,7 @@ export default class CoCanvas extends TypertRemoteService {
     }).then(() => {})
   }
 
-  private async ask(text: string, exec: ToolExecution): Promise<AskResult> {
+  private async askUser(text: string, exec: ToolExecution): Promise<AskResult> {
     const signal = exec.signal
     if (this.question !== undefined) throw new Error('another ask_user_to_mark question is still open')
     const { promise, resolve } = Promise.withResolvers<undefined>()
@@ -653,6 +834,168 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   /** Persist the newest crops when the agent's route accepts images. */
+  private async answer$(entry: SideAnswer, choice: ModelChoice | undefined, step: TimelineStep | undefined,
+    live: readonly PendingMark[], stepMarks: readonly MarkInput[]): Promise<void> {
+    const update = (patch: Partial<SideAnswer>): void => {
+      this.answers = this.answers.map(a => (a.id === entry.id ? { ...a, ...patch } : a))
+    }
+    const llm = this.ctx.get('llm')
+    if (llm === undefined || choice === undefined) {
+      update({ status: 'failed', answer: `No model can answer: ${this.config.askModel} is not offered by any provider with an API key. Pick a model above, or add a key in Settings > Models.` })
+      this.changed()
+      return
+    }
+    const context = [this.brief.text()]
+    if (step === undefined) {
+      for (const [i, p] of live.entries()) context.push(`Mark ${i + 1}: ${describeMark(p.mark)}`)
+      if (live.length === 0) context.push('The user marked nothing; the screenshot shows the whole screen.')
+    } else {
+      context.push(`The question is about step ${step.index} of the agent's work, after it ran ${step.tool} ${step.action}; `
+        + `the screen then: ${[step.app, step.window, step.url].filter(x => x !== '').join(' · ') || 'unknown'}.`)
+      for (const [i, m] of stepMarks.entries()) context.push(`Mark ${i + 1}: ${m.shape}${m.note === undefined || m.note === '' ? '' : `, note: "${m.note}"`}`)
+    }
+    let last = 0
+    try {
+      const pngs = !choice.image ? [] : await this.subjectImages(step, live, stepMarks)
+      const images = await this.storeImages(pngs)
+      const answer = await askSide(llm, {
+        choice, context: context.join('\n'), question: `Question: ${entry.question}`, images, maxTokens: this.config.askMaxTokens,
+        signal: AbortSignal.timeout(this.config.sideTimeoutMs),
+      }, (text) => {
+        update({ answer: text })
+        if (Date.now() - last > 120) {
+          last = Date.now()
+          this.changed()
+        }
+      })
+      update({ answer, status: 'done' })
+      this.changed()
+      this.shareAnswer(entry, answer, context.slice(1))
+    } catch (error) {
+      update({ status: 'failed', answer: `The answer failed: ${error instanceof Error ? error.message : String(error)}` })
+      this.changed()
+    }
+  }
+
+  /** The marks' crops, or the whole screen when nothing was marked. */
+  private async subjectImages(
+    step: TimelineStep | undefined, live: readonly PendingMark[], stepMarks: readonly MarkInput[],
+  ): Promise<Buffer[]> {
+    const max = Math.max(1, this.config.maxCropsPerMessage)
+    if (step !== undefined) {
+      if (stepMarks.length > 0) return (await this.timeline.crops(step.id, stepMarks, this.config.cropMargin)).slice(-max)
+      const frame = await this.timeline.frame(step.id)
+      return frame === undefined ? [] : [Buffer.from(frame.data, 'base64')]
+    }
+    const crops = live.flatMap(p => (p.crop === undefined ? [] : [p.crop])).slice(-max)
+    if (live.length > 0) return crops
+    const frame = this.desktop !== undefined && this.brief.snapshot()?.url === '' ? await this.desktop.toFrame(await this.desktop.screenshot()) : await this.browserFrame()
+    return frame === undefined ? [] : [Buffer.from(frame.data, 'base64')]
+  }
+
+  private async browserFrame(): Promise<CanvasFrame | undefined> {
+    const page = this.browser.page
+    if (page === undefined) return undefined
+    const jpeg = await page.screenshot({ type: 'jpeg', quality: this.config.frameQuality })
+    const { width, height } = this.browser.viewport()
+    return { data: jpeg.toString('base64'), width, height }
+  }
+
+  /** Leave the question and answer for the agent at its next step, without waking it. */
+  private shareAnswer(entry: SideAnswer, answer: string, about: readonly string[]): void {
+    const agent = this.agent ?? this.ctx.get('agents')?.roots().at(-1)
+    if (agent === undefined) return
+    const text = [`<user_side_question${entry.step === undefined ? '' : ` step="${entry.step}"`}>`,
+      'The user asked a separate assistant about the screen while you worked. This is for your information; do not answer it, '
+        + 'and change your plan only if it shows you misunderstood the task.',
+      `Question: ${entry.question}`, ...about, `Answer (${entry.model}): ${answer}`, '</user_side_question>'].join('\n')
+    agent.send(createUserMessage({
+      content: [{ type: 'text', text }],
+      source: { kind: 'dsh-co-canvas', form: 'notice', summary: boundContextSummary(`Side question: ${entry.question}`) },
+    }), 'next-step', false)
+  }
+
+  private defaultResolved: ModelChoice | undefined
+
+  /** The configured side-question model, resolved to a provider with credentials. */
+  private async defaultChoice(): Promise<ModelChoice | undefined> {
+    const llm = this.ctx.get('llm')
+    if (this.defaultResolved !== undefined || llm === undefined) return this.defaultResolved
+    this.defaultResolved = await resolveChoice(llm, this.config.askProvider, this.config.askModel, AbortSignal.timeout(30_000))
+    if (this.defaultResolved !== undefined && this.askChoice === undefined) this.changed()
+    return this.defaultResolved
+  }
+
+  private async summarizeBrief(input: string, signal: AbortSignal): Promise<{ goal?: string; progress?: string } | undefined> {
+    const llm: SideModels | undefined = this.ctx.get('llm')
+    const choice = this.askChoice ?? await this.defaultChoice()
+    if (llm === undefined || choice === undefined) return undefined
+    const text = await askSide(llm, { choice: { ...choice, image: false }, context: input, question: 'Write the brief.', images: [], maxTokens: 200, signal, system: BRIEF_SYSTEM }, () => {})
+    return parseBriefSummary(text)
+  }
+
+  /** Record the screen after one browser or desktop action, and note the action in the brief. */
+  private async recordStep(exec: ToolExecution, surface: CanvasSurface): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, this.config.timelineSettleMs))
+    const args = typeof exec.arguments === 'object' && exec.arguments !== null ? exec.arguments as Record<string, unknown> : {}
+    const tool = exec.name.replace(/^(mcp__.+?__|cua_driver_native__)/u, '')
+    const action = describeArgs(args)
+    let frame: CanvasFrame | undefined
+    let app = ''
+    let window = ''
+    let url = ''
+    if (surface === 'browser') {
+      frame = await this.browserFrame()
+      const page = await this.browser.describe()
+      window = page.title
+      url = page.url
+    } else if (this.desktop !== undefined) {
+      frame = await this.desktop.toFrame(await this.desktop.screenshot())
+      const pid = typeof args.pid === 'number' ? args.pid : undefined
+      const windowId = typeof args.window_id === 'number' || typeof args.window_id === 'string' ? String(args.window_id) : undefined
+      try {
+        const found = await this.desktop.window(pid, windowId)
+        app = found?.app ?? ''
+        window = found?.title ?? ''
+      } catch (error) {
+        // The step is kept without its window when the runtime cannot list windows.
+        void error
+      }
+    }
+    if (frame === undefined) return
+    await this.timeline.record({ at: Date.now(), surface, tool, action, app, window, url }, frame)
+    this.brief.noteAction({ tool, action, app, window, url })
+  }
+
+  /** Store PNGs as attachments for a model request. */
+  private async storeImages(pngs: readonly Buffer[]): Promise<ImageAttachmentRef[]> {
+    const attachments = this.ctx.get('attachments')
+    if (attachments === undefined) return []
+    const refs: ImageAttachmentRef[] = []
+    for (const [i, png] of pngs.entries()) refs.push(await attachments.saveImage({ data: png, mediaType: png[0] === 0xff ? 'image/jpeg' : 'image/png', name: `co-canvas ${i + 1}` }))
+    return refs
+  }
+
+  private async loadSettings(): Promise<void> {
+    try {
+      const saved = JSON.parse(await readFile(join(this.config.dataDir, 'settings.json'), 'utf8')) as Partial<Record<keyof PanelSettings, unknown>>
+      const model = saved.askModel as Partial<Record<keyof ModelChoice, unknown>> | undefined
+      if (typeof model?.provider === 'string' && typeof model.model === 'string') {
+        this.askChoice = { provider: model.provider, model: model.model, name: typeof model.name === 'string' ? model.name : model.model, image: model.image === true }
+      }
+      this.pauseOnAsk = saved.pauseOnAsk === true
+    } catch (error) {
+      // No saved settings yet: the configured defaults apply.
+      void error
+    }
+  }
+
+  private async saveSettings(): Promise<void> {
+    await mkdir(this.config.dataDir, { recursive: true })
+    const settings: PanelSettings = { ...this.askChoice === undefined ? {} : { askModel: this.askChoice }, pauseOnAsk: this.pauseOnAsk }
+    await writeFile(join(this.config.dataDir, 'settings.json'), JSON.stringify(settings, null, 2))
+  }
+
   private async saveCrops(marks: readonly PendingMark[], agent: Agent, signal: AbortSignal): Promise<StoredImage[]> {
     const attachments = this.ctx.get('attachments')
     const crops = marks.filter(p => p.crop !== undefined).slice(-this.config.maxCropsPerMessage)

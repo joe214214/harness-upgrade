@@ -24,7 +24,7 @@ import type { UserMessage } from '@deepseek-ai/dsh-session'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { chromium } from 'playwright-core'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import CoCanvas, { DISCUSS_HOLD, DISCUSS_LINE, SharedBrowser, describeTarget, marksMessage } from '../src/index.ts'
+import CoCanvas, { REWOUND, SIDE_SYSTEM, SharedBrowser, describeTarget, marksMessage } from '../src/index.ts'
 import type { CanvasFrame, CanvasMark, CanvasState } from '../src/types.ts'
 import type { Page } from 'playwright-core'
 
@@ -53,11 +53,6 @@ describe('model-facing text', () => {
     expect(text).toContain('1. box at (10, 20), 100×30 on the desktop (screen points): window "notes.txt - Notepad" of Notepad (pid 42, window_id 7), at (-40, -15) inside it — note: "this line"')
   })
 
-  it('asks the agent to reply before acting when marks are sent to discuss', () => {
-    const text = marksMessage([mark({ note: 'is this the right one?' })], undefined, 10, true)
-    expect(text).not.toContain('Treat these marks as instructions')
-    expect(text).toContain(DISCUSS_LINE)
-  })
 
   it('describes the element, its position among look-alikes, and the note', () => {
     const target = { tag: 'button', role: 'button', text: 'Submit', selector: 'div:nth-of-type(3) > button', nth: 2, sameCount: 2 }
@@ -116,7 +111,7 @@ async function freePort(): Promise<number> {
 
 describe.skipIf(executablePath === undefined)('shared browser', () => {
 
-  async function setup() {
+  async function setup(llm?: object) {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-co-canvas-'))
     const ctx = new Context()
     // One hook, in order: the browser must be gone before its profile directory is removed.
@@ -138,7 +133,10 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     ctx.tools.register(plain('mcp__playwright-mcp__browser_navigate', () => { clicks.push(Date.now()) }))
     ctx.tools.register(plain('cua_driver_native__click', () => { clicks.push(Date.now()) }))
     ctx.tools.register(plain('read', () => {}))
-    await ctx.plugin(CoCanvas, { executablePath, userDataDir: dir, debugPort: await freePort(), viewportWidth: 600, viewportHeight: 400 })
+    if (llm !== undefined) ctx.provide('llm', llm)
+    await ctx.plugin(CoCanvas, {
+      executablePath, userDataDir: dir, dataDir: join(dir, 'data'), debugPort: await freePort(), viewportWidth: 600, viewportHeight: 400, timelineSettleMs: 0,
+    })
     const canvas = ctx.get('coCanvas')!
     await canvas.browser.page!.setContent(`<div><button>Save</button></div>
       <div style="margin-top:40px"><button id=a>Submit</button></div><div style="margin-top:40px"><button>Submit</button></div>`)
@@ -149,11 +147,47 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     return { ctx, canvas, clicks, call }
   }
   /** An agent that records the messages steered to it, registered in a scope of its own. */
-  function steeredAgent(ctx: Context, name = 'sess-co-canvas'): { agent: Agent; steered: UserMessage[] } {
+  function steeredAgent(ctx: Context, name = 'sess-co-canvas'): { agent: Agent; steered: UserMessage[]; sent: UserMessage[] } {
     const steered: UserMessage[] = []
+    const sent: UserMessage[] = []
     const id = SessionId(name)
-    const agent = { id, ctx: ctx.plugin(() => {}).ctx, status: 'idle', steer: (message: UserMessage) => { steered.push(message) } } as Agent
-    return { agent, steered }
+    const agent = {
+      id, ctx: ctx.plugin(() => {}).ctx, status: 'idle',
+      steer: (message: UserMessage) => { steered.push(message) },
+      send: (message: UserMessage, _when: string, wake: boolean) => { if (!wake) sent.push(message) },
+    } as unknown as Agent
+    return { agent, steered, sent }
+  }
+  /** A model service whose one model answers with a fixed text, streamed in two pieces. */
+  function scriptedLlm(reply: (system: string, prompt: string) => string, calls: string[] = []) {
+    const info = { provider: 'fast', id: 'deepseek-flash', name: 'Flash', inputModalities: ['text' as const] }
+    return {
+      calls,
+      listProviders: () => [{ id: 'fast', name: 'Fast' }],
+      listModels: () => Promise.resolve([info]),
+      resolveModelInfo: () => Promise.resolve(info),
+      prepareCall: () => Promise.resolve({
+        config: { provider: 'fast', model: 'deepseek-flash' },
+        async* stream(options: { system?: string; messages: readonly UserMessage[] }) {
+          const prompt = options.messages.flatMap(m => m.content).map(b => (b.type === 'text' ? b.text : '')).join('')
+          calls.push(prompt)
+          const text = reply(options.system ?? '', prompt)
+          yield { type: 'text-delta', index: 0, text: text.slice(0, 4) }
+          await new Promise(resolve => setTimeout(resolve, 20))
+          yield { type: 'text-delta', index: 0, text: text.slice(4) }
+          yield { type: 'finish', reason: { kind: 'stop' } }
+        },
+      }),
+    }
+  }
+  const settled = async (canvas: CoCanvas, done: (state: CanvasState) => boolean): Promise<CanvasState> => {
+    const lifetime = new AbortController()
+    try {
+      for await (const state of canvas.follow(lifetime.signal)) if (done(state)) return state
+    } finally {
+      lifetime.abort()
+    }
+    throw new Error('follow ended')
   }
   const reason = (result: ToolExecutionResult): string => result.content.map(b => (b.type === 'text' ? b.text : '')).join('')
   const text = (result: ToolExecutionResult): string =>
@@ -365,47 +399,104 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     expect(clicks).toHaveLength(0)
   }, 60_000)
 
-  it('sends marks to discuss: a waiting action is refused, the agent is asked, and the user\'s reply resumes it', async () => {
+  it('answers a side question from a light model without stopping the agent, then leaves it for the agent', async () => {
+    const llm = scriptedLlm(system => (system === SIDE_SYSTEM ? 'That is the Plan B submit button.' : '{"goal":"Submit plan B","progress":"on the form"}'))
+    const { ctx, canvas, clicks, call } = await setup(llm)
+    const { agent, sent, steered } = steeredAgent(ctx)
+    await call('read', {}, agent)
+    const box = (await canvas.browser.page!.locator('button').nth(2).boundingBox())!
+    await canvas.mark({ shape: 'box', rect: { x: box.x - 4, y: box.y - 4, width: box.width + 8, height: box.height + 8 } })
+    const id = await canvas.ask('What does this button do?')
+    const state = await settled(canvas, s => s.answers.some(a => a.id === id && a.status === 'done'))
+    expect(state.answers.at(-1)).toMatchObject({ question: 'What does this button do?', answer: 'That is the Plan B submit button.', model: 'fast/deepseek-flash', marks: 1 })
+    expect(state.control).toBe('agent')
+    expect(state.pending).toHaveLength(0)
+    expect(llm.calls.at(-1)).toContain('button "Submit" (2nd of 2 button elements with this text)')
+    expect(llm.calls.at(-1)).toContain('Question: What does this button do?')
+    // The asked mark is no instruction: the agent's next action runs.
+    expect((await call('browser_click', {}, agent)).isError).toBe(false)
+    expect(clicks).toHaveLength(1)
+    expect(steered).toHaveLength(0)
+    expect(sent).toHaveLength(1)
+    const shared = sent[0]!.content.map(b => (b.type === 'text' ? b.text : '')).join('')
+    expect(shared).toContain('<user_side_question>')
+    expect(shared).toContain('do not answer it')
+    expect(shared).toContain('Answer (fast/deepseek-flash): That is the Plan B submit button.')
+  }, 60_000)
+
+  it('pauses the agent while answering when the user asks for it, and keeps the choice', async () => {
+    const llm = scriptedLlm(() => 'ok')
+    const { canvas } = await setup(llm)
+    await canvas.setPauseOnAsk(true)
+    await canvas.ask('Is this right?')
+    const state = await settled(canvas, s => s.answers.at(-1)?.status === 'done')
+    expect(state).toMatchObject({ control: 'paused', pauseOnAsk: true })
+  }, 60_000)
+
+  it('reports a failed side question when no provider offers the model', async () => {
+    const { canvas } = await setup()
+    await canvas.ask('What is this?')
+    const state = await settled(canvas, s => s.answers.at(-1)?.status === 'failed')
+    expect(state.answers.at(-1)!.answer).toContain('Settings > Models')
+  }, 60_000)
+
+  it('records each browser action with the screen after it, flags actions that cannot be undone, and keeps a task brief', async () => {
+    const llm = scriptedLlm(system => (system === SIDE_SYSTEM ? 'ok' : '{"goal":"Order plan B","progress":"plan chosen, about to submit"}'))
+    const { ctx, canvas, call } = await setup(llm)
+    const { agent } = steeredAgent(ctx)
+    emitAgentEvent(ctx, agent, 'agent/inbox/inserted', { message: createUserMessage({ content: [{ type: 'text', text: 'Order plan B for me' }], source: { kind: 'user' } }) })
+    await call('mcp__playwright-mcp__browser_navigate', { url: 'https://shop.test/plans' }, agent)
+    await call('browser_click', { element: 'Submit order button', ref: 'e12' }, agent)
+    await call('read', {}, agent)
+    const state = await settled(canvas, s => s.timeline.length === 2 && s.brief?.progress !== '')
+    expect(state.timeline.map(s => [s.index, s.tool, s.irreversible])).toEqual([[1, 'browser_navigate', false], [2, 'browser_click', true]])
+    expect(state.timeline[1]!.action).toBe('element="Submit order button" ref="e12"')
+    expect(state.brief).toMatchObject({ goal: 'Order plan B', progress: 'plan chosen, about to submit', steps: 2 })
+    const frame = await canvas.stepFrame(state.timeline[0]!.id)
+    expect(frame).toMatchObject({ width: 600, height: 400 })
+    expect(Buffer.from(frame.data, 'base64').subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]))
+    canvas.editGoal('Order plan A instead')
+    expect((await settled(canvas, () => true)).brief).toMatchObject({ goal: 'Order plan A instead', goalEdited: true })
+  }, 60_000)
+
+  it('answers about a past step from its recorded screen', async () => {
+    const llm = scriptedLlm(system => (system === SIDE_SYSTEM ? 'That was the plans page.' : '{}'))
+    const { ctx, canvas, call } = await setup(llm)
+    const { agent } = steeredAgent(ctx)
+    await call('browser_click', { element: 'Plans' }, agent)
+    await call('read', {}, agent)
+    const step = (await settled(canvas, s => s.timeline.length === 1)).timeline[0]!
+    await canvas.ask('What page was this?', step.id, [{ shape: 'box', rect: { x: 10, y: 10, width: 50, height: 20 }, note: 'here' }])
+    const state = await settled(canvas, s => s.answers.at(-1)?.status === 'done')
+    expect(state.answers.at(-1)).toMatchObject({ step: 1, marks: 1, answer: 'That was the plans page.' })
+    expect(llm.calls.at(-1)).toContain('The question is about step 1 of the agent\'s work, after it ran browser_click element="Plans"')
+  }, 60_000)
+
+  it('sends the agent back to a past step: its next action is refused and it gets the step, the marks, and what it did since', async () => {
     const { ctx, canvas, clicks, call } = await setup()
     const { agent, steered } = steeredAgent(ctx)
+    await call('browser_click', { element: 'Plan A' }, agent)
+    await call('browser_click', { element: 'Submit order' }, agent)
     await call('read', {}, agent)
+    const steps = (await settled(canvas, s => s.timeline.length === 2)).timeline
     canvas.setControl('paused')
-    const waiting = call('browser_click', {}, agent)
-    await new Promise(resolve => setTimeout(resolve, 200))
-    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'is this the one?' })
-    await canvas.discuss()
-    const refused = await waiting
-    expect(refused.isError).toBe(true)
-    expect(reason(refused)).toContain(DISCUSS_HOLD)
+    await canvas.rewind(steps[0]!.id, [{ shape: 'point', rect: { x: 40, y: 30, width: 0, height: 0 } }], 'I wanted Plan B, not A')
+    expect((await settled(canvas, () => true)).control).toBe('agent')
+    const refused = await call('browser_click', {}, agent)
+    expect(reason(refused)).toContain(REWOUND)
+    expect((await call('browser_click', {}, agent)).isError).toBe(false)
+    expect(clicks).toHaveLength(3)
     expect(steered).toHaveLength(1)
-    const message = steered[0]!
-    expect(message.source).toMatchObject({ kind: 'dsh-co-canvas', form: 'notice', summary: 'Marks to discuss (1): is this the one?' })
-    expect(message.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain(DISCUSS_LINE)
-    expect(reason(await call('browser_click', {}, agent))).toContain(DISCUSS_HOLD)
-    // The discussion message itself enters the inbox without ending the discussion.
-    emitAgentEvent(ctx, agent, 'agent/inbox/inserted', { message })
-    expect(reason(await call('browser_click', {}, agent))).toContain(DISCUSS_HOLD)
-    emitAgentEvent(ctx, agent, 'agent/inbox/inserted', { message: createUserMessage({ content: [{ type: 'text', text: 'yes, go on' }], source: { kind: 'user' } }) })
-    const resumed = await call('browser_click', {}, agent)
-    expect(resumed.isError).toBe(false)
-    expect(text(resumed)).toBe('')
-    expect(clicks).toHaveLength(1)
+    const body = steered[0]!.content.map(b => (b.type === 'text' ? b.text : '')).join('')
+    expect(body).toContain('<user_rewind step="1">')
+    expect(body).toContain('The user says: "I wanted Plan B, not A"')
+    expect(body).toContain('2. browser_click element="Submit order" (may not be undoable)')
+    expect(steered[0]!.source).toMatchObject({ kind: 'dsh-co-canvas', summary: 'Back to step 1: I wanted Plan B, not A' })
   }, 60_000)
 
-  it('ends a discussion when the user resumes, without a handback note', async () => {
-    const { ctx, canvas, call } = await setup()
-    const { agent } = steeredAgent(ctx)
-    await call('read', {}, agent)
-    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 } })
-    await canvas.discuss()
-    canvas.setControl('agent')
-    const result = await call('browser_click', {}, agent)
-    expect(result.isError).toBe(false)
-    expect(text(result)).toBe('')
-  }, 60_000)
-
-  it('keeps marks and discussions for the top-level conversation while a subagent works the browser', async () => {
-    const { ctx, canvas, clicks, call } = await setup()
+  it('keeps marks, side answers and the timeline for the top-level conversation while a subagent works the browser', async () => {
+    const llm = scriptedLlm(() => 'ok')
+    const { ctx, canvas, clicks, call } = await setup(llm)
     const parent = steeredAgent(ctx, 'sess-parent')
     const child = steeredAgent(ctx, 'sess-child')
     ctx.provide('agents', { roots: () => [parent.agent] })
@@ -416,18 +507,16 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     expect(text(childClick)).toBe('')
     expect(text(await call('read', {}, child.agent))).toBe('')
     expect(clicks).toHaveLength(1)
-    await canvas.discuss()
-    expect(child.steered).toHaveLength(0)
-    expect(parent.steered).toHaveLength(1)
-    // A user reply in the subagent's inbox does not end the parent's discussion.
-    emitAgentEvent(ctx, child.agent, 'agent/inbox/inserted', { message: createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }) })
-    expect(reason(await call('browser_click', {}, child.agent))).toContain(DISCUSS_HOLD)
+    expect((await settled(canvas, () => true)).timeline).toHaveLength(0)
+    await canvas.ask('What is this?')
+    await settled(canvas, s => s.answers.at(-1)?.status === 'done')
+    expect(child.sent).toHaveLength(0)
+    expect(parent.sent).toHaveLength(1)
   }, 60_000)
 
-  it('refuses to discuss before any agent has used co-canvas', async () => {
+  it('refuses to rewind before any agent has used co-canvas or to a step no longer kept', async () => {
     const { canvas } = await setup()
-    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 } })
-    await expect(canvas.discuss()).rejects.toThrow('Start a conversation')
+    await expect(canvas.rewind('gone', [], '')).rejects.toThrow('no longer kept')
   }, 60_000)
 })
 

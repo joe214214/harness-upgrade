@@ -20,7 +20,8 @@ export const zh = {
   ask: 'Agent 请你标注：', answer: '发送标注作为回答',
   pending: '等待送达 agent 的标注', remove: '移除', noElement: '未找到元素',
   waiting: '正在连接浏览器…', failed: '浏览器启动失败：', view: '共享浏览器画面',
-  'surface.label': '画面', 'surface.browser': '浏览器', 'surface.desktop': '桌面', desktopView: '桌面画面', waitingDesktop: '正在读取桌面…', noWindow: '桌面上的位置', markScreen: '在屏幕上框选', markScreenHint: '3 秒后冻结屏幕，在真实屏幕上标注', discuss: '先问 agent', discussHint: '想先和 agent 确认这些标注？它会回复你，不会继续操作。', discussing: '正在和 agent 讨论标注：在对话里回复它，或点“继续”',
+  'surface.label': '画面', 'surface.browser': '浏览器', 'surface.desktop': '桌面', desktopView: '桌面画面', waitingDesktop: '正在读取桌面…', noWindow: '桌面上的位置', markScreen: '在屏幕上框选', markScreenHint: '3 秒后冻结屏幕，在真实屏幕上标注',
+  'brief.title': '任务背景', 'brief.where': '位置', 'brief.progress': '进展', 'brief.edit': '修改', 'brief.save': '保存', 'brief.goal': '任务目标', 'timeline.title': '时间轴', 'timeline.live': '实时', 'timeline.step': '第 {n} 步', 'timeline.irreversible': '可能无法撤销', 'timeline.hint': '在这一步的画面上标注，然后提问或让 Agent 从这里重来', 'ask.placeholder': '问点什么，例如：这是哪个航班？', 'ask.button': '问一下', rewind: '从这里错了', 'answers.title': '问答', 'answers.model': '回答模型', 'answers.pause': '问的时候暂停 Agent', 'answers.answering': '回答中…', 'answers.onStep': '第 {n} 步', 'answers.default': '默认', 'answers.image': '能看图',
 } satisfies Record<string, string>
 
 /** English copy. */
@@ -33,7 +34,8 @@ export const en = {
   ask: 'The agent asks you to mark:', answer: 'Send marks as answer',
   pending: 'Marks waiting for the agent', remove: 'Remove', noElement: 'no element found',
   waiting: 'Connecting to the browser…', failed: 'The browser failed to start:', view: 'Shared browser view',
-  'surface.label': 'View', 'surface.browser': 'Browser', 'surface.desktop': 'Desktop', desktopView: 'Desktop view', waitingDesktop: 'Reading the desktop…', noWindow: 'a place on the desktop', markScreen: 'Mark on screen', markScreenHint: 'Freezes the screen in 3 s so you can mark the real screen', discuss: 'Ask the agent first', discussHint: 'Check these marks with the agent first? It replies without acting.', discussing: 'Discussing your marks: reply in the conversation, or press Resume',
+  'surface.label': 'View', 'surface.browser': 'Browser', 'surface.desktop': 'Desktop', desktopView: 'Desktop view', waitingDesktop: 'Reading the desktop…', noWindow: 'a place on the desktop', markScreen: 'Mark on screen', markScreenHint: 'Freezes the screen in 3 s so you can mark the real screen',
+  'brief.title': 'Task', 'brief.where': 'Where', 'brief.progress': 'Progress', 'brief.edit': 'Edit', 'brief.save': 'Save', 'brief.goal': 'Task goal', 'timeline.title': 'Timeline', 'timeline.live': 'Live', 'timeline.step': 'Step {n}', 'timeline.irreversible': 'may not be undoable', 'timeline.hint': 'Mark this step\'s screen, then ask about it or send the agent back here', 'ask.placeholder': 'Ask something, e.g. which flight is this?', 'ask.button': 'Ask', rewind: 'Went wrong here', 'answers.title': 'Questions', 'answers.model': 'Answering model', 'answers.pause': 'Pause the agent while answering', 'answers.answering': 'Answering…', 'answers.onStep': 'Step {n}', 'answers.default': 'Default', 'answers.image': 'sees images',
 } satisfies Record<keyof typeof zh, string>
 
 /** Japanese copy. */
@@ -46,7 +48,8 @@ export const ja = {
   ask: 'エージェントからの依頼：', answer: '印を回答として送信',
   pending: 'エージェントへの送信待ちの印', remove: '削除', noElement: '要素が見つかりません',
   waiting: 'ブラウザに接続しています…', failed: 'ブラウザを起動できませんでした：', view: '共有ブラウザの画面',
-  'surface.label': '画面', 'surface.browser': 'ブラウザ', 'surface.desktop': 'デスクトップ', desktopView: 'デスクトップの画面', waitingDesktop: 'デスクトップを読み込んでいます…', noWindow: 'デスクトップ上の位置', markScreen: '画面上で印を付ける', markScreenHint: '3 秒後に画面を固定し、実際の画面に印を付けます', discuss: '先にエージェントに聞く', discussHint: 'これらの印を先にエージェントと確認しますか？操作せずに返信します。', discussing: '印について相談中：会話で返信するか、「再開」を押してください',
+  'surface.label': '画面', 'surface.browser': 'ブラウザ', 'surface.desktop': 'デスクトップ', desktopView: 'デスクトップの画面', waitingDesktop: 'デスクトップを読み込んでいます…', noWindow: 'デスクトップ上の位置', markScreen: '画面上で印を付ける', markScreenHint: '3 秒後に画面を固定し、実際の画面に印を付けます',
+  'brief.title': 'タスク', 'brief.where': '場所', 'brief.progress': '進捗', 'brief.edit': '編集', 'brief.save': '保存', 'brief.goal': 'タスクの目的', 'timeline.title': 'タイムライン', 'timeline.live': 'ライブ', 'timeline.step': 'ステップ {n}', 'timeline.irreversible': '元に戻せない可能性', 'timeline.hint': 'このステップの画面に印を付けて質問するか、ここからやり直させます', 'ask.placeholder': '質問を入力（例：これはどの便？）', 'ask.button': '質問', rewind: 'ここで間違えた', 'answers.title': '質問と回答', 'answers.model': '回答モデル', 'answers.pause': '回答中はエージェントを一時停止', 'answers.answering': '回答中…', 'answers.onStep': 'ステップ {n}', 'answers.default': '既定', 'answers.image': '画像対応',
 } satisfies Record<keyof typeof zh, string>
 
 /** Spanish copy. */
@@ -59,7 +62,8 @@ export const es = {
   ask: 'El agente te pide que marques:', answer: 'Enviar marcas como respuesta',
   pending: 'Marcas pendientes para el agente', remove: 'Quitar', noElement: 'ningún elemento',
   waiting: 'Conectando con el navegador…', failed: 'No se pudo iniciar el navegador:', view: 'Vista del navegador compartido',
-  'surface.label': 'Vista', 'surface.browser': 'Navegador', 'surface.desktop': 'Escritorio', desktopView: 'Vista del escritorio', waitingDesktop: 'Leyendo el escritorio…', noWindow: 'un lugar del escritorio', markScreen: 'Marcar en la pantalla', markScreenHint: 'Congela la pantalla en 3 s para marcar la pantalla real', discuss: 'Preguntar primero al agente', discussHint: '¿Revisar estas marcas con el agente antes? Responde sin actuar.', discussing: 'Comentando tus marcas: responde en la conversación o pulsa Reanudar',
+  'surface.label': 'Vista', 'surface.browser': 'Navegador', 'surface.desktop': 'Escritorio', desktopView: 'Vista del escritorio', waitingDesktop: 'Leyendo el escritorio…', noWindow: 'un lugar del escritorio', markScreen: 'Marcar en la pantalla', markScreenHint: 'Congela la pantalla en 3 s para marcar la pantalla real',
+  'brief.title': 'Tarea', 'brief.where': 'Dónde', 'brief.progress': 'Progreso', 'brief.edit': 'Editar', 'brief.save': 'Guardar', 'brief.goal': 'Objetivo de la tarea', 'timeline.title': 'Cronología', 'timeline.live': 'En directo', 'timeline.step': 'Paso {n}', 'timeline.irreversible': 'puede no deshacerse', 'timeline.hint': 'Marca la pantalla de este paso y pregunta o haz que el agente vuelva aquí', 'ask.placeholder': 'Pregunta algo, p. ej. ¿qué vuelo es este?', 'ask.button': 'Preguntar', rewind: 'Aquí se equivocó', 'answers.title': 'Preguntas', 'answers.model': 'Modelo que responde', 'answers.pause': 'Pausar al agente mientras responde', 'answers.answering': 'Respondiendo…', 'answers.onStep': 'Paso {n}', 'answers.default': 'Predeterminado', 'answers.image': 've imágenes',
 } satisfies Record<keyof typeof zh, string>
 
 /** French copy. */
@@ -72,7 +76,8 @@ export const fr = {
   ask: 'L\'agent vous demande d\'annoter :', answer: 'Envoyer les annotations comme réponse',
   pending: 'Annotations en attente pour l\'agent', remove: 'Retirer', noElement: 'aucun élément',
   waiting: 'Connexion au navigateur…', failed: 'Le navigateur n\'a pas pu démarrer :', view: 'Vue du navigateur partagé',
-  'surface.label': 'Vue', 'surface.browser': 'Navigateur', 'surface.desktop': 'Bureau', desktopView: 'Vue du bureau', waitingDesktop: 'Lecture du bureau…', noWindow: 'un endroit du bureau', markScreen: 'Marquer à l\'écran', markScreenHint: 'Fige l\'écran dans 3 s pour marquer l\'écran réel', discuss: 'Demander d\'abord à l\'agent', discussHint: 'Vérifier ces marques avec l\'agent d\'abord ? Il répond sans agir.', discussing: 'Discussion de vos marques : répondez dans la conversation ou appuyez sur Reprendre',
+  'surface.label': 'Vue', 'surface.browser': 'Navigateur', 'surface.desktop': 'Bureau', desktopView: 'Vue du bureau', waitingDesktop: 'Lecture du bureau…', noWindow: 'un endroit du bureau', markScreen: 'Marquer à l\'écran', markScreenHint: 'Fige l\'écran dans 3 s pour marquer l\'écran réel',
+  'brief.title': 'Tâche', 'brief.where': 'Où', 'brief.progress': 'Avancement', 'brief.edit': 'Modifier', 'brief.save': 'Enregistrer', 'brief.goal': 'Objectif de la tâche', 'timeline.title': 'Chronologie', 'timeline.live': 'En direct', 'timeline.step': 'Étape {n}', 'timeline.irreversible': 'peut-être irréversible', 'timeline.hint': 'Annotez l\'écran de cette étape, puis posez une question ou renvoyez l\'agent ici', 'ask.placeholder': 'Posez une question, p. ex. quel vol est-ce ?', 'ask.button': 'Demander', rewind: 'Erreur à partir d\'ici', 'answers.title': 'Questions', 'answers.model': 'Modèle qui répond', 'answers.pause': 'Mettre l\'agent en pause pendant la réponse', 'answers.answering': 'Réponse en cours…', 'answers.onStep': 'Étape {n}', 'answers.default': 'Par défaut', 'answers.image': 'voit les images',
 } satisfies Record<keyof typeof zh, string>
 
 /** German copy. */
@@ -85,7 +90,8 @@ export const de = {
   ask: 'Der Agent bittet um eine Markierung:', answer: 'Markierungen als Antwort senden',
   pending: 'Markierungen für den Agenten', remove: 'Entfernen', noElement: 'kein Element gefunden',
   waiting: 'Verbindung zum Browser…', failed: 'Der Browser konnte nicht starten:', view: 'Ansicht des gemeinsamen Browsers',
-  'surface.label': 'Ansicht', 'surface.browser': 'Browser', 'surface.desktop': 'Desktop', desktopView: 'Desktop-Ansicht', waitingDesktop: 'Desktop wird gelesen…', noWindow: 'eine Stelle auf dem Desktop', markScreen: 'Auf dem Bildschirm markieren', markScreenHint: 'Friert den Bildschirm in 3 s ein, damit Sie den echten Bildschirm markieren', discuss: 'Zuerst den Agenten fragen', discussHint: 'Diese Markierungen zuerst mit dem Agenten klären? Er antwortet, ohne zu handeln.', discussing: 'Markierungen werden besprochen: im Gespräch antworten oder Fortsetzen drücken',
+  'surface.label': 'Ansicht', 'surface.browser': 'Browser', 'surface.desktop': 'Desktop', desktopView: 'Desktop-Ansicht', waitingDesktop: 'Desktop wird gelesen…', noWindow: 'eine Stelle auf dem Desktop', markScreen: 'Auf dem Bildschirm markieren', markScreenHint: 'Friert den Bildschirm in 3 s ein, damit Sie den echten Bildschirm markieren',
+  'brief.title': 'Aufgabe', 'brief.where': 'Wo', 'brief.progress': 'Fortschritt', 'brief.edit': 'Bearbeiten', 'brief.save': 'Speichern', 'brief.goal': 'Ziel der Aufgabe', 'timeline.title': 'Zeitleiste', 'timeline.live': 'Live', 'timeline.step': 'Schritt {n}', 'timeline.irreversible': 'evtl. nicht rückgängig zu machen', 'timeline.hint': 'Markieren Sie den Bildschirm dieses Schritts und fragen Sie, oder schicken Sie den Agenten hierher zurück', 'ask.placeholder': 'Etwas fragen, z. B. welcher Flug ist das?', 'ask.button': 'Fragen', rewind: 'Hier lief es falsch', 'answers.title': 'Fragen', 'answers.model': 'Antwortendes Modell', 'answers.pause': 'Agent während der Antwort pausieren', 'answers.answering': 'Antwortet…', 'answers.onStep': 'Schritt {n}', 'answers.default': 'Standard', 'answers.image': 'sieht Bilder',
 } satisfies Record<keyof typeof zh, string>
 
 /** Russian copy. */
@@ -98,7 +104,8 @@ export const ru = {
   ask: 'Агент просит отметить:', answer: 'Отправить отметки как ответ',
   pending: 'Отметки ждут агента', remove: 'Удалить', noElement: 'элемент не найден',
   waiting: 'Подключение к браузеру…', failed: 'Не удалось запустить браузер:', view: 'Вид общего браузера',
-  'surface.label': 'Вид', 'surface.browser': 'Браузер', 'surface.desktop': 'Рабочий стол', desktopView: 'Вид рабочего стола', waitingDesktop: 'Чтение рабочего стола…', noWindow: 'место на рабочем столе', markScreen: 'Отметить на экране', markScreenHint: 'Через 3 с экран замрёт, чтобы отметить реальный экран', discuss: 'Сначала спросить агента', discussHint: 'Сначала уточнить эти отметки с агентом? Он ответит, не выполняя действий.', discussing: 'Обсуждение отметок: ответьте в беседе или нажмите «Продолжить»',
+  'surface.label': 'Вид', 'surface.browser': 'Браузер', 'surface.desktop': 'Рабочий стол', desktopView: 'Вид рабочего стола', waitingDesktop: 'Чтение рабочего стола…', noWindow: 'место на рабочем столе', markScreen: 'Отметить на экране', markScreenHint: 'Через 3 с экран замрёт, чтобы отметить реальный экран',
+  'brief.title': 'Задача', 'brief.where': 'Где', 'brief.progress': 'Ход работы', 'brief.edit': 'Изменить', 'brief.save': 'Сохранить', 'brief.goal': 'Цель задачи', 'timeline.title': 'Хронология', 'timeline.live': 'Сейчас', 'timeline.step': 'Шаг {n}', 'timeline.irreversible': 'может быть необратимо', 'timeline.hint': 'Отметьте экран этого шага и задайте вопрос или верните агента сюда', 'ask.placeholder': 'Спросите, например: какой это рейс?', 'ask.button': 'Спросить', rewind: 'Ошибка отсюда', 'answers.title': 'Вопросы', 'answers.model': 'Модель для ответов', 'answers.pause': 'Ставить агента на паузу во время ответа', 'answers.answering': 'Отвечает…', 'answers.onStep': 'Шаг {n}', 'answers.default': 'По умолчанию', 'answers.image': 'видит изображения',
 } satisfies Record<keyof typeof zh, string>
 
 /** Portuguese copy. */
@@ -111,5 +118,6 @@ export const pt = {
   ask: 'O agente pede que você marque:', answer: 'Enviar marcas como resposta',
   pending: 'Marcas aguardando o agente', remove: 'Remover', noElement: 'nenhum elemento',
   waiting: 'Conectando ao navegador…', failed: 'Não foi possível iniciar o navegador:', view: 'Visão do navegador compartilhado',
-  'surface.label': 'Visão', 'surface.browser': 'Navegador', 'surface.desktop': 'Área de trabalho', desktopView: 'Visão da área de trabalho', waitingDesktop: 'Lendo a área de trabalho…', noWindow: 'um lugar na área de trabalho', markScreen: 'Marcar na tela', markScreenHint: 'Congela a tela em 3 s para marcar a tela real', discuss: 'Perguntar ao agente primeiro', discussHint: 'Conferir estas marcas com o agente primeiro? Ele responde sem agir.', discussing: 'Discutindo suas marcas: responda na conversa ou clique em Retomar',
+  'surface.label': 'Visão', 'surface.browser': 'Navegador', 'surface.desktop': 'Área de trabalho', desktopView: 'Visão da área de trabalho', waitingDesktop: 'Lendo a área de trabalho…', noWindow: 'um lugar na área de trabalho', markScreen: 'Marcar na tela', markScreenHint: 'Congela a tela em 3 s para marcar a tela real',
+  'brief.title': 'Tarefa', 'brief.where': 'Onde', 'brief.progress': 'Progresso', 'brief.edit': 'Editar', 'brief.save': 'Salvar', 'brief.goal': 'Objetivo da tarefa', 'timeline.title': 'Linha do tempo', 'timeline.live': 'Ao vivo', 'timeline.step': 'Passo {n}', 'timeline.irreversible': 'pode não ser reversível', 'timeline.hint': 'Marque a tela deste passo e pergunte, ou faça o agente voltar aqui', 'ask.placeholder': 'Pergunte algo, ex.: que voo é este?', 'ask.button': 'Perguntar', rewind: 'Errou a partir daqui', 'answers.title': 'Perguntas', 'answers.model': 'Modelo que responde', 'answers.pause': 'Pausar o agente enquanto responde', 'answers.answering': 'Respondendo…', 'answers.onStep': 'Passo {n}', 'answers.default': 'Padrão', 'answers.image': 'vê imagens',
 } satisfies Record<keyof typeof zh, string>

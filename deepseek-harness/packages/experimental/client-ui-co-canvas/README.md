@@ -1,5 +1,5 @@
 ---
-description: "The co-canvas Web tab: a live view of the shared browser and desktop in the right Sidebar, with box, arrow and point marks, notes, and pause, take-over and hand-back controls, for users and maintainers enabling co-canvas in the Web client."
+description: "The co-canvas Web tab: a live view of the shared browser and desktop in the right Sidebar, with marks, a task brief, side questions answered by a light model, a timeline to go back to, and pause, take-over and hand-back controls, for users and maintainers enabling co-canvas in the Web client."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This optional browser plugin adds a Co-canvas tab to the right Sidebar. It shows the shared browser of [co-canvas](../co-canvas/README.md) live, and the desktop when the Host enables it. Drag to draw a box or an arrow, or click for a point; the note field annotates the next mark. Pending marks are listed and removable, and **Ask the agent first** sends them to discuss. Pause stops the agent and freezes the view for marking; Take over gives the browser or desktop to the user until Hand back. **Mark on screen** freezes the real screen for marking.
+This optional browser plugin adds a Co-canvas tab to the right Sidebar: the live shared browser of [co-canvas](../co-canvas/README.md), and the desktop when the Host enables it, under a Task card. Draw a box, arrow or point to mark. **Ask** sends a question about the marks to a light model chosen in the Questions section. The Timeline lists the agent's actions; picking one pauses the agent and shows that screen to mark, ask about, or send the agent back to with **Went wrong here**. Pause freezes the view; Take over hands over control until Hand back.
 
 ## Table of Contents
 
@@ -35,7 +35,7 @@ Mount it next to the co-canvas Host service, as shown in the [co-canvas configur
 <details>
 <summary>Implementation details — click to expand</summary>
 
-The browser entry mounts the generated `coCanvas` Remote and registers the tab type, body and title. The state and frame streams open when a tab subscribes and close after the last tab unmounts, so a closed tab costs no frames. Pointer positions are scaled from the displayed frame to page CSS pixels, or to screen points on the desktop, before they are sent; each surface streams frames only while it is shown. Source: [`src/client/index.ts`](src/client/index.ts), [`src/client/CanvasBody.tsx`](src/client/CanvasBody.tsx).
+The browser entry mounts the generated `coCanvas` Remote and registers the tab type, body and title. The state and frame streams open when a tab subscribes and close after the last tab unmounts, so a closed tab costs no frames. Pointer positions are scaled from the displayed frame to page CSS pixels, or to screen points on the desktop, before they are sent; each surface streams frames only while it is shown. Marks drawn on a timeline step stay in the tab until they are asked about or sent back with the step; the step's frame is fetched once when it is selected. The model list loads when the model menu is first opened. Source: [`src/client/index.ts`](src/client/index.ts), [`src/client/CanvasBody.tsx`](src/client/CanvasBody.tsx), [`src/client/Brief.tsx`](src/client/Brief.tsx), [`src/client/TimelineStrip.tsx`](src/client/TimelineStrip.tsx), [`src/client/Answers.tsx`](src/client/Answers.tsx).
 
 </details>
 
