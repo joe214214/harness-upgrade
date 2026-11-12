@@ -17,6 +17,60 @@
 
 [`deepseek-harness/`](deepseek-harness) is the complete upgraded harness: the official `0.2.2-rc.1` release unchanged, with these packages added on top and registered where upstream registers new packages. Upstream's build, documentation gates and test suite run on the combined tree.
 
+## Try it
+
+The full harness source is in this repository. One script installs its dependencies, builds it (about 5 minutes), and adds a `dsh-mm` command. A [DeepSeek API key](https://platform.deepseek.com/api_keys) is enough; the script asks for it, and it can be left empty to add keys for any provider in the app instead.
+
+Clone into the folder that should hold everything; the script keeps the harness and all its data side by side there (pass `-Root` / `--root` to choose another folder). Only the pnpm package store stays in its usual shared location.
+
+```
+<folder>\harness-upgrade\   this repository, including the full harness
+<folder>\data\              memory, speech model, co-canvas browser profile, dsh-mm launcher
+<folder>\dsh-home\          DSH sessions, settings and logs
+```
+
+**Windows** (PowerShell; installs missing Node.js, FFmpeg and Poppler with winget):
+
+```powershell
+mkdir D:\dsh; cd D:\dsh; git clone -b main https://github.com/joe214214/harness-upgrade; cd harness-upgrade
+powershell -ExecutionPolicy Bypass -File install\setup.ps1          # add -WithOffice for .docx/.pptx/.xlsx
+```
+
+**macOS / Linux** (needs Node.js 24.9+; `brew install poppler ffmpeg` or `apt install poppler-utils ffmpeg`):
+
+```bash
+mkdir -p ~/dsh && cd ~/dsh && git clone -b main https://github.com/joe214214/harness-upgrade && harness-upgrade/install/setup.sh
+```
+
+Then, in any project folder:
+
+```
+dsh-mm                                        # DSH Web UI with all new tools
+dsh-mm headless "what error is in bug.webm?"  # one task, answer printed
+```
+
+![DSH Web UI reading a scanned PDF page with read_document](docs/web-ui-scanned-pdf.png)
+
+### Update
+
+Close any running `dsh-mm` window, then pull and run the setup script again; it rebuilds and keeps sessions, memory, settings and API keys.
+
+```powershell
+cd D:\dsh\harness-upgrade; git pull; powershell -ExecutionPolicy Bypass -File install\setup.ps1
+```
+
+```bash
+cd ~/dsh/harness-upgrade && git pull && install/setup.sh
+```
+
+### Models and API keys
+
+The model menu under the message box picks the model for the conversation. **Manage models and API keys** at its bottom opens Settings → Models: enter a key for DeepSeek, or **Add model provider** for any of about 40 providers (Anthropic, OpenAI, Google Gemini, OpenRouter, …) or a custom OpenAI- or Anthropic-compatible endpoint, whose model list is fetched from the endpoint. Every new tool works on any model: `ask_image` picks an image-capable model that has a key when the conversation's model reads no images.
+
+| Model menu | Settings → Models |
+|---|---|
+| ![Model menu with Manage models and API keys](docs/models-menu.png) | ![Settings, Models section with DeepSeek and a custom provider](docs/models-settings.png) |
+
 ## Demos (real runs on the DeepSeek API)
 
 **Co-canvas · Point instead of explaining.** The agent works in a shared browser whose window carries a small toolbar; the Web UI also shows it live in a side tab. The user boxes or points at something on the real page, with a note; each mark is resolved to the element underneath — `button "Submit" (2nd of 2 button elements with this text)` plus a CSS selector — and reaches the agent with its next tool result. Two real runs on a page with two identical "Submit" buttons — **[watch marking in the real browser window](docs/co-canvas-in-page-demo.mp4)** (72 s) or [in the Web tab](docs/co-canvas-demo.mp4) (77 s), both with Chinese captions:

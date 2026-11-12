@@ -8,48 +8,6 @@ Design decisions and lessons from building the harness-upgrade packages. For usi
 
 **A superset of upstream, not a fork that drifts.** Everything in the official release is kept as is; this project only adds packages and registers them where upstream expects new packages to be registered. Upstream's own checks run on the combined tree: the full build and `build:check`, all 43 documentation gates, and upstream's complete unit-test suite (52,744 tests). In this cloud container 16 upstream test files fail identically on the untouched release (sandboxing, root user, IPv6, SSH and GitHub CLI access), so they are environmental; every other test passes.
 
-## Try it
-
-The full harness source is in this repository. One script installs its dependencies, builds it (about 5 minutes), and adds a `dsh-mm` command. A [DeepSeek API key](https://platform.deepseek.com/api_keys) is enough; the script asks for it, and it can be left empty to add keys for any provider in the app instead.
-
-Clone into the folder that should hold everything; the script keeps the harness and all its data side by side there (pass `-Root` / `--root` to choose another folder). Only the pnpm package store stays in its usual shared location.
-
-```
-<folder>\harness-upgrade\   this repository, including the full harness
-<folder>\data\              memory, speech model, co-canvas browser profile, dsh-mm launcher
-<folder>\dsh-home\          DSH sessions, settings and logs
-```
-
-**Windows** (PowerShell; installs missing Node.js, FFmpeg and Poppler with winget):
-
-```powershell
-mkdir D:\dsh; cd D:\dsh; git clone -b main https://github.com/joe214214/harness-upgrade; cd harness-upgrade
-powershell -ExecutionPolicy Bypass -File install\setup.ps1          # add -WithOffice for .docx/.pptx/.xlsx
-```
-
-**macOS / Linux** (needs Node.js 24.9+; `brew install poppler ffmpeg` or `apt install poppler-utils ffmpeg`):
-
-```bash
-mkdir -p ~/dsh && cd ~/dsh && git clone -b main https://github.com/joe214214/harness-upgrade && harness-upgrade/install/setup.sh
-```
-
-Then, in any project folder:
-
-```
-dsh-mm                                        # DSH Web UI with all new tools
-dsh-mm headless "what error is in bug.webm?"  # one task, answer printed
-```
-
-![DSH Web UI reading a scanned PDF page with read_document](docs/web-ui-scanned-pdf.png)
-
-### Models and API keys
-
-The model menu under the message box picks the model for the conversation. **Manage models and API keys** at its bottom opens Settings → Models: enter a key for DeepSeek, or **Add model provider** for any of about 40 providers (Anthropic, OpenAI, Google Gemini, OpenRouter, …) or a custom OpenAI- or Anthropic-compatible endpoint, whose model list is fetched from the endpoint. Every new tool works on any model: `ask_image` picks an image-capable model that has a key when the conversation's model reads no images.
-
-| Model menu | Settings → Models |
-|---|---|
-| ![Model menu with Manage models and API keys](docs/models-menu.png) | ![Settings, Models section with DeepSeek and a custom provider](docs/models-settings.png) |
-
 ## Notes
 
 - **Fit the host's architecture.** Tools register on `ctx.tools`, guidance on `ctx.systemPrompt` at centrally allocated orders, memory on `agent/turn-stopping`; images go through `ctx.attachments` so dsh's existing `compaction-image-offload` handles old frames for free.
