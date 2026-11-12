@@ -369,22 +369,24 @@ export default class CoCanvas extends TypertRemoteService {
   /**
    * Stream JPEG frames of the active page.
    * @param signal - Client observation lifetime.
-   * @returns frames; slow readers receive only the newest.
+   * @returns frames; slow readers receive only the newest. While the agent is paused the stream
+   * holds its last frame, so the user marks a still view.
    */
   @Remote({ mode: 'stream' })
   frames(signal: AbortSignal): AsyncIterable<CanvasFrame> {
-    return this.browser.frames(signal)
+    return this.holdWhilePaused(this.browser.frames(signal), signal)
   }
 
   /**
    * Stream JPEG frames of the primary display.
    * @param signal - Client observation lifetime.
-   * @returns frames sized in screen points, one per configured interval.
+   * @returns frames sized in screen points, one per configured interval. While the agent is paused
+   * no screenshot is taken, so the last frame stays on screen and desktop marks are cropped from it.
    * @throws RemoteError when the desktop surface is disabled.
    */
   @Remote({ mode: 'stream' })
   desktopFrames(signal: AbortSignal): AsyncIterable<CanvasFrame> {
-    return this.requireDesktop().frames(signal)
+    return this.holdWhilePaused(this.requireDesktop().frames(signal), signal)
   }
 
   /**
@@ -578,6 +580,39 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   /** Wait until the agent holds control or the user starts a discussion. */
+  /**
+   * Pass frames through while the agent acts or the user holds control; while paused, stop reading
+   * so the viewer keeps the last frame.
+   * @param frames - the live source, read lazily.
+   * @param signal - the observation lifetime.
+   * @returns the frames shown to the viewer.
+   */
+  private async* holdWhilePaused(frames: AsyncIterable<CanvasFrame>, signal: AbortSignal): AsyncIterable<CanvasFrame> {
+    const source = frames[Symbol.asyncIterator]()
+    try {
+      for (;;) {
+        if (this.control === 'paused') await this.untilLive(signal)
+        if (signal.aborted) return
+        const next = await source.next()
+        if (next.done === true) return
+        yield next.value
+      }
+    } finally {
+      await source.return?.()
+    }
+  }
+
+  private untilLive(signal: AbortSignal): Promise<void> {
+    const { promise, resolve } = Promise.withResolvers<undefined>()
+    const check = (): void => { if (this.control !== 'paused' || signal.aborted) resolve(undefined) }
+    this.listeners.add(check)
+    signal.addEventListener('abort', check, { once: true })
+    return promise.finally(() => {
+      this.listeners.delete(check)
+      signal.removeEventListener('abort', check)
+    }).then(() => {})
+  }
+
   private untilAgentControl(signal: AbortSignal): Promise<void> {
     const released = (): boolean => this.control === 'agent' || this.discussing
     if (released()) return Promise.resolve()

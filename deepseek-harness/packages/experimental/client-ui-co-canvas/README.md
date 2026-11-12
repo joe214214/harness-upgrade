@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This optional browser plugin adds a Co-canvas tab to the right Sidebar. It shows the shared browser of [co-canvas](../co-canvas/README.md) live, and the desktop when the Host enables it. Drag to draw a box or an arrow, or click to place a point; the note field attaches text to the next mark. Pending marks are listed and removable, and **Ask the agent first** sends them to discuss. Pause stops the agent's actions; Take over gives the browser or desktop to the user until Hand back. **Mark on screen** freezes the real screen for marking.
+This optional browser plugin adds a Co-canvas tab to the right Sidebar. It shows the shared browser of [co-canvas](../co-canvas/README.md) live, and the desktop when the Host enables it. Drag to draw a box or an arrow, or click for a point; the note field annotates the next mark. Pending marks are listed and removable, and **Ask the agent first** sends them to discuss. Pause stops the agent and freezes the view for marking; Take over gives the browser or desktop to the user until Hand back. **Mark on screen** freezes the real screen for marking.
 
 ## Table of Contents
 

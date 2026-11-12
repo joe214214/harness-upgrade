@@ -339,6 +339,23 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     await expect(fetch(`${endpoint}/json/version`)).rejects.toThrow()
   }, 60_000)
 
+  it('holds the last frame while the agent is paused and streams again when it resumes', async () => {
+    const { canvas } = await setup()
+    const lifetime = new AbortController()
+    onTestFinished(() => { lifetime.abort() })
+    const stream = canvas.frames(lifetime.signal)[Symbol.asyncIterator]()
+    expect((await stream.next()).value).toMatchObject({ width: 600, height: 400 })
+    canvas.setControl('paused')
+    const next = stream.next()
+    let arrived = false
+    void next.then(() => { arrived = true })
+    await canvas.browser.page!.setContent('<body style="background:#c00"><h1>changed while paused</h1></body>')
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    expect(arrived).toBe(false)
+    canvas.setControl('agent')
+    expect((await next).value).toMatchObject({ width: 600, height: 400 })
+  }, 60_000)
+
   it('refuses a desktop action chosen before a new mark, like a browser action', async () => {
     const { canvas, clicks, call } = await setup()
     await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'not that window' })

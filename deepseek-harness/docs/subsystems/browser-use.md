@@ -82,14 +82,16 @@ Owner of the shared browser and of the user's marks and control.
 /**
  * Stream JPEG frames of the active page.
  * @param signal - Client observation lifetime.
- * @returns frames; slow readers receive only the newest.
+ * @returns frames; slow readers receive only the newest. While the agent is paused the stream
+ * holds its last frame, so the user marks a still view.
  */
 @Remote({ mode: 'stream' }) frames(signal: AbortSignal): AsyncIterable<CanvasFrame>
 
 /**
  * Stream JPEG frames of the primary display.
  * @param signal - Client observation lifetime.
- * @returns frames sized in screen points, one per configured interval.
+ * @returns frames sized in screen points, one per configured interval. While the agent is paused
+ * no screenshot is taken, so the last frame stays on screen and desktop marks are cropped from it.
  * @throws RemoteError when the desktop surface is disabled.
  */
 @Remote({ mode: 'stream' }) desktopFrames(signal: AbortSignal): AsyncIterable<CanvasFrame>
