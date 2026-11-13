@@ -1182,6 +1182,11 @@ export interface Config {
    * duplicate browser tools; empty hides nothing.
    */
   hiddenTools: string
+  /**
+   * Regular expression for windows never named as the target of a mark or action, matched against
+   * title or application, such as invisible full-screen overlays; empty ignores none.
+   */
+  ignoredWindows: string
   /** Directory of the timeline's frames and of the panel's settings. */
   dataDir: string
   /** Provider of the side-question model; empty uses the first provider with credentials that offers it. */

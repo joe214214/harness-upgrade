@@ -123,6 +123,11 @@ export interface Config {
    * duplicate browser tools; empty hides nothing.
    */
   hiddenTools: string
+  /**
+   * Regular expression for windows never named as the target of a mark or action, matched against
+   * title or application, such as invisible full-screen overlays; empty ignores none.
+   */
+  ignoredWindows: string
   /** Directory of the timeline's frames and of the panel's settings. */
   dataDir: string
   /** Provider of the side-question model; empty uses the first provider with credentials that offers it. */
@@ -160,6 +165,13 @@ export interface AskResult {
 export const DESKTOP_ACTIONS = '^(cua_driver_native__|mcp__cua-driver-mcp__)(click|double_click|right_click|drag|mouse_button_down|mouse_drag|mouse_button_up'
   + '|parallel_mouse_drag|type_text|press_key|hotkey|set_value|scroll|launch_app|kill_app|bring_to_front|set_window_frame|invoke_menu|move_cursor'
   + '|clipboard_write|replay_trajectory)$'
+
+/**
+ * Default {@link Config.ignoredWindows}: invisible windows that cover the screen on Windows, such as
+ * the NVIDIA overlay, the desktop itself, and the input-method host.
+ */
+export const IGNORED_WINDOWS = '^(NVIDIA GeForce Overlay.*|Program Manager|Windows Input Experience|Microsoft Text Input Application'
+  + '|Windows Shell Experience Host|Windows 输入体验|Windows Shell 体验主机)$'
 
 /** Model-facing reason for a browser or desktop action refused because the user went back to an earlier step. */
 export const REWOUND = 'This action was not run: the user went back to an earlier step of your work and marked what went wrong. '
@@ -241,6 +253,7 @@ export default class CoCanvas extends TypertRemoteService {
     desktopMaxFrameEdge: z.natural().min(320).default(1600),
     gatedDesktopTools: z.string().min(1).default(DESKTOP_ACTIONS),
     hiddenTools: z.string().default(''),
+    ignoredWindows: z.string().default(IGNORED_WINDOWS),
     dataDir: z.string().min(1).default(join(homedir(), '.dsh-co-canvas')),
     askProvider: z.string().default(''),
     askModel: z.string().min(1).default('deepseek-flash'),
@@ -309,6 +322,7 @@ export default class CoCanvas extends TypertRemoteService {
         frameQuality: config.frameQuality,
         maxFrameEdge: config.desktopMaxFrameEdge,
         openDriver: openCuaDriver,
+        ...config.ignoredWindows === '' ? {} : { ignoredWindows: new RegExp(config.ignoredWindows, 'u') },
       })
       : undefined
     this.timeline = new Timeline(join(config.dataDir, 'timeline'), config.timelineMaxSteps)
@@ -641,8 +655,8 @@ export default class CoCanvas extends TypertRemoteService {
       for (const input of result.marks) await this.recordDesktop({ ...input, surface: 'desktop' }, shot)
       if (result.action === 'ask') await this.ask(result.marks.map(m => m.note ?? '').filter(n => n !== '').join('; '))
       else {
-        this.send()
         if (this.control === 'paused') this.setControl('agent')
+        await this.send()
       }
       return { action: result.action, marks: result.marks.length }
     } finally {
@@ -673,12 +687,13 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   /**
-   * Send the draft marks to the agent as instructions; they arrive with its next tool result, and an
-   * action it chose before them is refused.
+   * Send the draft marks to the agent as instructions. A working agent receives them with its next
+   * tool result, and an action it chose before them is refused; an idle agent takes no next step, so
+   * the marks start a turn instead.
    * @param note - the user's instruction, attached to the last draft.
    */
   @Remote
-  send(note?: string): void {
+  async send(note?: string): Promise<void> {
     if (this.drafts.length === 0) return
     const text = note?.trim() ?? ''
     const drafts = this.drafts.splice(0)
@@ -689,6 +704,16 @@ export default class CoCanvas extends TypertRemoteService {
     }
     this.pending.push(...drafts)
     this.changed()
+    const agent = this.busy ? undefined : this.agent ?? this.ctx.get('agents')?.roots().at(-1)
+    const taken = agent === undefined ? undefined : this.takePending()
+    if (agent === undefined || taken === undefined) return
+    const message = marksMessage(taken.pending.map(p => p.mark), taken.handback, this.config.maxMarksPerMessage)
+    const images = await this.saveCrops(taken.pending, agent, AbortSignal.timeout(30_000))
+    const notes = taken.pending.map(p => p.mark.note).filter(n => n !== undefined && n !== '')
+    agent.steer(createUserMessage({
+      content: [{ type: 'text', text: message }, ...images.map(imageBlock)],
+      source: { kind: 'dsh-co-canvas', form: 'notice', summary: boundContextSummary(`Marks (${taken.pending.length})${notes.length === 0 ? '' : `: ${notes.join('; ')}`}`) },
+    }))
   }
 
   /**
@@ -753,7 +778,7 @@ export default class CoCanvas extends TypertRemoteService {
       case 'control': this.setControl(message.control); return
       case 'answer': this.answer(message.questionId); return
       case 'ask': await this.ask(message.question); return
-      case 'send': this.send(message.note); return
+      case 'send': await this.send(message.note); return
     }
   }
 

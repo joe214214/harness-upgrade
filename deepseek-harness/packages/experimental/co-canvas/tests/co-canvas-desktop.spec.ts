@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import sharp from 'sharp'
 import { chromium } from 'playwright-core'
 import { describe, expect, it } from 'vitest'
-import { SharedDesktop, markOnScreen, openCuaDriver, parseScreenMarks, windowAt } from '../src/index.ts'
+import { IGNORED_WINDOWS, SharedDesktop, actionWindow, markOnScreen, openCuaDriver, parseScreenMarks, windowAt } from '../src/index.ts'
 import type { DesktopDriver, DesktopShot, DesktopToolResult } from '../src/index.ts'
 
 function findChromium(): string | undefined {
@@ -56,6 +56,15 @@ const editor = { pid: 42, window_id: 7, title: 'notes.txt', app_name: 'Editor', 
 const behind = { pid: 9, window_id: 3, title: 'Files', app_name: 'Files', bounds: { x: 0, y: 0, width: 100, height: 50 }, is_on_screen: true, z_index: 1 }
 
 describe('desktop surface', () => {
+  it('never names an ignored overlay window as the target', () => {
+    const overlay = { pid: 1, window_id: 9, title: 'NVIDIA GeForce Overlay DT', app_name: 'NVIDIA Overlay', bounds: { x: 0, y: 0, width: 1600, height: 1000 }, z_index: 99 }
+    const app = { pid: 2, window_id: 3, title: '飞行网 · 机票查询', app_name: 'Chromium', bounds: { x: 800, y: 80, width: 760, height: 640 }, z_index: 5 }
+    const ignored = new RegExp(IGNORED_WINDOWS, 'u')
+    expect(windowAt([overlay, app], 900, 300)?.title).toBe('NVIDIA GeForce Overlay DT')
+    expect(windowAt([overlay, app], 900, 300, ignored)?.title).toBe('飞行网 · 机票查询')
+    expect(actionWindow([overlay, app], undefined, undefined, ignored)?.title).toBe('飞行网 · 机票查询')
+  })
+
   it('grounds a point to the frontmost visible window containing it', () => {
     expect(windowAt([behind, editor], 50, 25)).toMatchObject({ title: 'notes.txt', app: 'Editor', pid: 42, windowId: '7' })
     expect(windowAt([behind, editor], 5, 5)).toMatchObject({ title: 'Files' })

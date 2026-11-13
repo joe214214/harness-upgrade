@@ -201,7 +201,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     expect(recorded.target).toMatchObject({ tag: 'button', text: 'Submit', nth: 2, sameCount: 2 })
     // A drawn mark is a draft: the agent receives nothing until the user sends it.
     expect(text(await call('read'))).toBe('')
-    canvas.send()
+    await canvas.send()
     const first = await call('read')
     expect(text(first)).toContain('button "Submit" (2nd of 2 button elements with this text)')
     expect(text(first)).toContain('note: "press this one"')
@@ -281,7 +281,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'stop' })
     // An unsent draft does not stop the agent.
     expect((await call('browser_click')).isError).toBe(false)
-    canvas.send()
+    await canvas.send()
     const refused = await call('browser_click')
     expect(refused.isError).toBe(true)
     expect(refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain('note: "stop"')
@@ -402,10 +402,22 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     expect((await next).value).toMatchObject({ width: 600, height: 400 })
   }, 60_000)
 
+  it('starts a turn when marks are sent to an idle agent, instead of waiting for its next step', async () => {
+    const { ctx, canvas, call } = await setup()
+    const { agent, steered } = steeredAgent(ctx)
+    await call('read', {}, agent)
+    emitAgentEvent(ctx, agent, 'agent/turn-stopping', { turn: 1, signal: new AbortController().signal })
+    await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 } })
+    await canvas.send('close this window')
+    expect(steered).toHaveLength(1)
+    expect(steered[0]!.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain('note: "close this window"')
+    expect(text(await call('read', {}, agent))).toBe('')
+  }, 60_000)
+
   it('refuses a desktop action chosen before a new mark, like a browser action', async () => {
     const { canvas, clicks, call } = await setup()
     await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'not that window' })
-    canvas.send()
+    await canvas.send()
     const refused = await call('cua_driver_native__click')
     expect(refused.isError).toBe(true)
     expect(reason(refused)).toContain('not that window')
@@ -520,7 +532,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     ctx.provide('agents', { roots: () => [parent.agent] })
     await call('read', {}, parent.agent)
     await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'use the second form' })
-    canvas.send()
+    await canvas.send()
     const childClick = await call('browser_click', {}, child.agent)
     expect(childClick.isError).toBe(false)
     expect(text(childClick)).toBe('')

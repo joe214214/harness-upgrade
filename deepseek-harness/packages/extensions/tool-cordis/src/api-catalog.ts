@@ -828,8 +828,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'id', description: 'mark id.' }],
       },
       {
-        signature: '@Remote send(note?: string): void',
-        description: 'Send the draft marks to the agent as instructions; they arrive with its next tool result, and an action it chose before them is refused.',
+        signature: '@Remote async send(note?: string): Promise<void>',
+        description: 'Send the draft marks to the agent as instructions. A working agent receives them with its next tool result, and an action it chose before them is refused; an idle agent takes no next step, so the marks start a turn instead.',
         parameters: [{ name: 'note', description: 'the user\'s instruction, attached to the last draft.' }],
       },
       {
@@ -9199,7 +9199,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SharedDesktopOptions',
-    declaration: 'export interface SharedDesktopOptions {\n    readonly frameIntervalMs: number;\n    readonly frameQuality: number;\n    readonly maxFrameEdge: number;\n    readonly openDriver: () => Promise<DesktopDriver>;\n}',
+    declaration: 'export interface SharedDesktopOptions {\n    readonly frameIntervalMs: number;\n    readonly frameQuality: number;\n    readonly maxFrameEdge: number;\n    readonly openDriver: () => Promise<DesktopDriver>;\n    readonly ignoredWindows?: RegExp;\n}',
   },
   {
     name: 'ShellExecRequest',

@@ -174,11 +174,12 @@ Owner of the shared browser and of the user's marks and control.
 @Remote removeMark(id: string): void
 
 /**
- * Send the draft marks to the agent as instructions; they arrive with its next tool result, and an
- * action it chose before them is refused.
+ * Send the draft marks to the agent as instructions. A working agent receives them with its next
+ * tool result, and an action it chose before them is refused; an idle agent takes no next step, so
+ * the marks start a turn instead.
  * @param note - the user's instruction, attached to the last draft.
  */
-@Remote send(note?: string): void
+@Remote async send(note?: string): Promise<void>
 
 /**
  * Give the browser to the agent, pause it, or take it.

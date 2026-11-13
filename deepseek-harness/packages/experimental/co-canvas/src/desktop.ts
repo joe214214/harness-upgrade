@@ -32,6 +32,8 @@ export interface SharedDesktopOptions {
   readonly maxFrameEdge: number
   /** Opens the runtime on first use. */
   readonly openDriver: () => Promise<DesktopDriver>
+  /** Windows never named as the target of a mark or action, matched against title or application, such as invisible overlays. */
+  readonly ignoredWindows?: RegExp
 }
 
 /** One screenshot with the screen size it depicts. */
@@ -85,13 +87,14 @@ export async function openCuaDriver(): Promise<DesktopDriver> {
  * @param windows - `list_windows` records.
  * @param x - screen x in points.
  * @param y - screen y in points.
+ * @param ignored - windows never chosen, matched against title or application.
  * @returns the window, or undefined when none contains the point.
  */
-export function windowAt(windows: readonly WindowRecord[], x: number, y: number): DesktopWindow | undefined {
+export function windowAt(windows: readonly WindowRecord[], x: number, y: number, ignored?: RegExp): DesktopWindow | undefined {
   let best: { record: WindowRecord; bounds: CanvasRect; z: number } | undefined
   for (const record of windows) {
     const b = record.bounds
-    if (b === undefined || record.minimized === true || record.is_on_screen === false) continue
+    if (b === undefined || record.minimized === true || record.is_on_screen === false || isIgnored(record, ignored)) continue
     if (x < b.x || y < b.y || x >= b.x + b.width || y >= b.y + b.height) continue
     // A null z-index means stacking order is unknown; such windows lose to any ranked one.
     const z = typeof record.z_index === 'number' ? record.z_index : Number.NEGATIVE_INFINITY
@@ -108,15 +111,22 @@ export function windowAt(windows: readonly WindowRecord[], x: number, y: number)
   }
 }
 
+function isIgnored(record: WindowRecord, ignored: RegExp | undefined): boolean {
+  return ignored !== undefined && (ignored.test(record.title ?? '') || ignored.test(record.app_name ?? ''))
+}
+
 /**
  * The window an action was aimed at, or else the frontmost visible window.
  * @param windows - `list_windows` records.
  * @param pid - process the action named, when it named one.
  * @param windowId - window the action named, when it named one.
+ * @param ignored - windows never chosen, matched against title or application.
  * @returns the window, or undefined when none is visible.
  */
-export function actionWindow(windows: readonly WindowRecord[], pid?: number, windowId?: string): DesktopWindow | undefined {
-  const visible = windows.filter(r => r.bounds !== undefined && r.minimized !== true && r.is_on_screen !== false)
+export function actionWindow(
+  windows: readonly WindowRecord[], pid?: number, windowId?: string, ignored?: RegExp,
+): DesktopWindow | undefined {
+  const visible = windows.filter(r => r.bounds !== undefined && r.minimized !== true && r.is_on_screen !== false && !isIgnored(r, ignored))
   const z = (r: WindowRecord): number => (typeof r.z_index === 'number' ? r.z_index : Number.NEGATIVE_INFINITY)
   const named = windowId === undefined ? undefined : visible.find(r => String(r.window_id) === windowId)
   const ofPid = pid === undefined ? [] : visible.filter(r => r.pid === pid)
@@ -229,7 +239,7 @@ export class SharedDesktop {
   async window(pid?: number, windowId?: string): Promise<DesktopWindow | undefined> {
     const driver = await this.open()
     const listed = await driver.callTool('list_windows', JSON.stringify({ on_screen_only: true }))
-    return actionWindow((JSON.parse(listed.structuredJson ?? '{}') as { windows?: WindowRecord[] }).windows ?? [], pid, windowId)
+    return actionWindow((JSON.parse(listed.structuredJson ?? '{}') as { windows?: WindowRecord[] }).windows ?? [], pid, windowId, this.options.ignoredWindows)
   }
 
   /**
@@ -265,7 +275,7 @@ export class SharedDesktop {
     try {
       const listed = await driver.callTool('list_windows', JSON.stringify({ on_screen_only: true }))
       const windows = (JSON.parse(listed.structuredJson ?? '{}') as { windows?: WindowRecord[] }).windows ?? []
-      window = windowAt(windows, focus.x, focus.y)
+      window = windowAt(windows, focus.x, focus.y, this.options.ignoredWindows)
     } catch (error) {
       // Grounding is best effort: the mark still carries its coordinates and crop.
       void error
