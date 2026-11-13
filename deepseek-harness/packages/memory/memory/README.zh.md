@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-memory` 让每个 Session 都记得之前的 Session。偏好、约定、决策等长期事实保存在一个有 8 KB 上限、由 agent 自己整理的 MEMORY.md 中，并出现在每次请求里。每一轮对话，包括 `read_audio` 与 `read_video` 生成的转写，都会被索引以供 `recall` 检索。每轮结束后，reflect 会自行归档新事实，即使模型忘了保存，记忆也会被填上。它不改动任何 agent loop 代码。
+`dsh-memory` 让每个 Session 都记得之前的 Session。偏好、约定、决策等长期事实保存在一个有 8 KB 上限、由 agent 自己整理的 MEMORY.md 中，并出现在每次请求里。每一轮对话，包括 `read_audio` 与 `read_video` 生成的转写，都会被索引以供 `recall` 检索。每轮结束后，reflect 会自行归档新事实，即使模型忘了保存，记忆也会被填上；它只保留偏好、约定和决策，不保存文件内容、一次性的回答和工具上的变通办法。它不改动任何 agent loop 代码。
 
 ## 目录
 

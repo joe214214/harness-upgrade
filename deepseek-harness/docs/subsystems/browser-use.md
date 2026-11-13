@@ -154,10 +154,12 @@ Owner of the shared browser and of the user's marks and control.
 /**
  * Mark the real screen: after a delay, show a frozen screenshot full screen and collect marks on it.
  * @param delayMs - time to bring the screen to mark to the front.
+ * @param locale - language of the marker's toolbar, the panel's own.
+ * @param defaultQuestion - question asked when the user asks without writing a note, in that language.
  * @returns what the user chose and how many marks were recorded.
  * @throws RemoteError when the desktop surface is disabled.
  */
-@Remote async markScreen(delayMs: number): Promise<ScreenMarkOutcome>
+@Remote async markScreen(delayMs: number, locale?: string, defaultQuestion?: string): Promise<ScreenMarkOutcome>
 
 /**
  * Record one mark as a draft, grounded to the element or window under its focus point. A draft

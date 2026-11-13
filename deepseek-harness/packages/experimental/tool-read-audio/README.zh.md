@@ -117,7 +117,7 @@ SenseVoice 等提供方在首次转写前必须下载并加载模型。工具在
 ##### 指引原文
 
 ```markdown
-Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns.
+Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns. If parts of a transcript are unclear, say which parts and what they most likely say instead of re-processing the audio.
 ```
 
 #### Token 影响

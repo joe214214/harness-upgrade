@@ -24,9 +24,14 @@ Include ONLY things that are durable (still true in a month) and stated by the u
 - user preferences and working style ("prefers X", "always do Y")
 - project facts: architecture, conventions, key file locations, constraints
 - decisions and their reasons, including decisions taken from meeting recordings or documents
-Exclude: transient task state, the assistant's own suggestions the user did not adopt, anything already in <existing_memory>.
+Exclude:
+- transient task state, and instructions for the current task only ("don't book yet", "just answer") unless the user says they always apply
+- the contents or summary of a file, recording, image or page the user asked about; it can be read again, and past sessions stay searchable
+- answers to one-off questions
+- workarounds, tool tricks, debugging steps, and the assistant's own observations about tools, files or the environment
+- the assistant's own suggestions the user did not adopt, and anything already in <existing_memory>
 
-Return a JSON array and nothing else. Each item: {"section": "user"|"project"|"decisions", "fact": "<one self-contained line>"}.
+Return a JSON array and nothing else. Each item: {"section": "user"|"project"|"decisions", "fact": "<one self-contained line, in the language the user writes in>"}.
 Return [] if nothing qualifies.`
 
 /**

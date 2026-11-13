@@ -156,7 +156,7 @@ export function CanvasBody({
       <Button size="sm" variant="primary" onClick={() => { report(answer(question.id)) }}>{t('answer')}</Button>
     </div>}
     {desktop && step === null && <div className={css.toolbar}>
-      <Button size="sm" variant="outline" onClick={() => { report(markScreen(SCREEN_MARK_DELAY_MS)) }}>{t('markScreen')}</Button>
+      <Button size="sm" variant="outline" onClick={() => { report(markScreen(SCREEN_MARK_DELAY_MS, document.documentElement.lang || navigator.language, t('ask.default'))) }}>{t('markScreen')}</Button>
       <span className={css.status}>{t('markScreenHint')}</span>
     </div>}
     {step === null

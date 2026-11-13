@@ -134,6 +134,19 @@ describe('agent bridge', () => {
     expect(text(await f.call('external_memory', { path: join(memoryDir, 'MEMORY.md') }))).toBe('- API base path is /v2/relay')
   })
 
+  it('writes no memory for an agent that is not installed, and starts once its data directory appears', async () => {
+    const claudeHome = join(tmpdir(), `dsh-no-claude-${process.pid}-${Date.now()}`)
+    onTestFinished(() => { rmSync(claudeHome, { recursive: true, force: true }) })
+    const f = await setup({ claudeHome })
+    writeFileSync(join(f.root, 'MEMORY.md'), '## user\n- Prefers window seats  <!-- s1 -->\n')
+    await f.until(() => existsSync(join(f.homes.gemini, 'GEMINI.md')))
+    await new Promise(resolve => setTimeout(resolve, 500))
+    expect(existsSync(claudeHome)).toBe(false)
+    mkdirSync(claudeHome)
+    await f.until(() => existsSync(join(claudeHome, 'CLAUDE.md')))
+    expect(readFileSync(join(claudeHome, 'CLAUDE.md'), 'utf8')).toContain('- Prefers window seats')
+  })
+
   it('shares project facts only with that project, and removes them when they leave DeepSeek Harness memory', async () => {
     const f = await setup()
     const db = new DatabaseSync(join(f.root, 'episodic.db'))

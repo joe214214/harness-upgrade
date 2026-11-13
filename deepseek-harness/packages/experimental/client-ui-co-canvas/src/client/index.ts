@@ -50,7 +50,7 @@ function registerUi(ctx: Context): void {
     editGoal: goal => unwrap(remote.editGoal(goal)),
     stepFrame: step => unwrap(remote.stepFrame(step)),
     rewind: (step, marks, note) => unwrap(remote.rewind(step, marks, note)),
-    markScreen: delayMs => unwrap(remote.markScreen(delayMs)),
+    markScreen: (delayMs, locale, defaultQuestion) => unwrap(remote.markScreen(delayMs, locale, defaultQuestion)),
   }
   ctx.effect(() => ctx.sidebarRightTabs.register({
     id: CO_CANVAS_ID, kind: 'co-canvas', title: () => t('title'),

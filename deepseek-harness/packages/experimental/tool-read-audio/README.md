@@ -117,7 +117,7 @@ One sentence in the system prompt, present only while the tool is visible in the
 ##### Verbatim guidance
 
 ```markdown
-Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns.
+Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns. If parts of a transcript are unclear, say which parts and what they most likely say instead of re-processing the audio.
 ```
 
 #### Token effect

@@ -115,8 +115,11 @@ $overlay = Join-Path $InstallDir 'overlay.yml'
 # the user marks the page directly in that window.
 $text = (Get-Content -Raw (Join-Path $Here 'overlay.yml.in')).Replace('@DSH@', $dshFwd).Replace('@DATA@', $dataFwd) -replace '(?m)^@BROWSER@\r?$', "        channel: msedge`n        headless: false"
 [IO.File]::WriteAllText($overlay, $text)
+# The user's own overrides; created once, never overwritten.
+$local = Join-Path $InstallDir 'overlay.local.yml'
+if (-not (Test-Path $local)) { Copy-Item (Join-Path $Here 'overlay.local.yml.in') $local }
 Copy-Item (Join-Path $Here 'dsh-mm.mjs') (Join-Path $Bin 'dsh-mm.mjs') -Force
-[IO.File]::WriteAllText((Join-Path $Bin 'dsh-mm.json'), (@{ dsh = $Dsh; overlay = $overlay; home = $DshHome } | ConvertTo-Json))
+[IO.File]::WriteAllText((Join-Path $Bin 'dsh-mm.json'), (@{ dsh = $Dsh; overlay = $overlay; home = $DshHome; local = $local } | ConvertTo-Json))
 [IO.File]::WriteAllText((Join-Path $Bin 'dsh-mm.cmd'), "@node `"%~dp0dsh-mm.mjs`" %*`r`n")
 Add-UserPath $Bin
 

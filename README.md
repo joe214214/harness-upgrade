@@ -64,6 +64,15 @@ cd D:\dsh\harness-upgrade; git pull; powershell -ExecutionPolicy Bypass -File in
 cd ~/dsh/harness-upgrade && git pull && install/setup.sh
 ```
 
+### Turning plugins off
+
+Each feature is a separate plugin. To turn one off, add its id with `disabled: true` to `data/overlay.local.yml` (`C:\dsh\data\overlay.local.yml` on Windows) and restart `dsh-mm`; the file lists every id. Setup creates that file once and never overwrites it, so the change survives updates, unlike edits to `overlay.yml`, which setup rewrites.
+
+```yaml
+- id: memory
+  disabled: true
+```
+
 ### Models and API keys
 
 The model menu under the message box picks the model for the conversation. **Manage models and API keys** at its bottom opens Settings → Models: enter a key for DeepSeek, or **Add model provider** for any of about 40 providers (Anthropic, OpenAI, Google Gemini, OpenRouter, …) or a custom OpenAI- or Anthropic-compatible endpoint, whose model list is fetched from the endpoint. Every new tool works on any model: `ask_image` picks an image-capable model that has a key when the conversation's model reads no images.

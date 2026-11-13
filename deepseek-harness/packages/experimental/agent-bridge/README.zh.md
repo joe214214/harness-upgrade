@@ -76,7 +76,7 @@ kind: "package-reference"
 
 ### 记忆
 
-读取的来源是每个 Agent 的用户级指令文件、Claude Code 按项目保存的记忆目录、Codex 的记忆摘要，以及 Gemini CLI 的项目 `GEMINI.md` 和记忆目录；项目里的 `AGENTS.md` 和 `CLAUDE.md` 交给 DeepSeek Harness 自己的指令加载。写出时，`memoryFile` 里的条目按范围共享。用户级条目写入 `~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md` 和 `~/.gemini/GEMINI.md` 中一个带标记的区块。`project` 和 `decisions` 分区的条目属于保存它们的那个 Session 的工作目录（从记忆的 `episodic.db` 读取）；它们写入该项目在 Claude Code 和 Gemini CLI 中的记忆 `MEMORY.md`，绝不写进用户级文件；找不到所属 Session 的条目不共享。Codex 通过 `~/.codex/memories/extensions/dsh_agent_bridge` 下的记忆扩展同时接收两者，每个项目带一个 `scope.json`。区块原地替换，不再对应任何条目的区块会被移除，读取时也会去掉它们，因此条目不会循环回来。
+读取的来源是每个 Agent 的用户级指令文件、Claude Code 按项目保存的记忆目录、Codex 的记忆摘要，以及 Gemini CLI 的项目 `GEMINI.md` 和记忆目录；项目里的 `AGENTS.md` 和 `CLAUDE.md` 交给 DeepSeek Harness 自己的指令加载。写出时，`memoryFile` 里的条目按范围共享。只有数据目录已存在、也就是已安装的 Agent 才会收到记忆；bridge 不会为用户没用的 Agent 创建配置，该目录出现后才开始写入。用户级条目写入 `~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md` 和 `~/.gemini/GEMINI.md` 中一个带标记的区块。`project` 和 `decisions` 分区的条目属于保存它们的那个 Session 的工作目录（从记忆的 `episodic.db` 读取）；它们写入该项目在 Claude Code 和 Gemini CLI 中的记忆 `MEMORY.md`，绝不写进用户级文件；找不到所属 Session 的条目不共享。Codex 通过 `~/.codex/memories/extensions/dsh_agent_bridge` 下的记忆扩展同时接收两者，每个项目带一个 `scope.json`。区块原地替换，不再对应任何条目的区块会被移除，读取时也会去掉它们，因此条目不会循环回来。
 
 ### 源码地图
 

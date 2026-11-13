@@ -810,9 +810,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         throws: ['RemoteError when the step is gone or no agent has acted yet.'],
       },
       {
-        signature: '@Remote async markScreen(delayMs: number): Promise<ScreenMarkOutcome>',
+        signature: '@Remote async markScreen(delayMs: number, locale?: string, defaultQuestion?: string): Promise<ScreenMarkOutcome>',
         description: 'Mark the real screen: after a delay, show a frozen screenshot full screen and collect marks on it.',
-        parameters: [{ name: 'delayMs', description: 'time to bring the screen to mark to the front.' }],
+        parameters: [{ name: 'delayMs', description: 'time to bring the screen to mark to the front.' }, { name: 'locale', description: 'language of the marker\'s toolbar, the panel\'s own.' }, { name: 'defaultQuestion', description: 'question asked when the user asks without writing a note, in that language.' }],
         returns: 'what the user chose and how many marks were recorded.',
         throws: ['RemoteError when the desktop surface is disabled.'],
       },
@@ -7395,7 +7395,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'MemoryExportState',
-    declaration: 'export interface MemoryExportState {\n    readonly agent: ExternalAgent;\n    readonly paths: readonly string[];\n    readonly facts: number;\n    readonly status: \'synced\' | \'disabled\' | \'error\';\n    readonly detail: string | null;\n    readonly updatedAt: number;\n}',
+    declaration: 'export interface MemoryExportState {\n    readonly agent: ExternalAgent;\n    readonly paths: readonly string[];\n    readonly facts: number;\n    readonly status: \'synced\' | \'disabled\' | \'absent\' | \'error\';\n    readonly detail: string | null;\n    readonly updatedAt: number;\n}',
   },
   {
     name: 'MemorySource',

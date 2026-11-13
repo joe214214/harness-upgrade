@@ -1,0 +1,22 @@
+# Your own changes to the plugins dsh-mm loads, applied after overlay.yml.
+# Setup creates this file only when it is missing and never overwrites it, so your changes survive updates.
+# 你自己对 dsh-mm 插件的修改，在 overlay.yml 之后生效。
+# 安装脚本只在这个文件不存在时创建它，以后更新不会覆盖，你的修改会一直保留。
+#
+# Turn a plugin off: add its id with disabled: true, then restart dsh-mm. Delete the two lines to turn it on again.
+# 关闭某个插件：写上它的 id 和 disabled: true，然后重启 dsh-mm。删掉这两行即可重新启用。
+#
+# - id: memory
+#   disabled: true
+#
+# Plugin ids / 插件 id:
+#   tool-read-document             read PDF and Office files / 读 PDF 和 Office 文件
+#   vision-bridge                  ask_image for text-only models / 让纯文本模型看图
+#   tool-read-audio                listen to recordings / 听录音
+#   tool-read-video                watch videos / 看视频
+#   speech-to-text, speech-to-text-sensevoice   speech recognition used by the two above / 上面两个用的语音识别
+#   memory                         long-term memory / 长期记忆
+#   agent-bridge, ui-agent-bridge  Claude Code, Codex and Gemini CLI sessions and memory / Agent 互通
+#   co-canvas, ui-co-canvas        co-canvas: live view, marks, questions, timeline / 协同画布
+#   computer-use, computer-use-cua-driver-native   computer use / 电脑操作
+[]

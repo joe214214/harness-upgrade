@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-memory` gives every Session a memory of earlier ones. Durable facts, such as preferences, conventions, and decisions, live in a MEMORY.md with an 8 KB cap that the agent keeps curated, and that file is placed in every request. Every turn, including transcripts produced by `read_audio` and `read_video`, is indexed for `recall`. After each turn a reflect pass files new facts on its own, so memory fills even when the model forgets to save. It changes no agent-loop code.
+`dsh-memory` gives every Session a memory of earlier ones. Durable facts, such as preferences, conventions, and decisions, live in a MEMORY.md with an 8 KB cap that the agent keeps curated, and that file is placed in every request. Every turn, including transcripts produced by `read_audio` and `read_video`, is indexed for `recall`. After each turn a reflect pass files new facts on its own, so memory fills even when the model forgets to save; it keeps preferences, conventions and decisions, not file contents, one-off answers, or tool workarounds. It changes no agent-loop code.
 
 ## Table of Contents
 

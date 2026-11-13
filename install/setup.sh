@@ -71,10 +71,12 @@ fi
 
 step "Writing the plugin overlay and the dsh-mm launcher"
 sed -e "s#@DSH@#$dsh#g" -e "s#@DATA@#$install_dir#g" -e "s#^@BROWSER@\$#$browser#" "$here/overlay.yml.in" > "$install_dir/overlay.yml"
+# The user's own overrides; created once, never overwritten.
+[ -f "$install_dir/overlay.local.yml" ] || cp "$here/overlay.local.yml.in" "$install_dir/overlay.local.yml"
 mkdir -p "$install_dir/bin"
 cp "$here/dsh-mm.mjs" "$install_dir/bin/dsh-mm.mjs"
-node -e 'console.log(JSON.stringify({ dsh: process.argv[1], overlay: process.argv[2], home: process.argv[3] }))' \
-  "$dsh" "$install_dir/overlay.yml" "$dsh_home" > "$install_dir/bin/dsh-mm.json"
+node -e 'console.log(JSON.stringify({ dsh: process.argv[1], overlay: process.argv[2], home: process.argv[3], local: process.argv[4] }))' \
+  "$dsh" "$install_dir/overlay.yml" "$dsh_home" "$install_dir/overlay.local.yml" > "$install_dir/bin/dsh-mm.json"
 cat > "$install_dir/bin/dsh-mm" <<EOF
 #!/usr/bin/env bash
 [ -f "$install_dir/env" ] && . "$install_dir/env"

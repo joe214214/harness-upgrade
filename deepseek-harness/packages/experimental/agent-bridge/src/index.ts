@@ -13,7 +13,7 @@
  * @module @deepseek-ai/dsh-experimental-agent-bridge
  */
 
-import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -620,7 +620,11 @@ export default class AgentBridge extends TypertRemoteService {
     const file = this.config.memoryFile
     if (file === '') return
     const episodic = join(dirname(file), 'episodic.db')
-    const stamp = `${fileStamp(file)}|${fileStamp(episodic)}|${this.config.shareMemoryWith.join(',')}`
+    // Only agents that are installed, judged by their data directory, receive memory: the bridge does not
+    // create configuration for software the user does not use.
+    const installed = AGENTS.filter(agent => existsSync(this.homes[agent]))
+    const shared = this.config.shareMemoryWith.filter(agent => installed.includes(agent))
+    const stamp = `${fileStamp(file)}|${fileStamp(episodic)}|${shared.join(',')}`
     if (stamp === this.memoryStamp) return
     this.memoryStamp = stamp
     let facts: ReturnType<typeof parseMemoryFacts> = []
@@ -632,16 +636,19 @@ export default class AgentBridge extends TypertRemoteService {
     }
     const plan = planMemory(facts, sessionDirectories(episodic))
     // The episodic database changes every turn; the files change only when the plan does.
-    const signature = JSON.stringify([plan.user, [...plan.projects], this.config.shareMemoryWith])
+    const signature = JSON.stringify([plan.user, [...plan.projects], shared])
     if (signature === this.memoryPlan) return
     this.memoryPlan = signature
-    const enabled = new Set(this.config.shareMemoryWith)
+    const enabled = new Set(shared)
     const files = memoryFiles(this.homes, plan, enabled, cwd => geminiProjectDir(this.homes.gemini, cwd))
     const previous = new Set(this.state.memoryPaths)
     const written: string[] = []
     const counted = plan.user.length + [...plan.projects.values()].reduce((n, f) => n + f.length, 0)
     this.memoryExports = AGENTS.map((agent): MemoryExportState => {
-      if (!enabled.has(agent)) return { agent, paths: [], facts: 0, status: 'disabled', detail: null, updatedAt: Date.now() }
+      if (!enabled.has(agent)) {
+        const status = this.config.shareMemoryWith.includes(agent) ? 'absent' : 'disabled'
+        return { agent, paths: [], facts: 0, status, detail: null, updatedAt: Date.now() }
+      }
       try {
         const paths: string[] = []
         for (const [path, block] of files[agent]) {
@@ -664,7 +671,7 @@ export default class AgentBridge extends TypertRemoteService {
         this.ctx.logger('agent-bridge').warn(`agent-bridge: could not remove the memory block from ${path}: ${String(error)}`)
       }
     }
-    if (!enabled.has('codex')) removeCodexExtension(this.homes.codex)
+    if (!enabled.has('codex') && installed.includes('codex')) removeCodexExtension(this.homes.codex)
     this.state.memoryPaths = written
     this.save()
     this.changed()

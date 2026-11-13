@@ -190,7 +190,7 @@ export function apply(ctx: Context, config: Config): void {
     interpolate: false,
     text: ({ scope }) => ctx.tools.get('read_audio', scope) === undefined
       ? ''
-      : 'Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns.',
+      : 'Use the read_audio tool — not shell tools like ffmpeg or whisper — to transcribe recordings, and cite the timestamps it returns. If parts of a transcript are unclear, say which parts and what they most likely say instead of re-processing the audio.',
   })
 
   ctx.tools.register(defineTool({

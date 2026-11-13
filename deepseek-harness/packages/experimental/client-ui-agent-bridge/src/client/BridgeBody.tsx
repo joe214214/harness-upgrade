@@ -78,7 +78,7 @@ export function BridgeBody({
       <div className={css.subheading}>{t('memory.out')}</div>
       {(state?.memoryExports ?? []).map(m => <div key={m.agent} className={css.row}>
         <span className={css.title}>{t(`agent.${m.agent}`)}</span>
-        <span className={css.meta}>{m.status === 'disabled' ? t('memory.disabled') : m.status === 'error' ? `${t('status.error')} · ${m.detail ?? ''}` : t('memory.facts', { count: m.facts })}</span>
+        <span className={css.meta}>{m.status === 'disabled' ? t('memory.disabled') : m.status === 'absent' ? t('memory.absent') : m.status === 'error' ? `${t('status.error')} · ${m.detail ?? ''}` : t('memory.facts', { count: m.facts })}</span>
         <span className={css.path}>{m.paths.join(' · ')}</span>
       </div>)}
       <div className={css.subheading}>{t('memory.in')}</div>

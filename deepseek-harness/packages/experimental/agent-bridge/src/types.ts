@@ -70,7 +70,8 @@ export interface MemoryExportState {
   readonly agent: ExternalAgent
   readonly paths: readonly string[]
   readonly facts: number
-  readonly status: 'synced' | 'disabled' | 'error'
+  /** `absent`: the agent's data directory does not exist, so it is not installed and nothing is written. */
+  readonly status: 'synced' | 'disabled' | 'absent' | 'error'
   readonly detail: string | null
   readonly updatedAt: number
 }

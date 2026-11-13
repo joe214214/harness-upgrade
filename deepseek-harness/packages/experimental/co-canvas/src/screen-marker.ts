@@ -16,6 +16,8 @@ export interface ScreenMarkerOptions {
   readonly channel?: string | undefined
   /** Run without a window; only tests drive a headless marker. */
   readonly headless: boolean
+  /** Language of the marker's toolbar, such as `zh-CN`; omitted uses the browser's. */
+  readonly locale?: string | undefined
 }
 
 /** What the user did on the frozen screen. Mark rectangles are in screen points. */
@@ -124,7 +126,10 @@ export async function markOnScreen(
     args: ['--start-fullscreen', '--kiosk', '--no-first-run', '--no-default-browser-check'],
   })
   try {
-    const context = await browser.newContext({ viewport: options.headless ? { width: shot.width, height: shot.height } : null })
+    const context = await browser.newContext({
+      viewport: options.headless ? { width: shot.width, height: shot.height } : null,
+      ...options.locale === undefined ? {} : { locale: options.locale },
+    })
     const page = await context.newPage()
     const html = SCREEN_MARKER_PAGE.replace('@W@', String(shot.width)).replace('@H@', String(shot.height))
     await page.route(`${SCREEN_MARKER_ORIGIN}/**`, route => route.fulfill(new URL(route.request().url()).pathname === '/shot.png'

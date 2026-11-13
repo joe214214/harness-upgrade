@@ -634,11 +634,13 @@ export default class CoCanvas extends TypertRemoteService {
   /**
    * Mark the real screen: after a delay, show a frozen screenshot full screen and collect marks on it.
    * @param delayMs - time to bring the screen to mark to the front.
+   * @param locale - language of the marker's toolbar, the panel's own.
+   * @param defaultQuestion - question asked when the user asks without writing a note, in that language.
    * @returns what the user chose and how many marks were recorded.
    * @throws RemoteError when the desktop surface is disabled.
    */
   @Remote
-  async markScreen(delayMs: number): Promise<ScreenMarkOutcome> {
+  async markScreen(delayMs: number, locale?: string, defaultQuestion?: string): Promise<ScreenMarkOutcome> {
     const desktop = this.requireDesktop()
     if (this.screenMarking) return { action: 'cancel', marks: 0 }
     this.screenMarking = true
@@ -650,10 +652,14 @@ export default class CoCanvas extends TypertRemoteService {
         headless: false,
         ...this.config.executablePath === undefined ? {} : { executablePath: this.config.executablePath },
         ...this.config.channel === undefined ? {} : { channel: this.config.channel },
+        ...locale === undefined ? {} : { locale },
       }, AbortSignal.timeout(this.config.askTimeoutMs))
       if (result.action === 'cancel') return { action: 'cancel', marks: 0 }
       for (const input of result.marks) await this.recordDesktop({ ...input, surface: 'desktop' }, shot)
-      if (result.action === 'ask') await this.ask(result.marks.map(m => m.note ?? '').filter(n => n !== '').join('; '))
+      if (result.action === 'ask') {
+        const notes = result.marks.map(m => m.note ?? '').filter(n => n !== '').join('; ')
+        await this.ask(notes === '' ? defaultQuestion ?? '' : notes)
+      }
       else {
         if (this.control === 'paused') this.setControl('agent')
         await this.send()

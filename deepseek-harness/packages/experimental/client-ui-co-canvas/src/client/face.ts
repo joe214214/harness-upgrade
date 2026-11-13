@@ -29,7 +29,7 @@ export interface CanvasInjected {
   /** Send the agent back to a timeline step with marks and a note. */
   readonly rewind: (step: string, marks: readonly MarkInput[], note: string) => Promise<void>
   /** After a delay, freeze the screen full screen and mark on it. */
-  readonly markScreen: (delayMs: number) => Promise<unknown>
+  readonly markScreen: (delayMs: number, locale: string, defaultQuestion: string) => Promise<unknown>
 }
 
 declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {
