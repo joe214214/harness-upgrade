@@ -39,7 +39,7 @@ import { Timeline, describeArgs } from './timeline.ts'
 import { askSide, listChoices, resolveChoice } from './sidecar.ts'
 import type { SideModels } from './sidecar.ts'
 import type {
-  CanvasControl, CanvasFrame, CanvasInput, CanvasMark, CanvasQuestion, CanvasState, CanvasSurface, MarkInput, ModelChoice,
+  CanvasControl, CanvasFrame, CanvasInput, CanvasMark, CanvasQuestion, CanvasState, CanvasSurface, DesktopWindow, MarkInput, ModelChoice,
   ScreenMarkOutcome, SideAnswer, TimelineStep,
 } from './types.ts'
 
@@ -256,7 +256,14 @@ export default class CoCanvas extends TypertRemoteService {
   private control: CanvasControl = 'agent'
   /** Control the user held since the agent's last delivery. */
   private handback: CanvasControl | undefined
+  /** Marks the user sent; delivered with the agent's next tool result. */
   private pending: PendingMark[] = []
+  /** Marks drawn but not yet sent or asked about; the agent never sees them. */
+  private drafts: PendingMark[] = []
+  /** The top-level agent's turn is running. */
+  private busy = false
+  /** Window of the agent's latest desktop action, for side questions about nothing in particular. */
+  private lastWindow: DesktopWindow | undefined
   private question: OpenQuestion | undefined
   /** Crops of marks already described in a refusal, delivered with the next tool result. */
   private carried: PendingMark[] = []
@@ -313,7 +320,13 @@ export default class CoCanvas extends TypertRemoteService {
     const gatedDesktop = new RegExp(config.gatedDesktopTools, 'u')
     ctx.on('tools/pre-execute', async (exec, next) => {
       const root = this.isRoot(exec.agent)
-      if (root && exec.agent !== undefined) this.agent = exec.agent
+      if (root && exec.agent !== undefined) {
+        this.agent = exec.agent
+        if (!this.busy) {
+          this.busy = true
+          this.changed()
+        }
+      }
       const browserTool = gated.test(exec.name)
       if (!browserTool && !gatedDesktop.test(exec.name)) return next()
       if (browserTool) {
@@ -350,9 +363,17 @@ export default class CoCanvas extends TypertRemoteService {
         return undefined
       })
     }
+    ctx.on('agent/turn-stopping', ({ agent }) => {
+      if (!this.isRoot(agent) || !this.busy) return
+      this.busy = false
+      const reply = agent.session.deriveMessages().findLast(m => m.role === 'assistant')
+      this.brief.settle(reply === undefined ? '' : reply.content.map(b => (b.type === 'text' ? b.text : '')).join(''))
+      this.changed()
+    })
     ctx.on('agent/inbox/inserted', ({ agent, message }) => {
       if (message.source.kind !== 'user' || !this.isRoot(agent)) return
       this.agent = agent
+      this.busy = true
       this.brief.noteRequest(message.content.map(b => (b.type === 'text' ? b.text : '')).join('\n'))
     })
     ctx.on('tools/post-execute', async (exec, _result, next) => {
@@ -426,6 +447,10 @@ export default class CoCanvas extends TypertRemoteService {
    */
   @Remote({ mode: 'stream' })
   async* follow(signal: AbortSignal): AsyncIterable<CanvasState> {
+    // A key added after startup makes the default side-question model resolvable now.
+    if (this.defaultResolved === undefined) {
+      this.defaultChoice().catch((error: unknown) => { console.error('[co-canvas]', `could not resolve the side-question model: ${String(error)}`) })
+    }
     let wake = Promise.withResolvers<undefined>()
     const notify = (): void => { wake.resolve(undefined) }
     this.listeners.add(notify)
@@ -466,8 +491,8 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   /**
-   * Ask a light model about the screen without stopping the agent. On the live view the undelivered
-   * marks are the subject and are taken out of the agent's delivery; on a timeline step, the marks
+   * Ask a light model about the screen without stopping the agent. On the live view the draft marks
+   * are the subject, and the agent never receives them as instructions; on a timeline step, the marks
    * drawn on that step's frame are. The question and answer are then left for the agent at its next
    * step, without waking it or asking it to reply.
    * @param question - the user's question.
@@ -480,7 +505,7 @@ export default class CoCanvas extends TypertRemoteService {
     const text = question.trim() === '' ? 'What is this?' : question.trim()
     const onStep = step === undefined ? undefined : this.timeline.get(step)
     if (step !== undefined && onStep === undefined) throw new RemoteError('co-canvas/no-step', 'That step is no longer kept', { step })
-    const live = onStep === undefined ? this.pending.splice(0) : []
+    const live = onStep === undefined ? this.drafts.splice(0) : []
     const subject = onStep === undefined ? live.map(p => p.mark) : marks ?? []
     const id = randomUUID()
     const choice = this.askChoice ?? await this.defaultChoice()
@@ -615,7 +640,10 @@ export default class CoCanvas extends TypertRemoteService {
       if (result.action === 'cancel') return { action: 'cancel', marks: 0 }
       for (const input of result.marks) await this.recordDesktop({ ...input, surface: 'desktop' }, shot)
       if (result.action === 'ask') await this.ask(result.marks.map(m => m.note ?? '').filter(n => n !== '').join('; '))
-      else if (this.control === 'paused') this.setControl('agent')
+      else {
+        this.send()
+        if (this.control === 'paused') this.setControl('agent')
+      }
       return { action: result.action, marks: result.marks.length }
     } finally {
       this.screenMarking = false
@@ -623,8 +651,9 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   /**
-   * Record one mark, grounded to the element under its focus point.
-   * @param input - shape, rectangle in page CSS pixels, optional note.
+   * Record one mark as a draft, grounded to the element or window under its focus point. A draft
+   * reaches the agent only once the user sends it; asking about it never does.
+   * @param input - shape, rectangle in page CSS pixels or screen points, optional note.
    * @returns the recorded mark.
    */
   @Remote
@@ -633,12 +662,32 @@ export default class CoCanvas extends TypertRemoteService {
   }
 
   /**
-   * Withdraw an undelivered mark.
+   * Withdraw a draft or an undelivered mark.
    * @param id - mark id.
    */
   @Remote
   removeMark(id: string): void {
+    this.drafts = this.drafts.filter(p => p.mark.id !== id)
     this.pending = this.pending.filter(p => p.mark.id !== id)
+    this.changed()
+  }
+
+  /**
+   * Send the draft marks to the agent as instructions; they arrive with its next tool result, and an
+   * action it chose before them is refused.
+   * @param note - the user's instruction, attached to the last draft.
+   */
+  @Remote
+  send(note?: string): void {
+    if (this.drafts.length === 0) return
+    const text = note?.trim() ?? ''
+    const drafts = this.drafts.splice(0)
+    const last = drafts.at(-1)
+    if (last !== undefined && text !== '') {
+      const joined = last.mark.note === undefined || last.mark.note === '' ? text : `${last.mark.note}; ${text}`
+      drafts[drafts.length - 1] = { ...last, mark: { ...last.mark, note: joined.slice(0, 500) } }
+    }
+    this.pending.push(...drafts)
     this.changed()
   }
 
@@ -681,7 +730,7 @@ export default class CoCanvas extends TypertRemoteService {
     const mark: CanvasMark = {
       ...input, surface: 'browser', id: randomUUID(), url: where.url, title: where.title, at: Date.now(), ...target === undefined ? {} : { target },
     }
-    this.pending.push({ mark, crop })
+    this.drafts.push({ mark, crop })
     this.changed()
     return mark
   }
@@ -692,7 +741,7 @@ export default class CoCanvas extends TypertRemoteService {
     const mark: CanvasMark = {
       ...input, surface: 'desktop', id: randomUUID(), url: '', title: window?.title ?? '', at: Date.now(), ...window === undefined ? {} : { window },
     }
-    this.pending.push({ mark, crop })
+    this.drafts.push({ mark, crop })
     this.changed()
     return mark
   }
@@ -704,6 +753,7 @@ export default class CoCanvas extends TypertRemoteService {
       case 'control': this.setControl(message.control); return
       case 'answer': this.answer(message.questionId); return
       case 'ask': await this.ask(message.question); return
+      case 'send': this.send(message.note); return
     }
   }
 
@@ -712,8 +762,9 @@ export default class CoCanvas extends TypertRemoteService {
       control: this.control,
       answer: this.answers.at(-1)?.answer ?? null,
       pending: this.pending.length,
+      drafts: this.drafts.length,
       question: this.question === undefined ? null : { id: this.question.id, text: this.question.text },
-      marks: this.pending.filter(p => p.mark.surface === 'browser' && p.mark.url === url).map(p => ({ shape: p.mark.shape, rect: p.mark.rect })),
+      marks: [...this.pending, ...this.drafts].filter(p => p.mark.surface === 'browser' && p.mark.url === url).map(p => ({ shape: p.mark.shape, rect: p.mark.rect })),
       url,
     }
   }
@@ -733,6 +784,8 @@ export default class CoCanvas extends TypertRemoteService {
       desktop: this.desktop !== undefined,
       question: this.question === undefined ? null : { id: this.question.id, text: this.question.text },
       pending: this.pending.map(p => p.mark),
+      drafts: this.drafts.map(p => p.mark),
+      busy: this.busy,
       viewport: this.browser.viewport(),
     }
   }
@@ -826,7 +879,7 @@ export default class CoCanvas extends TypertRemoteService {
       this.question = undefined
       this.changed()
     }
-    const answered = this.pending.splice(0)
+    const answered = [...this.pending.splice(0), ...this.drafts.splice(0)]
     this.changed()
     if (answered.length === 0) return { text: 'The user did not mark anything. Ask in your reply, or continue with your best judgement.', images: [] }
     const marks = marksMessage(answered.map(p => p.mark), undefined, this.config.maxMarksPerMessage)
@@ -848,7 +901,11 @@ export default class CoCanvas extends TypertRemoteService {
     const context = [this.brief.text()]
     if (step === undefined) {
       for (const [i, p] of live.entries()) context.push(`Mark ${i + 1}: ${describeMark(p.mark)}`)
-      if (live.length === 0) context.push('The user marked nothing; the screenshot shows the whole screen.')
+      if (live.length === 0) {
+        context.push(this.lastWindow === undefined || this.brief.snapshot()?.url !== ''
+          ? 'The user marked nothing; the screenshot shows the whole screen.'
+          : `The user marked nothing; the screenshot shows the window the agent last acted in: "${this.lastWindow.title}".`)
+      }
     } else {
       context.push(`The question is about step ${step.index} of the agent's work, after it ran ${step.tool} ${step.action}; `
         + `the screen then: ${[step.app, step.window, step.url].filter(x => x !== '').join(' · ') || 'unknown'}.`)
@@ -889,7 +946,11 @@ export default class CoCanvas extends TypertRemoteService {
     }
     const crops = live.flatMap(p => (p.crop === undefined ? [] : [p.crop])).slice(-max)
     if (live.length > 0) return crops
-    const frame = this.desktop !== undefined && this.brief.snapshot()?.url === '' ? await this.desktop.toFrame(await this.desktop.screenshot()) : await this.browserFrame()
+    // Nothing marked: the window the agent last acted in, so the panel and the rest of the screen do not distract the answer.
+    if (this.desktop !== undefined && this.brief.snapshot()?.url === '') {
+      return [await this.desktop.windowImage(this.lastWindow?.bounds)]
+    }
+    const frame = await this.browserFrame()
     return frame === undefined ? [] : [Buffer.from(frame.data, 'base64')]
   }
 
@@ -955,6 +1016,7 @@ export default class CoCanvas extends TypertRemoteService {
       const windowId = typeof args.window_id === 'number' || typeof args.window_id === 'string' ? String(args.window_id) : undefined
       try {
         const found = await this.desktop.window(pid, windowId)
+        if (found !== undefined) this.lastWindow = found
         app = found?.app ?? ''
         window = found?.title ?? ''
       } catch (error) {

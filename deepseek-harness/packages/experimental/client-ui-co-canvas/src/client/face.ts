@@ -14,6 +14,8 @@ export interface CanvasInjected {
   readonly setControl: (control: CanvasControl) => Promise<void>
   readonly input: (input: CanvasInput) => Promise<void>
   readonly answer: (questionId: string) => Promise<void>
+  /** Send the draft marks to the agent as instructions, with the user's text attached. */
+  readonly send: (note: string) => Promise<void>
   /** Ask the side-question model about the undelivered marks, or about marks on a timeline step. */
   readonly ask: (question: string, step?: string, marks?: readonly MarkInput[]) => Promise<string>
   /** Models that can answer side questions. */

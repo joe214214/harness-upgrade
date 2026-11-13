@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This optional browser plugin adds a Co-canvas tab to the right Sidebar: the live shared browser of [co-canvas](../co-canvas/README.md), and the desktop when the Host enables it, under a Task card. Draw a box, arrow or point to mark. **Ask** sends a question about the marks to a light model chosen in the Questions section. The Timeline lists the agent's actions; picking one pauses the agent and shows that screen to mark, ask about, or send the agent back to with **Went wrong here**. Pause freezes the view; Take over hands over control until Hand back.
+This optional browser plugin adds a Co-canvas tab to the right Sidebar: the live shared browser of [co-canvas](../co-canvas/README.md), and the desktop when the Host enables it, under a Task card. Marks stay drafts until **Ask** sends a question about them to a light model chosen under Questions, or **Send to agent** gives them to the agent as instructions. The Timeline lists the agent's actions; picking one pauses the agent and shows that screen to mark, ask about, or send the agent back to with **Went wrong here**. Pause freezes the view; Take over hands over control until Hand back.
 
 ## Table of Contents
 

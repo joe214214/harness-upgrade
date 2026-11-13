@@ -4,6 +4,12 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TimelineStep } from '@deepseek-ai/dsh-experimental-co-canvas/types'
 import css from './CanvasBody.module.css'
 
+/** Tools with a localized step name; others show their own name. */
+const ACTIONS = ['click', 'double_click', 'right_click', 'type_text', 'press_key', 'hotkey', 'scroll', 'set_value', 'launch_app', 'drag',
+  'browser_navigate', 'browser_click', 'browser_type', 'browser_select_option'] as const
+type Action = typeof ACTIONS[number]
+const isAction = (tool: string): tool is Action => (ACTIONS as readonly string[]).includes(tool)
+
 /**
  * Render the steps as a scrollable row; the selected one is highlighted, steps that may not be
  * undoable carry a red dot.
@@ -30,7 +36,7 @@ export function TimelineStrip({ steps, selected, select, t }: {
         onClick={() => { select(s.id === selected ? null : s.id) }}>
         {s.irreversible && <span className={css.danger} aria-label={t('timeline.irreversible')} />}
         <span className={css.stepIndex}>{s.index}</span>
-        <span className={css.stepTool}>{s.tool}</span>
+        <span className={css.stepTool}>{isAction(s.tool) ? t(`act.${s.tool}`) : s.tool}</span>
       </button>)}
       <button type="button" role="option" aria-selected={selected === null} className={css.step} onClick={() => { select(null) }}>
         {t('timeline.live')}

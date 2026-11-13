@@ -54,28 +54,35 @@ const shapeOf = (shape: MarkShape, start: Point, end: Point): MarkShape => (Math
  */
 export function CanvasBody({
   t, useCanvas, useFrame, useDesktopFrame, mark, removeMark, setControl, input, answer, markScreen,
-  ask, askModels, setAskModel, setPauseOnAsk, editGoal, stepFrame, rewind,
+  send, ask, askModels, setAskModel, setPauseOnAsk, editGoal, stepFrame, rewind,
 }: PropsRuntime<'sidebar.right.pane.tab'> & PropsLocale<'coCanvas'> & InjectFace<CanvasInjected>): ReactNode {
   const state = useCanvas(s => s)
-  const [view, setView] = useState<CanvasSurface>('browser')
+  const [view, setView] = useState<CanvasSurface>('desktop')
   const [shape, setShape] = useState<MarkShape>('box')
-  const [note, setNote] = useState('')
-  const [query, setQuery] = useState('')
+  const [text, setText] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
   const [step, setStep] = useState<string | null>(null)
   const [past, setPast] = useState<{ step: string; frame: CanvasFrame } | null>(null)
   const [stepMarks, setStepMarks] = useState<MarkInput[]>([])
+  // Whether opening a step paused the agent, so returning to Live resumes it.
+  const pausedForStep = useRef(false)
   const control: CanvasControl = state?.control ?? 'agent'
   const human = control === 'human'
   const desktop = view === 'desktop' && state?.desktop === true
+  const drafts = state?.drafts ?? []
   const pending = state?.pending ?? []
   const question = state?.question ?? null
   const steps = state?.timeline ?? []
+  const latestSurface = steps.at(-1)?.surface
   const shownStep = step === null ? undefined : steps.find(s => s.id === step)
   const report = (action: Promise<unknown>): void => {
     setNotice(null)
     action.catch((error: unknown) => { setNotice(error instanceof Error ? error.message : String(error)) })
   }
+  // The view follows the surface the agent works on; the user can still switch it.
+  useEffect(() => {
+    if (latestSurface !== undefined) setView(latestSurface)
+  }, [latestSurface])
   useEffect(() => {
     if (step === null) return undefined
     let current = true
@@ -84,28 +91,44 @@ export function CanvasBody({
     })
     return () => { current = false }
   }, [step, stepFrame])
-  // Going back to a step pauses the agent, so the screen does not move on while the user looks back.
-  const selectStep = (id: string | null): void => {
+  // Going back to a step pauses the agent, so the screen does not move on while the user looks back;
+  // returning to Live resumes it unless the user paused it themselves.
+  const selectStep = (id: string | null, resume = true): void => {
     setStep(id)
     setStepMarks([])
     setPast(null)
-    if (id !== null && control === 'agent') report(setControl('paused'))
+    if (id !== null && control === 'agent') {
+      pausedForStep.current = true
+      report(setControl('paused'))
+    } else if (id === null && pausedForStep.current) {
+      pausedForStep.current = false
+      if (resume && control === 'paused') report(setControl('agent'))
+    }
   }
   const sendQuestion = (): void => {
-    report(step === null ? ask(query) : ask(query, step, stepMarks))
-    setQuery('')
+    const q = text.trim() === '' ? t('ask.default') : text
+    report(step === null ? ask(q) : ask(q, step, stepMarks))
+    setText('')
     setStepMarks([])
+  }
+  const sendMarks = (): void => {
+    report(send(text))
+    setText('')
   }
   const sendRewind = (): void => {
     if (step === null) return
-    report(rewind(step, stepMarks, query))
-    setQuery('')
-    selectStep(null)
+    report(rewind(step, stepMarks, text))
+    setText('')
+    pausedForStep.current = false
+    selectStep(null, false)
   }
+  const controlText = control === 'agent' && state !== null && !state.busy
+    ? t('control.idle')
+    : control === 'human' && desktop ? t('control.humanDesktop') : t(`control.${control}`)
   const where = shownStep === undefined
     ? (!desktop && state !== null && state.url !== '' ? ` · ${state.title || state.url}` : '')
     : ` · ${t('timeline.step', { n: String(shownStep.index) })}`
-  const status = `${t(`control.${control}`)}${where}`
+  const canRewind = text.trim() !== '' || stepMarks.length > 0
 
   return <div className={css.body}>
     {state?.desktop === true && <div className={css.group} role="radiogroup" aria-label={t('surface.label')}>
@@ -119,50 +142,54 @@ export function CanvasBody({
           disabled={human && !desktop && step === null} onClick={() => { setShape(s) }}>{t(`tool.${s}`)}</Button>)}
       </div>
       <div className={css.group}>
-        {control === 'agent' && <Button size="sm" variant="ghost" onClick={() => { report(setControl('paused')) }}>{t('pause')}</Button>}
-        {control === 'paused' && <Button size="sm" variant="ghost" onClick={() => { selectStep(null); report(setControl('agent')) }}>{t('resume')}</Button>}
+        {control === 'agent' && <Button size="sm" variant="ghost" onClick={() => { pausedForStep.current = false; report(setControl('paused')) }}>{t('pause')}</Button>}
+        {control === 'paused' && <Button size="sm" variant="ghost" onClick={() => { selectStep(null, false); report(setControl('agent')) }}>{t('resume')}</Button>}
         {human
           ? <Button size="sm" variant="primary" onClick={() => { report(setControl('agent')) }}>{t('handBack')}</Button>
-          : <Button size="sm" variant="outline" onClick={() => { selectStep(null); report(setControl('human')) }}>{t('take')}</Button>}
+          : <Button size="sm" variant="outline" onClick={() => { selectStep(null, false); report(setControl('human')) }}>{t('take')}</Button>}
       </div>
     </div>
-    <div className={css.status} data-control={control}>{status}</div>
+    <div className={css.status} data-control={control}>{controlText}{where}</div>
     {notice !== null && <div className={css.status} role="alert">{notice}</div>}
     {question !== null && <div className={css.question}>
       <span>{t('ask')} <strong>{question.text}</strong></span>
       <Button size="sm" variant="primary" onClick={() => { report(answer(question.id)) }}>{t('answer')}</Button>
     </div>}
-    <input className={css.note} value={note} placeholder={t('note')} aria-label={t('note')} disabled={human && !desktop && step === null}
-      onChange={(event) => { setNote(event.target.value) }} />
     {desktop && step === null && <div className={css.toolbar}>
       <Button size="sm" variant="outline" onClick={() => { report(markScreen(SCREEN_MARK_DELAY_MS)) }}>{t('markScreen')}</Button>
       <span className={css.status}>{t('markScreenHint')}</span>
     </div>}
     {step === null
       ? <LiveSurface key={desktop ? 'desktop' : 'browser'} t={t} useFrame={desktop ? useDesktopFrame : useFrame} surface={desktop ? 'desktop' : 'browser'}
-        pending={pending} shape={shape} note={note} replay={human && !desktop} failure={desktop ? null : state?.failure ?? null}
-        onMarked={() => { setNote('') }} mark={(value) => { report(mark(value)) }} input={(value) => { report(input(value)) }} />
-      : <Surface t={t} frame={past?.step === step ? past.frame : null} surface={shownStep?.surface ?? 'desktop'} glyphs={stepMarks} shape={shape} note={note}
-        replay={false} failure={null} onMarked={() => { setNote('') }} mark={(value) => { setStepMarks(marks => [...marks, value]) }} input={() => {}} />}
-    <TimelineStrip steps={steps} selected={step} select={selectStep} t={t} />
+        pending={[...pending, ...drafts]} shape={shape} replay={human && !desktop} failure={desktop ? null : state?.failure ?? null}
+        mark={(value) => { report(mark(value)) }} input={(value) => { report(input(value)) }} />
+      : <Surface t={t} frame={past?.step === step ? past.frame : null} surface={shownStep?.surface ?? 'desktop'} glyphs={stepMarks} shape={shape}
+        replay={false} failure={null} mark={(value) => { setStepMarks(marks => [...marks, value]) }} input={() => {}} />}
+    <TimelineStrip steps={steps} selected={step} select={(id) => { selectStep(id) }} t={t} />
     {shownStep !== undefined && <div className={css.status}>{t('timeline.hint')}{shownStep.irreversible ? ` · ${t('timeline.irreversible')}` : ''}</div>}
-    <div className={css.askRow}>
-      <input className={css.note} value={query} placeholder={t('ask.placeholder')} aria-label={t('ask.placeholder')}
-        onChange={(event) => { setQuery(event.target.value) }} onKeyDown={(event) => { if (event.key === 'Enter') sendQuestion() }} />
-      <Button size="sm" variant="primary" onClick={sendQuestion}>{t('ask.button')}</Button>
-      {step !== null && <Button size="sm" variant="outline" onClick={sendRewind}>{t('rewind')}</Button>}
-    </div>
-    {step === null && pending.length > 0 && <div className={css.pending}>
-      <div className={css.pendingTitle}>{t('pending')}</div>
+    {step === null && drafts.length > 0 && <div className={css.pending}>
+      <div className={css.pendingTitle}>{t('drafts')}</div>
       <ol className={css.list}>
-        {pending.map(m => <li key={m.id} className={css.item}>
-          <span className={css.itemText}>
-            {describe(m, t)}
-            {m.note === undefined ? null : <em> — {m.note}</em>}
-          </span>
+        {drafts.map(m => <li key={m.id} className={css.item}>
+          <span className={css.itemText}>{describe(m, t)}</span>
           <Button size="sm" variant="ghost" onClick={() => { report(removeMark(m.id)) }}>{t('remove')}</Button>
         </li>)}
       </ol>
+    </div>}
+    <div className={css.askRow}>
+      <input className={css.note} value={text} placeholder={t('note')} aria-label={t('note')}
+        onChange={(event) => { setText(event.target.value) }}
+        onKeyDown={(event) => {
+          // Enter that confirms an input-method composition (Chinese, Japanese) is not a submit.
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing) sendQuestion()
+        }} />
+      <Button size="sm" variant="primary" onClick={sendQuestion}>{t('ask.button')}</Button>
+      {step === null
+        ? <Button size="sm" variant="outline" disabled={drafts.length === 0} onClick={sendMarks}>{t('ask.send')}</Button>
+        : <Button size="sm" variant="outline" disabled={!canRewind} onClick={sendRewind}>{t('rewind')}</Button>}
+    </div>
+    {step === null && pending.length > 0 && <div className={css.status}>
+      {t('pending')} {pending.map(m => describe(m, t)).join('; ')}
     </div>}
     <Answers answers={state?.answers ?? []} askModel={state?.askModel ?? null} pauseOnAsk={state?.pauseOnAsk ?? false}
       askModels={askModels} setAskModel={setAskModel} setPauseOnAsk={setPauseOnAsk} report={report} t={t} />
@@ -182,11 +209,9 @@ interface SurfaceProps {
   /** Marks drawn on this frame, numbered in order. */
   readonly glyphs: readonly Pick<MarkInput, 'shape' | 'rect'>[]
   readonly shape: MarkShape
-  readonly note: string
   /** The user holds control of the browser: pointer and keys are replayed instead of drawing marks. */
   readonly replay: boolean
   readonly failure: string | null
-  readonly onMarked: () => void
   readonly mark: (input: Parameters<CanvasInjected['mark']>[0]) => void
   readonly input: (input: Parameters<CanvasInjected['input']>[0]) => void
 }
@@ -202,7 +227,7 @@ function LiveSurface(props: Omit<SurfaceProps, 'frame' | 'glyphs'> & {
 }
 
 /** One frame with marks drawn on it: the live view, or the screen after a timeline step. */
-function Surface({ t, frame, surface: kind, glyphs, shape, note, replay, failure, onMarked, mark, input }: SurfaceProps): ReactNode {
+function Surface({ t, frame, surface: kind, glyphs, shape, replay, failure, mark, input }: SurfaceProps): ReactNode {
   const [draft, setDraft] = useState<{ start: Point; end: Point } | null>(null)
   const surface = useRef<HTMLDivElement>(null)
 
@@ -228,8 +253,7 @@ function Surface({ t, frame, surface: kind, glyphs, shape, note, replay, failure
     const { start, end } = draft
     setDraft(null)
     const drawn = shapeOf(shape, start, end)
-    mark({ surface: kind, shape: drawn, rect: rectOf(drawn, start, end), ...note === '' ? {} : { note } })
-    onMarked()
+    mark({ surface: kind, shape: drawn, rect: rectOf(drawn, start, end) })
   }
   const onWheel = (event: WheelEvent<HTMLDivElement>): void => {
     const point = replay ? toPage(event) : undefined

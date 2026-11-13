@@ -26,7 +26,7 @@ export type BriefSummarizer = (input: string, signal: AbortSignal) => Promise<{ 
 
 /** Instructions of the brief summary request. */
 export const BRIEF_SYSTEM = 'You keep a two-line brief of what a computer-use agent is doing for a user. '
-  + 'Given the user\'s requests and the agent\'s recent actions, reply with JSON only: '
+  + 'Given the user\'s requests, the agent\'s recent actions, and its latest reply when there is one, reply with JSON only: '
   + '{"goal": "<the task in one short sentence, in the user\'s language>", "progress": "<what is done and what is next, one short sentence>"}.'
 
 /**
@@ -62,6 +62,10 @@ export class TaskBriefTracker {
   private readonly requests: string[] = []
   private readonly recent: BriefAction[] = []
   private summarizing = false
+  /** A refresh was asked for while one ran; it runs again with the newer input. */
+  private again = false
+  /** The agent's reply at the end of its last turn. */
+  private reply = ''
   private sinceSummary = 0
 
   /**
@@ -82,6 +86,7 @@ export class TaskBriefTracker {
   noteRequest(text: string): void {
     const request = text.trim()
     if (request === '') return
+    this.reply = ''
     this.requests.push(request.slice(0, GOAL_CHARS))
     if (this.requests.length > 3) this.requests.shift()
     // A short reply such as "yes, go on" is no new task, so a request becomes the goal only when
@@ -146,14 +151,28 @@ export class TaskBriefTracker {
     return lines.join('\n')
   }
 
+  /**
+   * Refresh the summary once the agent's turn ends, so the brief describes where it stopped.
+   * @param reply - the agent's last reply, which says what it did and found.
+   */
+  settle(reply: string): void {
+    this.reply = reply.trim().slice(0, 800)
+    if (this.goal !== '' || this.steps > 0) this.refresh()
+  }
+
   private refresh(): void {
     const summarize = this.summarize
-    if (summarize === undefined || this.summarizing) return
+    if (summarize === undefined) return
+    if (this.summarizing) {
+      this.again = true
+      return
+    }
     this.summarizing = true
     this.sinceSummary = 0
     const input = [
       'User requests, oldest first:', ...this.requests.map(r => `- ${r}`),
       'Agent actions, oldest first:', ...this.recent.map(a => `- ${a.tool} ${a.action}${a.window !== '' ? ` in ${a.window}` : ''}${a.url !== '' ? ` at ${a.url}` : ''}`),
+      ...this.reply === '' ? [] : ['The agent\'s reply at the end of its last turn:', this.reply],
     ].join('\n')
     summarize(input, AbortSignal.timeout(30_000)).then((summary) => {
       if (summary === undefined) return
@@ -163,6 +182,12 @@ export class TaskBriefTracker {
     }, (error: unknown) => {
       // The brief is a convenience: a failed summary keeps the recorded goal and location.
       void error
-    }).finally(() => { this.summarizing = false })
+    }).finally(() => {
+      this.summarizing = false
+      if (this.again) {
+        this.again = false
+        this.refresh()
+      }
+    })
   }
 }

@@ -203,6 +203,24 @@ export class SharedDesktop {
   }
 
   /**
+   * Capture one area of the screen, or all of it.
+   * @param bounds - area in screen points; undefined captures the whole screen.
+   * @returns PNG bytes.
+   */
+  async windowImage(bounds: CanvasRect | undefined): Promise<Buffer> {
+    const shot = await this.screenshot()
+    if (bounds === undefined) return shot.png
+    const sx = shot.pixelWidth / shot.width
+    const sy = shot.pixelHeight / shot.height
+    const left = Math.max(0, Math.floor(bounds.x * sx))
+    const top = Math.max(0, Math.floor(bounds.y * sy))
+    const width = Math.min(shot.pixelWidth - left, Math.ceil(bounds.width * sx))
+    const height = Math.min(shot.pixelHeight - top, Math.ceil(bounds.height * sy))
+    if (width <= 0 || height <= 0) return shot.png
+    return sharp(shot.png).extract({ left, top, width, height }).png().toBuffer()
+  }
+
+  /**
    * Find the window an action was aimed at, or else the frontmost one.
    * @param pid - process the action named.
    * @param windowId - window the action named.

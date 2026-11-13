@@ -153,6 +153,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     const id = SessionId(name)
     const agent = {
       id, ctx: ctx.plugin(() => {}).ctx, status: 'idle',
+      session: { deriveMessages: () => [{ role: 'assistant', content: [{ type: 'text', text: 'Plan B is ordered.' }] }] },
       steer: (message: UserMessage) => { steered.push(message) },
       send: (message: UserMessage, _when: string, wake: boolean) => { if (!wake) sent.push(message) },
     } as unknown as Agent
@@ -198,6 +199,9 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     const box = (await canvas.browser.page!.locator('button').nth(2).boundingBox())!
     const recorded = await canvas.mark({ shape: 'box', rect: { x: box.x - 4, y: box.y - 4, width: box.width + 8, height: box.height + 8 }, note: 'press this one' })
     expect(recorded.target).toMatchObject({ tag: 'button', text: 'Submit', nth: 2, sameCount: 2 })
+    // A drawn mark is a draft: the agent receives nothing until the user sends it.
+    expect(text(await call('read'))).toBe('')
+    canvas.send()
     const first = await call('read')
     expect(text(first)).toContain('button "Submit" (2nd of 2 button elements with this text)')
     expect(text(first)).toContain('note: "press this one"')
@@ -275,11 +279,14 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
   it('refuses a browser action chosen before a new mark and runs the next one', async () => {
     const { canvas, clicks, call } = await setup()
     await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'stop' })
+    // An unsent draft does not stop the agent.
+    expect((await call('browser_click')).isError).toBe(false)
+    canvas.send()
     const refused = await call('browser_click')
     expect(refused.isError).toBe(true)
     expect(refused.content.map(b => (b.type === 'text' ? b.text : '')).join('')).toContain('note: "stop"')
     expect((await call('browser_click')).isError).toBe(false)
-    expect(clicks).toHaveLength(1)
+    expect(clicks).toHaveLength(2)
   }, 60_000)
 
   it('refuses user input unless the user holds control, then replays it', async () => {
@@ -322,11 +329,16 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     await page.mouse.down()
     await page.mouse.move(box.x + box.width + 6, box.y + box.height + 6, { steps: 5 })
     await page.mouse.up()
-    const pendingCount = async (): Promise<number | undefined> => {
+    const counts = async (): Promise<string> => {
       const next = await canvas.follow(new AbortController().signal)[Symbol.asyncIterator]().next()
-      return (next.value as CanvasState | undefined)?.pending.length
+      const state = next.value as CanvasState | undefined
+      return `${state?.drafts.length}/${state?.pending.length}`
     }
-    await expect.poll(pendingCount).toBe(1)
+    await expect.poll(counts).toBe('1/0')
+    // The typed text stays for Send, which attaches it to the marks.
+    const sendButton = await toolbarPoint(page, 'send')
+    await page.mouse.click(sendButton.x, sendButton.y)
+    await expect.poll(counts).toBe('0/1')
     const delivered = text(await call('read'))
     expect(delivered).toContain('button "Submit" (2nd of 2 button elements with this text)')
     expect(delivered).toContain('note: "this one"')
@@ -393,6 +405,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
   it('refuses a desktop action chosen before a new mark, like a browser action', async () => {
     const { canvas, clicks, call } = await setup()
     await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'not that window' })
+    canvas.send()
     const refused = await call('cua_driver_native__click')
     expect(refused.isError).toBe(true)
     expect(reason(refused)).toContain('not that window')
@@ -455,6 +468,11 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     const frame = await canvas.stepFrame(state.timeline[0]!.id)
     expect(frame).toMatchObject({ width: 600, height: 400 })
     expect(Buffer.from(frame.data, 'base64').subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]))
+    expect(state.busy).toBe(true)
+    emitAgentEvent(ctx, agent, 'agent/turn-stopping', { turn: 1, signal: new AbortController().signal })
+    expect((await settled(canvas, () => true)).busy).toBe(false)
+    // The turn's end refreshes the brief with the agent's reply.
+    await expect.poll(() => llm.calls.at(-1)).toContain('Plan B is ordered.')
     canvas.editGoal('Order plan A instead')
     expect((await settled(canvas, () => true)).brief).toMatchObject({ goal: 'Order plan A instead', goalEdited: true })
   }, 60_000)
@@ -502,6 +520,7 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     ctx.provide('agents', { roots: () => [parent.agent] })
     await call('read', {}, parent.agent)
     await canvas.mark({ shape: 'point', rect: { x: 5, y: 5, width: 0, height: 0 }, note: 'use the second form' })
+    canvas.send()
     const childClick = await call('browser_click', {}, child.agent)
     expect(childClick.isError).toBe(false)
     expect(text(childClick)).toBe('')
@@ -511,6 +530,8 @@ describe.skipIf(executablePath === undefined)('shared browser', () => {
     await canvas.ask('What is this?')
     await settled(canvas, s => s.answers.at(-1)?.status === 'done')
     expect(child.sent).toHaveLength(0)
+    // The sent mark is still waiting for the parent's next tool result.
+    expect(text(await call('read', {}, parent.agent))).toContain('use the second form')
     expect(parent.sent).toHaveLength(1)
   }, 60_000)
 

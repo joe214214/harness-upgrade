@@ -97,8 +97,8 @@ Owner of the shared browser and of the user's marks and control.
 @Remote({ mode: 'stream' }) desktopFrames(signal: AbortSignal): AsyncIterable<CanvasFrame>
 
 /**
- * Ask a light model about the screen without stopping the agent. On the live view the undelivered
- * marks are the subject and are taken out of the agent's delivery; on a timeline step, the marks
+ * Ask a light model about the screen without stopping the agent. On the live view the draft marks
+ * are the subject, and the agent never receives them as instructions; on a timeline step, the marks
  * drawn on that step's frame are. The question and answer are then left for the agent at its next
  * step, without waking it or asking it to reply.
  * @param question - the user's question.
@@ -160,17 +160,25 @@ Owner of the shared browser and of the user's marks and control.
 @Remote async markScreen(delayMs: number): Promise<ScreenMarkOutcome>
 
 /**
- * Record one mark, grounded to the element under its focus point.
- * @param input - shape, rectangle in page CSS pixels, optional note.
+ * Record one mark as a draft, grounded to the element or window under its focus point. A draft
+ * reaches the agent only once the user sends it; asking about it never does.
+ * @param input - shape, rectangle in page CSS pixels or screen points, optional note.
  * @returns the recorded mark.
  */
 @Remote mark(input: MarkInput): Promise<CanvasMark>
 
 /**
- * Withdraw an undelivered mark.
+ * Withdraw a draft or an undelivered mark.
  * @param id - mark id.
  */
 @Remote removeMark(id: string): void
+
+/**
+ * Send the draft marks to the agent as instructions; they arrive with its next tool result, and an
+ * action it chose before them is refused.
+ * @param note - the user's instruction, attached to the last draft.
+ */
+@Remote send(note?: string): void
 
 /**
  * Give the browser to the agent, pause it, or take it.

@@ -31,7 +31,7 @@ export function BriefCard({ brief, editGoal, report, t }: {
       : <input className={css.note} value={draft} aria-label={t('brief.goal')} autoFocus
         onChange={(event) => { setDraft(event.target.value) }}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') { report(editGoal(draft)); setDraft(null) }
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing) { report(editGoal(draft)); setDraft(null) }
           if (event.key === 'Escape') setDraft(null)
         }} />}
     {where !== '' && <div className={css.fact}><span className={css.factLabel}>{t('brief.where')}</span>{where}</div>}

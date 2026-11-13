@@ -42,6 +42,7 @@ function registerUi(ctx: Context): void {
     setControl: control => unwrap(remote.setControl(control)),
     input: input => unwrap(remote.input(input)),
     answer: id => unwrap(remote.answer(id)),
+    send: note => unwrap(remote.send(note)),
     ask: (question, step, marks) => unwrap(remote.ask(question, step, marks)),
     askModels: () => unwrap(remote.askModels()),
     setAskModel: choice => unwrap(remote.setAskModel(choice)),

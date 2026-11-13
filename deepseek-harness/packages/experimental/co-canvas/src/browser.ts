@@ -108,6 +108,7 @@ export function parseToolbarMessage(payload: string): OverlayMessage | undefined
     case 'control': return m.control === 'agent' || m.control === 'paused' ? { type: 'control', control: m.control } : undefined
     case 'answer': return typeof m.questionId === 'string' ? { type: 'answer', questionId: m.questionId } : undefined
     case 'ask': return typeof m.question === 'string' ? { type: 'ask', question: m.question.slice(0, 500) } : undefined
+    case 'send': return typeof m.note === 'string' ? { type: 'send', note: m.note.slice(0, 500) } : undefined
     case 'mark': {
       const r = m.rect as Record<string, unknown> | null | undefined
       if ((m.shape !== 'box' && m.shape !== 'point') || typeof m.note !== 'string' || r == null) return undefined

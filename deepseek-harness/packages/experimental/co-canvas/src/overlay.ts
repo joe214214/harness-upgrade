@@ -23,14 +23,17 @@ export type OverlayMessage =
   | { readonly type: 'control'; readonly control: 'agent' | 'paused' }
   | { readonly type: 'answer'; readonly questionId: string }
   | { readonly type: 'ask'; readonly question: string }
+  | { readonly type: 'send'; readonly note: string }
 
 /** State the Host pushes to the toolbar after every change. */
 export interface OverlayState {
   readonly control: 'agent' | 'paused' | 'human'
   /** The latest side answer, or null before any question. */
   readonly answer: string | null
-  /** Undelivered marks on every surface. */
+  /** Sent marks the agent has not received yet, on every surface. */
   readonly pending: number
+  /** Marks drawn but not yet sent or asked about, on every surface. */
+  readonly drafts: number
   readonly question: { readonly id: string; readonly text: string } | null
   readonly marks: readonly { readonly shape: string; readonly rect: { x: number; y: number; width: number; height: number } }[]
   readonly url: string
@@ -43,10 +46,10 @@ export const OVERLAY_SOURCE = String.raw`(() => {
   window.__dshCoCanvasReady = true
   const zh = (navigator.language || '').toLowerCase().startsWith('zh')
   const T = zh
-    ? { mark: '标注', cancel: '取消', note: '附言（可选），例如 this one', pause: '暂停 agent', resume: '继续', side: '问一下', ask: 'Agent 请你标注：', answer: '发送标注', agent: 'Agent 正在操作', paused: 'Agent 已暂停，你可以直接使用页面', human: '你正在操作', drawing: '拖动画框，单击放置一个点，Esc 取消', pending: '个标注等待送达' }
-    : { mark: 'Mark', cancel: 'Cancel', note: 'Note (optional), e.g. this one', pause: 'Pause agent', resume: 'Resume', side: 'Ask', ask: 'The agent asks you to mark:', answer: 'Send marks', agent: 'The agent is in control', paused: 'The agent is paused; use the page freely', human: 'You are in control', drawing: 'Drag to draw a box, click for a point, Esc to cancel', pending: 'mark(s) waiting for the agent' }
+    ? { mark: '标注', cancel: '取消', note: '说明或问题，例如：点这个 / 这是什么？', pause: '暂停 agent', resume: '继续', side: '问一下', send: '发给 agent', drafts: '个标注待发送', ask: 'Agent 请你标注：', answer: '发送标注', agent: 'Agent 正在操作', paused: 'Agent 已暂停，你可以直接使用页面', human: '你正在操作', drawing: '拖动画框，单击放置一个点，Esc 取消', pending: '个标注等待送达' }
+    : { mark: 'Mark', cancel: 'Cancel', note: 'Instruction or question, e.g. press this / what is this?', pause: 'Pause agent', resume: 'Resume', side: 'Ask', send: 'Send to agent', drafts: 'mark(s) not sent yet', ask: 'The agent asks you to mark:', answer: 'Send marks', agent: 'The agent is in control', paused: 'The agent is paused; use the page freely', human: 'You are in control', drawing: 'Drag to draw a box, click for a point, Esc to cancel', pending: 'mark(s) waiting for the agent' }
   const send = (message) => { try { window.${OVERLAY_BINDING}(JSON.stringify(message)) } catch (error) { void error } }
-  let state = { control: 'agent', answer: null, pending: 0, question: null, marks: [] }
+  let state = { control: 'agent', answer: null, pending: 0, drafts: 0, question: null, marks: [] }
   let drawing = false
   let start = null
   const css = ':host{all:initial}*{box-sizing:border-box;font:13px/1.4 system-ui,sans-serif}'
@@ -71,10 +74,11 @@ export const OVERLAY_SOURCE = String.raw`(() => {
     const root = host.attachShadow({ mode: 'closed' })
     root.innerHTML = '<style>' + css + '</style><div class="marks"></div><div class="layer" hidden></div><div class="draft box" hidden></div>'
       + '<div class="bar"><div class="q" hidden><div><span class="qlabel"></span> <b class="qtext"></b></div><button class="primary answer"></button></div>'
-      + '<div class="row"><input class="note"><button class="mark primary"></button><button class="pause"></button><button class="side"></button></div><div class="status"></div><div class="reply" hidden></div></div>'
+      + '<div class="row"><input class="note"><button class="mark primary"></button><button class="pause"></button><button class="send"></button><button class="side"></button></div><div class="status"></div><div class="reply" hidden></div></div>'
     const $ = (selector) => root.querySelector(selector)
-    const layer = $('.layer'), draft = $('.draft'), note = $('.note'), markButton = $('.mark'), pauseButton = $('.pause'), sideButton = $('.side'), status = $('.status')
+    const layer = $('.layer'), draft = $('.draft'), note = $('.note'), markButton = $('.mark'), pauseButton = $('.pause'), sideButton = $('.side'), sendButton = $('.send'), status = $('.status')
     sideButton.textContent = T.side
+    sendButton.textContent = T.send
     note.placeholder = T.note
     $('.qlabel').textContent = T.ask
     $('.answer').textContent = T.answer
@@ -84,8 +88,9 @@ export const OVERLAY_SOURCE = String.raw`(() => {
       pauseButton.textContent = state.control === 'agent' ? T.pause : T.resume
       pauseButton.hidden = state.control === 'human'
       sideButton.hidden = state.question !== null
+      sendButton.hidden = state.drafts === 0 || state.question !== null
       status.className = 'status' + (state.control === 'paused' ? ' paused' : '')
-      status.textContent = drawing ? T.drawing : (T[state.control] || '') + (state.pending ? ' · ' + state.pending + ' ' + T.pending : '')
+      status.textContent = drawing ? T.drawing : (T[state.control] || '') + (state.drafts ? ' · ' + state.drafts + ' ' + T.drafts : '') + (state.pending ? ' · ' + state.pending + ' ' + T.pending : '')
       $('.reply').hidden = !state.answer
       $('.reply').textContent = state.answer || ''
       $('.q').hidden = !state.question
@@ -106,6 +111,7 @@ export const OVERLAY_SOURCE = String.raw`(() => {
     markButton.addEventListener('click', trusted(() => { drawing = !drawing; render() }))
     pauseButton.addEventListener('click', trusted(() => send({ type: 'control', control: state.control === 'agent' ? 'paused' : 'agent' })))
     sideButton.addEventListener('click', trusted(() => { send({ type: 'ask', question: note.value }); note.value = '' }))
+    sendButton.addEventListener('click', trusted(() => { send({ type: 'send', note: note.value }); note.value = '' }))
     $('.answer').addEventListener('click', trusted(() => { if (state.question) send({ type: 'answer', questionId: state.question.id }) }))
     layer.addEventListener('pointerdown', trusted((event) => { start = { x: event.clientX, y: event.clientY }; layer.setPointerCapture(event.pointerId); draft.hidden = false; place(draft, { ...start, width: 0, height: 0 }) }))
     layer.addEventListener('pointermove', trusted((event) => { if (start) place(draft, { x: start.x, y: start.y, width: event.clientX - start.x, height: event.clientY - start.y }) }))
@@ -118,8 +124,8 @@ export const OVERLAY_SOURCE = String.raw`(() => {
       const point = Math.hypot(r.width, r.height) < 6
       const rect = point ? { x: r.x, y: r.y, width: 0, height: 0 }
         : { x: Math.min(r.x, r.x + r.width), y: Math.min(r.y, r.y + r.height), width: Math.abs(r.width), height: Math.abs(r.height) }
-      send({ type: 'mark', shape: point ? 'point' : 'box', rect, note: note.value.trim() })
-      note.value = ''
+      // The text stays for Send or Ask, which attach it to the marks.
+      send({ type: 'mark', shape: point ? 'point' : 'box', rect, note: '' })
       render()
     }))
     window.addEventListener('keydown', trusted((event) => { if (drawing && event.key === 'Escape') { drawing = false; start = null; draft.hidden = true; render() } }), true)

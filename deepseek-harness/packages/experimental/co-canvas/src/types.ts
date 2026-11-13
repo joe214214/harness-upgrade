@@ -112,8 +112,12 @@ export interface CanvasState {
   /** Whether the desktop surface is enabled. */
   readonly desktop: boolean
   readonly question: CanvasQuestion | null
-  /** Marks not yet delivered to the agent. */
+  /** Marks the user sent that the agent has not received yet. */
   readonly pending: readonly CanvasMark[]
+  /** Marks drawn but neither sent nor asked about; the agent never sees them. */
+  readonly drafts: readonly CanvasMark[]
+  /** The top-level agent's turn is running. */
+  readonly busy: boolean
   readonly viewport: { readonly width: number; readonly height: number }
 }
 
